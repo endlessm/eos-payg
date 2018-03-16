@@ -1,0 +1,37 @@
+[Unit]
+Description=Pay As You Go Daemon
+Documentation=man:eos-paygd(8)
+Before=systemd-user-sessions.service
+
+[Service]
+ExecStart=@libexecdir@/eos-paygd1
+Type=dbus
+BusName=com.endlessm.Payg1
+NotifyAccess=main
+User=@DAEMON_USER@
+
+# Sandboxing
+CapabilityBoundingSet=
+Environment=GIO_USE_VFS=local
+Environment=GVFS_DISABLE_FUSE=1
+Environment=GVFS_REMOTE_VOLUME_MONITOR_IGNORE=1
+Environment=GSETTINGS_BACKEND=memory
+MemoryDenyWriteExecute=yes
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+PrivateTmp=yes
+PrivateUsers=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+RestrictRealtime=yes
+SystemCallErrorNumber=EPERM
+SystemCallFilter=~@clock @cpu-emulation @debug @keyring @module @mount @obsolete @privileged @raw-io @resources
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

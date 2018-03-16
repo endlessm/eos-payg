@@ -1,0 +1,102 @@
+.\" Manpage for eos\-paygd.
+.\" Documentation is under the same licence as the eos\-paygd package.
+.TH man 8 "16 Mar 2018" "1.0" "eos\-paygd man page"
+.\"
+.SH NAME
+.IX Header "NAME"
+eos\-paygd — Pay As You Go Daemon
+.\"
+.SH SYNOPSIS
+.IX Header "SYNOPSIS"
+.\"
+\fBeos\-paygd [\-a \fPbus\-address\fB]
+.\"
+.SH DESCRIPTION
+.IX Header "DESCRIPTION"
+.\"
+\fBeos\-paygd\fP is a manager for the pay as you go state of the system. It
+tracks the expiry time of the current pay as you go code, and signals to lock
+the system when that expiry time is reached. It allows new pay as you go codes
+to be validated and added, causing the expiry time to be extended.
+.PP
+\fBeos\-paygd\fP is designed to be run by \fBsystemd\fP(1), being
+D\-Bus activated. There should be no need to run \fBeos\-paygd\fP
+manually. Use the gnome\-shell UI to add codes to extend the expiry time.
+.\"
+.SH OPTIONS
+.IX Header "OPTIONS"
+.\"
+.IP "\fB\-a\fP, \fB\-\-bus\-address=\fP"
+Address of a D\-Bus message bus to connect to. This is intended for debugging
+use only. (Default: The system bus.)
+.\"
+.IP "\fB\-t\fP, \fB\-\-inactivity\-timeout=\fP"
+Inactivity timeout (in milliseconds) to wait before exiting the service if no
+code additions have been made during that period. If set to \fB0\fP, the
+timeout is disabled and the service will run indefinitely. (Default: Disabled.)
+.\"
+.SH "ENVIRONMENT"
+.IX Header "ENVIRONMENT"
+.\"
+\fPeos\-paygd\fP supports the standard GLib environment variables for
+debugging. These variables are \fBnot\fP intended to be used in production:
+.\"
+.IP \fI$G_MESSAGES_DEBUG\fP 4
+.IX Item "$G_MESSAGES_DEBUG"
+This variable can contain one or more debug domain names to display debug output
+for. The value \fIall\fP will enable all debug output. The default is for no
+debug output to be enabled.
+.\"
+.SH "EXIT STATUS"
+.IX Header "EXIT STATUS"
+.\"
+\fBeos\-paygd\fP may return one of several error codes if it encounters
+problems.
+.\"
+.IP "0" 4
+.IX Item "0"
+No problems occurred. The manager ran, responded to zero or more code requests,
+and then exited due to being explicitly closed.
+.\"
+.IP "1" 4
+.IX Item "1"
+An invalid option was passed to \fBeos\-paygd\fP on startup.
+.\"
+.IP "2" 4
+.IX Item "2"
+The D\-Bus name for \fBeos\-paygd\fP was not available.
+.\"
+.IP "3" 4
+.IX Item "3"
+\fBeos\-paygd\fP was run in an inappropriate environment, for example
+as the root user.
+.\"
+.SH "FILES"
+.IX Header "FILES"
+.\"
+.IP \fI/lib/systemd/system/eos\-paygd.service\fP 4
+.IX Item "/lib/systemd/system/eos\-paygd.service"
+\fBsystemd\fP(1) service file which specifies the runtime environment for
+\fBeos\-paygd\fP. See \fBsystemd.service\fP(5).
+.\"
+.SH "SEE ALSO"
+.IX Header "SEE ALSO"
+.\"
+\fBgnome\-shell\fP(1),
+.\"
+.SH BUGS
+.IX Header "BUGS"
+.\"
+Any bugs which are found should be reported on the project website:
+.br
+\fIhttps://support.endlessm.com/\fP
+.\"
+.SH AUTHOR
+.IX Header "AUTHOR"
+.\"
+Endless Mobile, Inc.
+.\"
+.SH COPYRIGHT
+.IX Header "COPYRIGHT"
+.\"
+Copyright © 2018 Endless Mobile, Inc.

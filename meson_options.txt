@@ -1,4 +1,10 @@
 option(
+  'payg_daemon_user',
+  type: 'string',
+  value: 'eos-paygd',
+  description: 'username to run the payg daemon as',
+)
+option(
   'installed_tests',
   type: 'boolean',
   value: false,
