@@ -101,3 +101,5 @@ test_env = [
   'MALLOC_CHECK_=2',
   'LC_ALL=C.UTF-8',
 ]
+
+subdir('libhelper')
