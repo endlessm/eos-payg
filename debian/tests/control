@@ -1,0 +1,6 @@
+Tests: gnome-desktop-testing
+Depends:
+ eos-paygd-tests,
+ gnome-desktop-testing,
+ libeos-payg-1-tests,
+ libeos-payg-helper-1-tests,
