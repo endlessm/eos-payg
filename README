@@ -1,0 +1,36 @@
+eos-payg
+========
+
+eos-payg implements pay-as-you-go support for EOS, providing a way to validate
+top-up codes and monitor the amount of time the computer has remaining before
+the user next needs to top up its lease.
+
+It provides a daemon to monitor the expiry time for the current code and to
+validate new codes, a command line utility for generating new codes, and various
+helper libraries.
+
+All the library APIs are currently unstable and are likely to change wildly.
+
+Dependencies
+============
+
+ • gio-2.0 ≥ 2.54
+ • glib-2.0 ≥ 2.54
+ • gobject-2.0 ≥ 2.54
+ • systemd
+
+Licensing
+=========
+
+The daemon components of eos-payg are licensed under the LGPL. The libraries are
+also licensed under the LGPL. See COPYING for more details.
+
+Bugs
+====
+
+Bug reports and patches should be filed in GitHub.
+
+Contact
+=======
+
+https://github.com/endlessm/eos-payg
