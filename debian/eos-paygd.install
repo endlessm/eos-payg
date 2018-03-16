@@ -1,0 +1,6 @@
+lib/systemd/system/eos-paygd.service
+usr/lib/*/eos-paygd1
+usr/lib/sysusers.d/eos-paygd.conf
+usr/share/dbus-1/system.d/com.endlessm.Payg1.conf
+usr/share/dbus-1/system-services/com.endlessm.Payg1.service
+usr/share/man/man8/eos-paygd.8*
