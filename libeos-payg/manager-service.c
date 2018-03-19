@@ -601,7 +601,7 @@ epg_manager_service_manager_properties_get (EpgManagerService     *self,
                                                   invocation);
           g_variant_ref_sink (value);
           g_dbus_method_invocation_return_value (invocation,
-                                                 g_variant_new_tuple (&value, 1));
+                                                 g_variant_new ("(v)", value));
           return;
         }
     }
@@ -695,7 +695,7 @@ epg_manager_service_manager_properties_get_all (EpgManagerService     *self,
   g_autoptr(GVariant) dict_variant = g_variant_dict_end (&dict);
   g_variant_ref_sink (dict_variant);
   g_dbus_method_invocation_return_value (invocation,
-                                         g_variant_new_tuple (&dict_variant, 1));
+                                         g_variant_new ("(@a{sv})", dict_variant));
 }
 
 static GVariant *
