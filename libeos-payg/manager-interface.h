@@ -39,22 +39,9 @@ static const GDBusArgInfo manager_interface_add_code_arg_code =
   NULL
 };
 
-static const GDBusArgInfo manager_interface_add_code_arg_entry =
-{
-  -1,  /* ref count */
-  (gchar *) "entry",
-  (gchar *) "o",
-  NULL
-};
-
 static const GDBusArgInfo *manager_interface_add_code_in_args[] =
 {
   &manager_interface_add_code_arg_code,
-  NULL,
-};
-static const GDBusArgInfo *manager_interface_add_code_out_args[] =
-{
-  &manager_interface_add_code_arg_entry,
   NULL,
 };
 static const GDBusMethodInfo manager_interface_add_code =
@@ -62,7 +49,7 @@ static const GDBusMethodInfo manager_interface_add_code =
   -1,  /* ref count */
   (gchar *) "AddCode",
   (GDBusArgInfo **) manager_interface_add_code_in_args,
-  (GDBusArgInfo **) manager_interface_add_code_out_args,
+  NULL,  /* out args */
   NULL,  /* annotations */
 };
 
