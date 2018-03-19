@@ -1,4 +1,4 @@
-eos-payg (0) UNRELEASED; urgency=low
+eos-payg (0.1.0) UNRELEASED; urgency=low
 
   * Initial release (Closes: T21615)
 
