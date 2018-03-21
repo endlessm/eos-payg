@@ -23,6 +23,7 @@ exec 2>&1
 
 exec gnome-desktop-testing-runner \
 	eos-paygd-1 \
+	eos-payg-generate-1 \
 	libeos-payg-1 \
 	libeos-payg-codes-1 \
 	libeos-payg-helper-1 \
