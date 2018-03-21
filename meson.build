@@ -103,5 +103,6 @@ test_env = [
 ]
 
 subdir('libhelper')
+subdir('libeos-payg-codes')
 subdir('libeos-payg')
 subdir('eos-paygd')

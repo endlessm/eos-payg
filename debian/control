@@ -51,6 +51,19 @@ Description: Pay As You Go Daemon - manager library tests
  This package contains unit tests for the APIs used by the daemon and other
  tools.
 
+Package: libeos-payg-codes-1-tests
+Section: misc
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Pay As You Go Daemon - codes library tests
+ This package contains a pay as you go daemon for tracking computer usage and
+ verification of pay as you go codes.
+ .
+ This package contains unit tests for the APIs used for generating and
+ verifying codes.
+
 Package: libeos-payg-helper-1-tests
 Section: misc
 Architecture: any
