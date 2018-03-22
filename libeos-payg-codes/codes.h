@@ -155,7 +155,7 @@ EpcCode  epc_calculate_code (EpcPeriod     period,
                              EpcCounter    counter,
                              GBytes       *key,
                              GError      **error);
-gboolean epc_validate_code  (EpcCode       code,
+gboolean epc_verify_code    (EpcCode       code,
                              GBytes       *key,
                              EpcPeriod    *period_out,
                              EpcCounter   *counter_out,

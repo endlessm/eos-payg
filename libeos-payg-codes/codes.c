@@ -31,13 +31,13 @@
  * mod 10^8. Any string representation of a code has to be exactly 8 characters
  * long to be valid (so must be zero-prefixed if needed).
  *
- * Each code needs to be a time period (which would set the computer’s expiry
- * time to now + the period), with authenticity and integrity properties. In
- * theory, this can be achieved by signing a time period with a private key
- * belonging to Endless (generation), and then verifying the signature with a
- * public key (validation). However, the key and block lengths are too long for
- * this to be practical for such a short plaintext. Symmetric ciphers are
- * similarly unsuitable.
+ * Each code needs to contain a time period (which would set the computer’s
+ * expiry time to now + the period), with authenticity and integrity
+ * properties. In theory, this can be achieved by signing a time period with a
+ * private key belonging to Endless (generation), and then verifying the
+ * signature with a public key (validation). However, the key and block lengths
+ * are too long for this to be practical for such a short plaintext. Symmetric
+ * ciphers are similarly unsuitable.
  *
  * Instead, the message has a truncated signature appended, and validation is
  * performed by extracting the message (period and uniqueness counter) from the
@@ -162,7 +162,7 @@ validate_key (GBytes  *key,
  *
  * Note that this only validates the structure (length and maximum value) of
  * @code. It does not check the HMAC matches the message; use
- * epc_validate_code() for that.
+ * epc_verify_code() for that.
  *
  * Returns: %TRUE if @code is valid, %FALSE otherwise
  * Since: 0.1.0
@@ -194,7 +194,7 @@ epc_code_validate (EpcCode   code,
  * Calculate the code for @period and @counter using the given shared @key. This
  * is the way to generate new codes.
  *
- * Use epc_validate_code() to validate codes generated with this function.
+ * Use epc_verify_code() to validate codes generated with this function.
  *
  * If @period is invalid, %EPC_CODE_ERROR_INVALID_PERIOD will be returned. If
  * @key is invalid, %EPC_CODE_ERROR_INVALID_KEY will be returned.
@@ -248,7 +248,7 @@ epc_calculate_code (EpcPeriod    period,
 }
 
 /**
- * epc_validate_code:
+ * epc_verify_code:
  * @code: code to validate
  * @key: shared key
  * @period_out: (out) (optional): return location for the period from @code
@@ -264,11 +264,11 @@ epc_calculate_code (EpcPeriod    period,
  * Since: 0.1.0
  */
 gboolean
-epc_validate_code (EpcCode      code,
-                   GBytes      *key,
-                   EpcPeriod   *period_out,
-                   EpcCounter  *counter_out,
-                   GError     **error)
+epc_verify_code (EpcCode      code,
+                 GBytes      *key,
+                 EpcPeriod   *period_out,
+                 EpcCounter  *counter_out,
+                 GError     **error)
 {
   g_autoptr(GError) local_error = NULL;
 

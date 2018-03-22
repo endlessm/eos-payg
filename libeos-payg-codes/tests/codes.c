@@ -78,7 +78,7 @@ test_codes_code_validation (void)
   g_clear_error (&local_error);
 }
 
-/* Test round-trip calls between epc_calculate_code() and epc_validate_code(),
+/* Test round-trip calls between epc_calculate_code() and epc_verify_code(),
  * using only valid sets of inputs. The generated codes are compared against
  * known-good values to make sure they don’t change in future. */
 static void
@@ -148,9 +148,9 @@ test_codes_calculate_round_trip (void)
       EpcPeriod actual_period;
       EpcCounter actual_counter;
 
-      gboolean is_valid = epc_validate_code (actual_code, vectors[i].key,
-                                             &actual_period, &actual_counter,
-                                             &local_error);
+      gboolean is_valid = epc_verify_code (actual_code, vectors[i].key,
+                                           &actual_period, &actual_counter,
+                                           &local_error);
       g_assert_no_error (local_error);
       g_assert_true (is_valid);
 
@@ -200,7 +200,7 @@ test_codes_calculate_error (void)
     }
 }
 
-/* Test that calling epc_validate_code() on some invalid codes results in an
+/* Test that calling epc_verify_code() on some invalid codes results in an
  * error. */
 static void
 test_codes_validate_error (void)
@@ -227,8 +227,8 @@ test_codes_validate_error (void)
 
       g_test_message ("Code: %u, key: %p", vectors[i].code, vectors[i].key);
 
-      g_assert_false (epc_validate_code (vectors[i].code, vectors[i].key,
-                                         NULL, NULL, &local_error));
+      g_assert_false (epc_verify_code (vectors[i].code, vectors[i].key,
+                                       NULL, NULL, &local_error));
       g_assert_nonnull (local_error);
     }
 }
