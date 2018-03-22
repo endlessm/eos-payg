@@ -195,14 +195,14 @@ epg_manager_service_class_init (EpgManagerServiceClass *klass)
   /**
    * EpgManagerService:manager:
    *
-   * Code validation manager which implements the core of these D-Bus APIs.
+   * Code verification manager which implements the core of these D-Bus APIs.
    *
    * Since: 0.1.0
    */
   props[PROP_MANAGER] =
       g_param_spec_object ("manager", "Manager",
-                           "Code validation manager which implements the core "
-                           "of these D-Bus APIs.",
+                           "Code verification manager which implements the "
+                           "core of these D-Bus APIs.",
                            EPG_TYPE_MANAGER,
                            G_PARAM_READWRITE |
                            G_PARAM_CONSTRUCT_ONLY |
@@ -756,7 +756,7 @@ epg_manager_service_manager_clear_code (EpgManagerService     *self,
  * @connection: (transfer none): D-Bus connection to export objects on
  * @object_path: root path to export objects below; must be a valid D-Bus object
  *    path
- * @manager: (transfer none): manager implementing the core of code validation
+ * @manager: (transfer none): manager implementing the core of code verification
  *
  * Create a new #EpgManagerService instance which is set up to run as a
  * service.

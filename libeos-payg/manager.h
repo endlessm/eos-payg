@@ -29,7 +29,7 @@ G_BEGIN_DECLS
  * @EPG_MANAGER_ERROR_INVALID_CODE: The given code was invalid, such as having
  *    an invalid signature or time period.
  * @EPG_MANAGER_ERROR_CODE_ALREADY_USED: The given code has already been used.
- * @EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS: Too many attempts to validate a code
+ * @EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS: Too many attempts to verify a code
  *    in recent history.
  *
  * Errors which can be returned by #EpgManager.

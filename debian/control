@@ -22,7 +22,7 @@ Depends:
  ${shlibs:Depends},
 Description: Pay As You Go Daemon
  This package contains a pay as you go daemon for tracking computer usage and
- validation of pay as you go codes.
+ verification of pay as you go codes.
 
 Package: eos-paygd-tests
 Section: misc
@@ -34,7 +34,7 @@ Depends:
  ${shlibs:Depends},
 Description: Pay As You Go Daemon - tests
  This package contains a pay as you go daemon for tracking computer usage and
- validation of pay as you go codes.
+ verification of pay as you go codes.
  .
  This package contains unit tests for the daemon.
 
@@ -46,7 +46,7 @@ Depends:
  ${shlibs:Depends},
 Description: Pay As You Go Daemon - manager library tests
  This package contains a pay as you go daemon for tracking computer usage and
- validation of pay as you go codes.
+ verification of pay as you go codes.
  .
  This package contains unit tests for the APIs used by the daemon and other
  tools.
@@ -59,6 +59,6 @@ Depends:
  ${shlibs:Depends},
 Description: Pay As You Go Daemon - helper library tests
  This package contains a pay as you go daemon for tracking computer usage and
- validation of pay as you go codes.
+ verification of pay as you go codes.
  .
  This package contains unit tests for the APIs used by the daemon.

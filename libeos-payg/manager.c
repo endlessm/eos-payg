@@ -43,7 +43,7 @@ static void epg_manager_set_property (GObject      *object,
  *
  * A manager object which maintains the pay as you go state for the system
  * (mainly the expiry time of the current code), and allows new codes to be
- * entered and validated to extend the expiry time.
+ * entered and verified to extend the expiry time.
  *
  * Since: 0.1.0
  */
@@ -184,13 +184,13 @@ epg_manager_new (void)
 /**
  * epg_manager_add_code:
  * @self: an #EpgManager
- * @code: (transfer none): code to validate and add
+ * @code: (transfer none): code to verify and add
  * @error: return location for a #GError
  *
- * Validate and add the given @code. This checks that @code is valid, and has
+ * Verify and add the given @code. This checks that @code is valid, and has
  * not been used already. If so, it will add the time period given in the @code
- * to #EpgManager:expiry-time. If @code fails validation or cannot be added, an
- * error will be returned.
+ * to #EpgManager:expiry-time. If @code fails verification or cannot be added,
+ * an error will be returned.
  *
  * Returns: %TRUE on success, %FALSE otherwise
  * Since: 0.1.0
