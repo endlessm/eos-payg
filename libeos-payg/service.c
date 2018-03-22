@@ -145,8 +145,8 @@ epg_service_new (void)
                        "service-id", "com.endlessm.Payg1",
                        "inactivity-timeout", 0  /* no timeout */,
                        "translation-domain", GETTEXT_PACKAGE,
-                       "parameter-string", _("— validate top-up codes and monitor time remaining"),
-                       "summary", _("Validate inputted top-up codes and "
+                       "parameter-string", _("— verify top-up codes and monitor time remaining"),
+                       "summary", _("Verify inputted top-up codes and "
                                     "monitor the amount of time the computer "
                                     "has remaining before its lease next needs "
                                     "topping up."),

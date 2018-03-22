@@ -1,7 +1,7 @@
 <Project xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:rdfs="http://www.w3.org/2000/01/rdf-schema#" xmlns:foaf="http://xmlns.com/foaf/0.1/" xmlns="http://usefulinc.com/ns/doap#">
 	<name xml:lang="en">eos-payg</name>
 	<shortdesc xml:lang="en">eos-payg provides pay-as-you-go monitoring for EOS</shortdesc>
-	<description xml:lang="en">eos-payg implements pay-as-you-go support for EOS, providing a way to validate top-up codes and monitor the amount of time the user has remaining before they next need to top up the lease on their computer.</description>
+	<description xml:lang="en">eos-payg implements pay-as-you-go support for EOS, providing a way to verify top-up codes and monitor the amount of time the user has remaining before they next need to top up the lease on their computer.</description>
 	<homepage rdf:resource="https://github.com/endlessm/eos-payg"/>
 	<license rdf:resource="http://usefulinc.com/doap/licenses/lgpl"/>
 	<download-page rdf:resource="https://github.com/endlessm/eos-payg"/>
