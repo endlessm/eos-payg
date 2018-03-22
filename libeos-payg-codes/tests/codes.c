@@ -203,7 +203,7 @@ test_codes_calculate_error (void)
 /* Test that calling epc_verify_code() on some invalid codes results in an
  * error. */
 static void
-test_codes_validate_error (void)
+test_codes_verify_error (void)
 {
   const gchar *key1_data = "hello this has to be at least 64 bytes long so I am going to keep on typing.";
   g_autoptr(GBytes) key1 = g_bytes_new_static (key1_data, strlen (key1_data));
@@ -301,7 +301,7 @@ main (int    argc,
   g_test_add_func ("/codes/code-validation", test_codes_code_validation);
   g_test_add_func ("/codes/calculate/round-trip", test_codes_calculate_round_trip);
   g_test_add_func ("/codes/calculate/error", test_codes_calculate_error);
-  g_test_add_func ("/codes/validate/error", test_codes_validate_error);
+  g_test_add_func ("/codes/verify/error", test_codes_verify_error);
   g_test_add_func ("/codes/format/round-trip", test_codes_format_round_trip);
   g_test_add_func ("/codes/parse/error", test_codes_parse_error);
 

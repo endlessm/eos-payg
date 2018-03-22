@@ -35,18 +35,18 @@
  * expiry time to now + the period), with authenticity and integrity
  * properties. In theory, this can be achieved by signing a time period with a
  * private key belonging to Endless (generation), and then verifying the
- * signature with a public key (validation). However, the key and block lengths
- * are too long for this to be practical for such a short plaintext. Symmetric
- * ciphers are similarly unsuitable.
+ * signature with a public key (verification). However, the key and block
+ * lengths are too long for this to be practical for such a short plaintext.
+ * Symmetric ciphers are similarly unsuitable.
  *
- * Instead, the message has a truncated signature appended, and validation is
+ * Instead, the message has a truncated signature appended, and verification is
  * performed by extracting the message (period and uniqueness counter) from the
  * code and re-generating a new signature for them, then comparing that to the
  * inputted signature. This requires use of a shared key.
  *
  * The algorithm we use is based closely on HOTP, using HMAC-SHA-1. We sign a
  * message P ∥ C which contains the code’s period, and a counter value for
- * uniqueness. The counter allows a validating computer to reject that code
+ * uniqueness. The counter allows a verifying computer to reject that code
  * again in future.
  *
  * Our implementation differs from the HOTP standard in the definition of the
@@ -54,7 +54,7 @@
  * adjusted to be shorter, to fit within a 26 bit limit for codes.
  *
  * Let:
- *  - K be a secret key shared between the generation and validation sides
+ *  - K be a secret key shared between the generation and verification sides
  *  - C be a counter (8 bits)
  *  - P be the time period (5 bits)
  *  - HMAC(K, m) be the HMAC function
@@ -157,7 +157,7 @@ validate_key (GBytes  *key,
  * @code: possibly an #EpcCode
  * @error: return location for a #GError
  *
- * Validate @code to work out whether it’s has the right structure for an
+ * Validate @code to work out whether it has the right structure for an
  * #EpcCode. If not, %EPC_CODE_ERROR_INVALID_CODE will be returned.
  *
  * Note that this only validates the structure (length and maximum value) of
@@ -194,7 +194,7 @@ epc_code_validate (EpcCode   code,
  * Calculate the code for @period and @counter using the given shared @key. This
  * is the way to generate new codes.
  *
- * Use epc_verify_code() to validate codes generated with this function.
+ * Use epc_verify_code() to verify codes generated with this function.
  *
  * If @period is invalid, %EPC_CODE_ERROR_INVALID_PERIOD will be returned. If
  * @key is invalid, %EPC_CODE_ERROR_INVALID_KEY will be returned.
@@ -249,16 +249,16 @@ epc_calculate_code (EpcPeriod    period,
 
 /**
  * epc_verify_code:
- * @code: code to validate
+ * @code: code to verify
  * @key: shared key
  * @period_out: (out) (optional): return location for the period from @code
  * @counter_out: (out) (optional): return location for the counter from @code
  * @error: return location for a #GError
  *
- * Validate that @code is correctly signed with the given shared @key, and
+ * Verify that @code is correctly signed with the given shared @key, and
  * extract the #EpcPeriod and #EpcCounter which were used to generate the key.
  *
- * Use epc_calculate_code() to generate codes to validate with this function.
+ * Use epc_calculate_code() to generate codes to verify with this function.
  *
  * Returns: %TRUE if @code is valid, %FALSE otherwise
  * Since: 0.1.0

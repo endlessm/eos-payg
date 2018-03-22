@@ -30,10 +30,11 @@ G_BEGIN_DECLS
  * @EPC_CODE_ERROR_INVALID_KEY: A shared key was invalid by being too short.
  * @EPC_CODE_ERROR_INVALID_CODE: A code (in integer or string form) was invalid
  *    by being outside the permitted code space.
- * @EPC_CODE_ERROR_INVALID_SIGNATURE: When validating a code, the signature
+ * @EPC_CODE_ERROR_INVALID_SIGNATURE: When verifying a code, the signature
  *    did not match the message.
  *
- * Errors which can be returned by the code generation and validation functions.
+ * Errors which can be returned by the code generation and verification
+ * functions.
  *
  * Since: 0.1.0
  */
