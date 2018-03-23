@@ -1,8 +1,10 @@
 libhelper_api_version = '1'
 libhelper_sources = [
+  'config-file.c',
   'service.c',
 ]
 libhelper_headers = [
+  'config-file.h',
   'service.h',
 ]
 

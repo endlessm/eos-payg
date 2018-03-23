@@ -10,7 +10,14 @@ envs = test_env + [
   'G_TEST_BUILDDIR=' + meson.current_build_dir(),
 ]
 
+config_file_resources = gnome.compile_resources(
+  'config-file-resources',
+  'config-file.gresource.xml',
+  c_name : 'config_file_resources',
+)
+
 test_programs = [
+  ['config-file', [config_file_resources], deps],
   ['service', [], deps],
 ]
 
