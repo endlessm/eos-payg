@@ -38,6 +38,29 @@ Description: Pay As You Go Daemon - tests
  .
  This package contains unit tests for the daemon.
 
+Package: eos-payg-generate
+Section: misc
+Architecture: any
+Multi-arch: same
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Pay As You Go Code Generator
+ This package contains a utility to generate pay as you go codes.
+
+Package: eos-payg-generate-tests
+Section: misc
+Architecture: any
+Depends:
+ eos-payg-generate (= ${binary:Version}),
+ ${misc:Depends},
+ ${python3:Depends},
+ ${shlibs:Depends},
+Description: Pay As You Go Code Generator - tests
+ This package contains a utility to generate pay as you go codes.
+ .
+ This package contains unit tests for the utility.
+
 Package: libeos-payg-1-tests
 Section: misc
 Architecture: any
