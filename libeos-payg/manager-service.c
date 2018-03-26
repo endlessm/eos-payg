@@ -113,6 +113,8 @@ static const GDBusErrorEntry manager_error_map[] =
       "com.endlessm.Payg1.Error.CodeAlreadyUsed" },
     { EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS,
       "com.endlessm.Payg1.Error.TooManyAttempts" },
+    { EPG_MANAGER_ERROR_DISABLED,
+      "com.endlessm.Payg1.Error.Disabled" },
   };
 G_STATIC_ASSERT (G_N_ELEMENTS (manager_error_map) == EPG_MANAGER_N_ERRORS);
 G_STATIC_ASSERT (G_N_ELEMENTS (manager_error_map) == G_N_ELEMENTS (manager_errors));
