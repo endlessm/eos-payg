@@ -340,17 +340,19 @@ epc_format_code (EpcCode code)
 /**
  * epc_parse_code:
  * @code_str: a valid code to parse
+ * @code_out: (optional): return location for the parsed #EpcCode
  * @error: return location for a #GError
  *
  * Parse the given @code_str and return it in integer form. If the string is
  * not parsable as a code, or would result in an invalid code,
  * %EPC_CODE_ERROR_INVALID_CODE is returned.
  *
- * Returns: the parsed code
+ * Returns: %TRUE on success, %FALSE otherwise
  * Since: 0.1.0
  */
-EpcCode
+gboolean
 epc_parse_code (const gchar  *code_str,
+                EpcCode      *code_out,
                 GError      **error)
 {
   g_return_val_if_fail (code_str != NULL, 0);
@@ -368,11 +370,14 @@ epc_parse_code (const gchar  *code_str,
     {
       g_set_error_literal (error, EPC_CODE_ERROR, EPC_CODE_ERROR_INVALID_CODE,
                            _("Codes must be 8 digits long."));
-      return 0;
+      return FALSE;
     }
 
   if (!epc_code_validate (code_value, error))
-    return 0;
+    return FALSE;
 
-  return (EpcCode) code_value;
+  if (code_out != NULL)
+    *code_out = (EpcCode) code_value;
+
+  return TRUE;
 }

@@ -162,8 +162,9 @@ gboolean epc_verify_code    (EpcCode       code,
                              EpcCounter   *counter_out,
                              GError      **error);
 
-gchar   *epc_format_code    (EpcCode       code);
-EpcCode  epc_parse_code     (const gchar  *code_str,
+gchar    *epc_format_code   (EpcCode       code);
+gboolean  epc_parse_code    (const gchar  *code_str,
+                             EpcCode      *code_out,
                              GError      **error);
 
 G_END_DECLS

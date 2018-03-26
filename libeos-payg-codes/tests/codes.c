@@ -259,8 +259,11 @@ test_codes_format_round_trip (void)
       g_autofree gchar *actual_code_str = epc_format_code (vectors[i].code);
       g_assert_cmpstr (actual_code_str, ==, vectors[i].code_str);
 
-      EpcCode actual_code = epc_parse_code (actual_code_str, &local_error);
+      EpcCode actual_code;
+      gboolean parse_success = epc_parse_code (actual_code_str, &actual_code, &local_error);
       g_assert_cmpuint (actual_code, ==, vectors[i].code);
+      g_assert_no_error (local_error);
+      g_assert_true (parse_success);
     }
 }
 
@@ -285,8 +288,10 @@ test_codes_parse_error (void)
 
       g_test_message ("Code: %s", vectors[i]);
 
-      g_assert_cmpuint (epc_parse_code (vectors[i], &local_error), ==, 0);
+      EpcCode code;
+      gboolean success = epc_parse_code (vectors[i], &code, &local_error);
       g_assert_error (local_error, EPC_CODE_ERROR, EPC_CODE_ERROR_INVALID_CODE);
+      g_assert_false (success);
     }
 }
 
