@@ -184,24 +184,25 @@ epg_manager_new (void)
 /**
  * epg_manager_add_code:
  * @self: an #EpgManager
- * @code: (transfer none): code to verify and add
+ * @code_str: code to verify and add, in a form suitable for parsing with
+ *    epc_parse_code()
  * @error: return location for a #GError
  *
- * Verify and add the given @code. This checks that @code is valid, and has
- * not been used already. If so, it will add the time period given in the @code
- * to #EpgManager:expiry-time. If @code fails verification or cannot be added,
- * an error will be returned.
+ * Verify and add the given @code_str. This checks that @code_str is valid, and
+ * has not been used already. If so, it will add the time period given in the
+ * @code_str to #EpgManager:expiry-time. If @code_str fails verification or
+ * cannot be added, an error will be returned.
  *
  * Returns: %TRUE on success, %FALSE otherwise
  * Since: 0.1.0
  */
 gboolean
-epg_manager_add_code (EpgManager  *self,
-                      GBytes      *code,
-                      GError     **error)
+epg_manager_add_code (EpgManager   *self,
+                      const gchar  *code_str,
+                      GError      **error)
 {
   g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
-  g_return_val_if_fail (code != NULL, FALSE);
+  g_return_val_if_fail (code_str != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED,

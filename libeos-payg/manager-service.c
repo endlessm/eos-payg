@@ -731,10 +731,10 @@ epg_manager_service_manager_add_code (EpgManagerService     *self,
 {
   g_autoptr(GError) local_error = NULL;
 
-  g_autoptr(GVariant) code_variant = g_variant_get_child_value (parameters, 0);
-  g_autoptr(GBytes) code = g_variant_get_data_as_bytes (code_variant);
+  const gchar *code_str;
+  g_variant_get (parameters, "(&s)", &code_str);
 
-  epg_manager_add_code (self->manager, code, &local_error);
+  epg_manager_add_code (self->manager, code_str, &local_error);
 
   if (local_error != NULL)
     g_dbus_method_invocation_return_gerror (invocation, local_error);

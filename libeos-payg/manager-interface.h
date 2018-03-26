@@ -35,7 +35,7 @@ static const GDBusArgInfo manager_interface_add_code_arg_code =
 {
   -1,  /* ref count */
   (gchar *) "code",
-  (gchar *) "ay",
+  (gchar *) "s",
   NULL
 };
 
