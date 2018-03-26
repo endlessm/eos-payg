@@ -15,6 +15,7 @@ libeos_payg_deps = [
   dependency('gio-2.0', version: '>= 2.46'),
   dependency('glib-2.0', version: '>= 2.54'),
   dependency('gobject-2.0', version: '>= 2.54'),
+  libeos_payg_codes_dep,
   libhelper_dep,
 ]
 

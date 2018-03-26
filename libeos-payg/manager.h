@@ -52,14 +52,35 @@ GQuark epg_manager_error_quark (void);
 #define EPG_TYPE_MANAGER epg_manager_get_type ()
 G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
 
-EpgManager *epg_manager_new (void);
+EpgManager *epg_manager_new (gboolean  enabled,
+                             GBytes   *key_bytes,
+                             GFile    *state_directory);
 
-gboolean    epg_manager_add_code   (EpgManager  *self,
-                                    GBytes      *code,
-                                    GError     **error);
-void        epg_manager_clear_code (EpgManager  *self);
+gboolean    epg_manager_add_code   (EpgManager   *self,
+                                    const gchar  *code_str,
+                                    guint64       now,
+                                    GError      **error);
+void        epg_manager_clear_code (EpgManager   *self);
 
-guint64     epg_manager_get_expiry_time (EpgManager *self);
-gboolean    epg_manager_get_enabled     (EpgManager *self);
+void        epg_manager_load_state_async  (EpgManager           *self,
+                                           GCancellable         *cancellable,
+                                           GAsyncReadyCallback   callback,
+                                           gpointer              user_data);
+gboolean    epg_manager_load_state_finish (EpgManager           *self,
+                                           GAsyncResult         *result,
+                                           GError              **error);
+
+void        epg_manager_save_state_async  (EpgManager           *self,
+                                           GCancellable         *cancellable,
+                                           GAsyncReadyCallback   callback,
+                                           gpointer              user_data);
+gboolean    epg_manager_save_state_finish (EpgManager           *self,
+                                           GAsyncResult         *result,
+                                           GError              **error);
+
+guint64     epg_manager_get_expiry_time     (EpgManager *self);
+gboolean    epg_manager_get_enabled         (EpgManager *self);
+GBytes     *epg_manager_get_key_bytes       (EpgManager *self);
+GFile      *epg_manager_get_state_directory (EpgManager *self);
 
 G_END_DECLS
