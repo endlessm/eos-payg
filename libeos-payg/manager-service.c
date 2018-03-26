@@ -734,7 +734,7 @@ epg_manager_service_manager_add_code (EpgManagerService     *self,
   const gchar *code_str;
   g_variant_get (parameters, "(&s)", &code_str);
 
-  epg_manager_add_code (self->manager, code_str, &local_error);
+  epg_manager_add_code (self->manager, code_str, g_get_real_time (), &local_error);
 
   if (local_error != NULL)
     g_dbus_method_invocation_return_gerror (invocation, local_error);
