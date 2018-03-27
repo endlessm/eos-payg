@@ -523,6 +523,8 @@ epg_manager_add_code (EpgManager   *self,
                       guint64       now_secs,
                       GError      **error)
 {
+  g_autoptr(GError) local_error = NULL;
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
   g_return_val_if_fail (code_str != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
@@ -534,15 +536,25 @@ epg_manager_add_code (EpgManager   *self,
 
   /* Convert from a string to #EpcCode. */
   EpcCode code;
-  if (!epc_parse_code (code_str, &code, error))
-    return FALSE;
+  if (!epc_parse_code (code_str, &code, &local_error))
+    {
+      g_set_error_literal (error,
+                           EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_INVALID_CODE,
+                           local_error->message);
+      return FALSE;
+    }
 
   /* Parse and verify the code. */
   EpcPeriod period;
   EpcCounter counter;
 
-  if (!epc_verify_code (code, self->key_bytes, &period, &counter, error))
-    return FALSE;
+  if (!epc_verify_code (code, self->key_bytes, &period, &counter, &local_error))
+    {
+      g_set_error_literal (error,
+                           EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_INVALID_CODE,
+                           local_error->message);
+      return FALSE;
+    }
 
   /* Check the counter hasn’t been used before. */
   if (!check_is_counter_unused (self, counter, error))
