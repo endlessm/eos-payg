@@ -104,6 +104,9 @@ static GVariant *epg_manager_service_manager_get_enabled     (EpgManagerService 
 
 static void expired_cb (EpgManager *manager,
                         gpointer    user_data);
+static void notify_cb  (GObject    *obj,
+                        GParamSpec *pspec,
+                        gpointer    user_data);
 
 static const GDBusErrorEntry manager_error_map[] =
   {
@@ -239,7 +242,10 @@ epg_manager_service_dispose (GObject *object)
   g_clear_object (&self->cancellable);
 
   if (self->manager != NULL)
-    g_signal_handlers_disconnect_by_func (self->manager, expired_cb, self);
+    {
+      g_signal_handlers_disconnect_by_func (self->manager, notify_cb, self);
+      g_signal_handlers_disconnect_by_func (self->manager, expired_cb, self);
+    }
 
   g_clear_object (&self->manager);
 
@@ -297,6 +303,7 @@ epg_manager_service_set_property (GObject      *object,
       g_assert (self->manager == NULL);
       self->manager = g_value_dup_object (value);
       g_signal_connect (self->manager, "expired", (GCallback) expired_cb, self);
+      g_signal_connect (self->manager, "notify", (GCallback) notify_cb, self);
       break;
     default:
       g_assert_not_reached ();
@@ -561,15 +568,16 @@ static const struct
   {
     const gchar *interface_name;
     const gchar *property_name;
+    const gchar *object_property_name;
     ManagerPropertyGetFunc get_func;
     ManagerPropertySetFunc set_func;
   }
 manager_properties[] =
   {
     /* Manager properties. */
-    { "com.endlessm.Payg1", "ExpiryTime",
+    { "com.endlessm.Payg1", "ExpiryTime", "expiry-time",
       epg_manager_service_manager_get_expiry_time, NULL  /* read-only */ },
-    { "com.endlessm.Payg1", "Enabled",
+    { "com.endlessm.Payg1", "Enabled", "enabled",
       epg_manager_service_manager_get_enabled, NULL  /* read-only */ },
   };
 
@@ -698,6 +706,64 @@ epg_manager_service_manager_properties_get_all (EpgManagerService     *self,
   g_variant_ref_sink (dict_variant);
   g_dbus_method_invocation_return_value (invocation,
                                          g_variant_new ("(@a{sv})", dict_variant));
+}
+
+static void
+notify_cb (GObject    *obj,
+           GParamSpec *pspec,
+           gpointer    user_data)
+{
+  EpgManagerService *self = EPG_MANAGER_SERVICE (user_data);
+  g_autoptr(GError) local_error = NULL;
+
+  /* Find the property being notified. */
+  gsize i;
+  for (i = 0; i < G_N_ELEMENTS (manager_properties); i++)
+    {
+      const gchar *object_property_name = manager_properties[i].object_property_name;
+
+      if (g_str_equal (g_param_spec_get_name (pspec), object_property_name))
+        break;
+    }
+
+  if (i == G_N_ELEMENTS (manager_properties))
+    {
+      g_debug ("%s: Couldn’t find D-Bus property matching EpgManager:%s; ignoring.",
+               G_STRFUNC, g_param_spec_get_name (pspec));
+      return;
+    }
+
+  /* Emit PropertiesChanged for it. */
+  g_autoptr(GVariant) value = NULL;
+  value = manager_properties[i].get_func (self, self->connection, NULL,
+                                          manager_properties[i].interface_name,
+                                          manager_properties[i].property_name,
+                                          NULL);
+  g_variant_ref_sink (value);
+
+  g_auto(GVariantBuilder) builder = G_VARIANT_BUILDER_INIT (G_VARIANT_TYPE ("(sa{sv}as)"));
+  g_variant_builder_add (&builder, "s", manager_properties[i].interface_name);
+
+  g_variant_builder_open (&builder, G_VARIANT_TYPE ("a{sv}"));
+  g_variant_builder_add (&builder, "{sv}",
+                         manager_properties[i].property_name, value);
+  g_variant_builder_close (&builder);
+
+  g_variant_builder_open (&builder, G_VARIANT_TYPE ("as"));
+  /* no invalidated properties */
+  g_variant_builder_close (&builder);
+
+  g_autoptr(GVariant) parameters = g_variant_builder_end (&builder);
+
+  if (!g_dbus_connection_emit_signal (self->connection,
+                                      NULL,  /* broadcast */
+                                      self->object_path,
+                                      "org.freedesktop.DBus.Properties",
+                                      "PropertiesChanged",
+                                      g_steal_pointer (&parameters),
+                                      &local_error))
+    g_warning ("Failed to emit org.freedesktop.DBus.Properties.Properties signal: %s",
+               local_error->message);
 }
 
 static GVariant *
