@@ -745,7 +745,7 @@ notify_cb (GObject    *obj,
   g_variant_builder_add (&builder, "s", manager_properties[i].interface_name);
 
   g_variant_builder_open (&builder, G_VARIANT_TYPE ("a{sv}"));
-  g_variant_builder_add (&builder, "{s@v}",
+  g_variant_builder_add (&builder, "{sv}",
                          manager_properties[i].property_name, value);
   g_variant_builder_close (&builder);
 
