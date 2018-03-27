@@ -103,7 +103,7 @@ epg_service_startup_async (HlpService          *service,
                            GAsyncReadyCallback  callback,
                            gpointer             user_data)
 {
-  g_autoptr (GTask) task = g_task_new (service, cancellable, callback, user_data);
+  g_autoptr(GTask) task = g_task_new (service, cancellable, callback, user_data);
   g_task_set_source_tag (task, epg_service_startup_async);
 
   /* Load the shared key. */
