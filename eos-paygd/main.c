@@ -30,8 +30,8 @@ int
 main (int   argc,
       char *argv[])
 {
-  g_autoptr (GError) error = NULL;
-  g_autoptr (EpgService) service = NULL;
+  g_autoptr(GError) error = NULL;
+  g_autoptr(EpgService) service = NULL;
 
   /* Set up a D-Bus service and run until we are killed. */
   service = epg_service_new ();
