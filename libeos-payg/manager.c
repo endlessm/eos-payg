@@ -59,7 +59,7 @@ struct _EpgManager
   GObject parent;
 
   GArray *used_counters;  /* (element-type EpcCounter) (owned) */
-  guint64 expiry_time;  /* UNIX timestamp */
+  guint64 expiry_time_secs;  /* UNIX timestamp in seconds */
   gboolean enabled;
   GBytes *key_bytes;  /* (owned) */
 
@@ -93,17 +93,17 @@ epg_manager_class_init (EpgManagerClass *klass)
   /**
    * EpgManager:expiry-time:
    *
-   * UNIX timestamp when the current pay as you go code will expire. At this
-   * point, it is expected that clients of this service will lock the computer
-   * until a new code is entered. Use epg_manager_add_code() to add a new code
-   * and extend the expiry time.
+   * UNIX timestamp when the current pay as you go code will expire, in seconds
+   * since the epoch. At this point, it is expected that clients of this service
+   * will lock the computer until a new code is entered. Use
+   * epg_manager_add_code() to add a new code and extend the expiry time.
    *
    * Since: 0.1.0
    */
   props[PROP_EXPIRY_TIME] =
       g_param_spec_uint64 ("expiry-time", "Expiry Time",
                            "UNIX timestamp when the current pay as you go code "
-                           "will expire.",
+                           "will expire, in seconds since the epoch.",
                            0, G_MAXUINT64, 0,
                            G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
 
@@ -362,129 +362,131 @@ expired_cb (gpointer user_data)
 }
 
 /* Set the #EpgManager:expiry-time to `MIN (G_MAXUINT64, @now + @span)` and set
- * the #GSource expiry timer to the new expiry time. */
+ * the #GSource expiry timer to the new expiry time. Everything is handled in
+ * seconds. */
 static void
 set_expiry_time (EpgManager *self,
-                 guint64     now,
-                 guint64     span)
+                 guint64     now_secs,
+                 guint64     span_secs)
 {
   /* FIXME: Our use of g_get_real_time() means PAYG can be avoided by changing
    * the system clock, but there’s no way round that. g_get_monotonic_time() can
    * use a different epoch across reboots. */
-  guint64 old_expiry_time = self->expiry_time;
+  guint64 old_expiry_time_secs = self->expiry_time_secs;
 
   /* Clamp to the end of time instead of overflowing. */
-  self->expiry_time = (now <= G_MAXUINT64 - span) ? now + span : G_MAXUINT64;
+  self->expiry_time_secs = (now_secs <= G_MAXUINT64 - span_secs) ? now_secs + span_secs : G_MAXUINT64;
 
   /* Set the expiry timer. g_timeout_source_new_seconds() takes a #guint, and
    * @span is a #guint64. However, the maximum span is 365 days, which is
    * representable in 32 bits. We don’t set a timer for infinite periods. */
   clear_expiry_timer (self);
 
-  if (self->expiry_time != G_MAXUINT64)
+  if (self->expiry_time_secs != G_MAXUINT64)
     {
-      g_assert (span <= (guint64) G_MAXUINT * G_USEC_PER_SEC);
-      self->expiry = g_timeout_source_new_seconds (span / G_USEC_PER_SEC);
+      g_assert (span_secs <= G_MAXUINT);
+      self->expiry = g_timeout_source_new_seconds (span_secs);
       g_source_set_callback (self->expiry, expired_cb, self, NULL);
       g_source_attach (self->expiry, self->context);
     }
 
-  if (old_expiry_time != self->expiry_time)
+  if (old_expiry_time_secs != self->expiry_time_secs)
     g_object_notify (G_OBJECT (self), "expiry-time");
 }
 
 /* Set the #EpgManager:expiry-time to be the current time (@now), plus the given
  * @period. If @period is %EPC_PERIOD_INFINITE, or if the expiry time would
- * overflow, set the expiry time as high as possible.
+ * overflow, set the expiry time as high as possible. Everything is handled in
+ * seconds.
  *
- * @now will typically be the return value of g_get_real_time(). It is
- * parameterised to allow easy testing. */
+ * @now will typically be the value of (g_get_real_time() / G_USEC_PER_SEC).
+ * It is parameterised to allow easy testing. */
 static void
 extend_expiry_time (EpgManager *self,
-                    guint64     now,
+                    guint64     now_secs,
                     EpcPeriod   period)
 {
-  guint64 span;
+  guint64 span_secs;
 
   switch (period)
     {
     case EPC_PERIOD_5_SECONDS:
-      span = 5 * (guint64) G_USEC_PER_SEC;
+      span_secs = 5;
       break;
     case EPC_PERIOD_1_MINUTE:
-      span = 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 60;
       break;
     case EPC_PERIOD_5_MINUTES:
-      span = 5 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 5 * 60;
       break;
     case EPC_PERIOD_1_HOUR:
-      span = 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 60 * 60;
       break;
     case EPC_PERIOD_1_DAY:
-      span = 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 24 * 60 * 60;
       break;
     case EPC_PERIOD_2_DAYS:
-      span = 2 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 2 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_3_DAYS:
-      span = 3 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 3 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_4_DAYS:
-      span = 4 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 4 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_5_DAYS:
-      span = 5 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 5 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_6_DAYS:
-      span = 6 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 6 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_7_DAYS:
-      span = 7 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 7 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_8_DAYS:
-      span = 8 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 8 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_9_DAYS:
-      span = 9 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 9 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_10_DAYS:
-      span = 10 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 10 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_11_DAYS:
-      span = 11 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 11 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_12_DAYS:
-      span = 12 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 12 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_13_DAYS:
-      span = 13 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 13 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_14_DAYS:
-      span = 14 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 14 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_30_DAYS:
-      span = 30 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 30 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_60_DAYS:
-      span = 60 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 60 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_90_DAYS:
-      span = 90 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 90 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_120_DAYS:
-      span = 120 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 120 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_365_DAYS:
-      span = 365 * 24 * 60 * 60 * (guint64) G_USEC_PER_SEC;
+      span_secs = 365 * 24 * 60 * 60;
       break;
     case EPC_PERIOD_INFINITE:
-      span = G_MAXUINT64;
+      span_secs = G_MAXUINT64;
       break;
     default:
       g_assert_not_reached ();
     }
 
-  set_expiry_time (self, now, span);
+  set_expiry_time (self, now_secs, span_secs);
 }
 
 static gint
@@ -502,8 +504,9 @@ used_counters_sort_cb (gconstpointer a,
  * @self: an #EpgManager
  * @code_str: code to verify and add, in a form suitable for parsing with
  *    epc_parse_code()
- * @now: the current time, as returned by g_get_real_time(); this is
- *    parameterised to allow for easy testing
+ * @now: the current time, in seconds since the UNIX epoch, as returned by
+ *    (g_get_real_time() / G_USEC_PER_SEC); this is parameterised to allow for
+ *    easy testing
  * @error: return location for a #GError
  *
  * Verify and add the given @code_str. This checks that @code_str is valid, and
@@ -517,7 +520,7 @@ used_counters_sort_cb (gconstpointer a,
 gboolean
 epg_manager_add_code (EpgManager   *self,
                       const gchar  *code_str,
-                      guint64       now,
+                      guint64       now_secs,
                       GError      **error)
 {
   g_autoptr(GError) local_error = NULL;
@@ -563,7 +566,7 @@ epg_manager_add_code (EpgManager   *self,
   g_array_sort (self->used_counters, used_counters_sort_cb);
 
   /* Extend the expiry time. */
-  extend_expiry_time (self, now, period);
+  extend_expiry_time (self, now_secs, period);
 
   return TRUE;
 }
@@ -586,9 +589,9 @@ epg_manager_clear_code (EpgManager *self)
   if (!check_enabled (self, NULL))
     return;
 
-  if (self->expiry_time != 0)
+  if (self->expiry_time_secs != 0)
     {
-      self->expiry_time = 0;
+      self->expiry_time_secs = 0;
       g_object_notify (G_OBJECT (self), "expiry-time");
     }
 
@@ -669,7 +672,7 @@ file_load_cb (GObject      *source_object,
   EpgManager *self = g_task_get_source_object (task);
   g_autoptr(GError) local_error = NULL;
 
-  guint64 now = g_get_real_time ();
+  guint64 now_secs = g_get_real_time () / G_USEC_PER_SEC;
 
   /* Decrement the pending operation count. */
   guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
@@ -702,7 +705,7 @@ file_load_cb (GObject      *source_object,
       if (data_len == 0)
         {
           /* No expiry time is set. Expire immediately. */
-          set_expiry_time (self, now, 0);
+          set_expiry_time (self, now_secs, 0);
         }
       else
         {
@@ -710,12 +713,12 @@ file_load_cb (GObject      *source_object,
             {
               guint64 u64;
               const gchar u8[8];
-            } expiry_time;
-          G_STATIC_ASSERT (sizeof (expiry_time.u8) == sizeof (self->expiry_time));
+            } expiry_time_secs;
+          G_STATIC_ASSERT (sizeof (expiry_time_secs.u8) == sizeof (self->expiry_time_secs));
 
           /* Check the file is the right size. If not, delete it so that we
            * don’t error next time we start. */
-          if (data_len != sizeof (expiry_time.u8))
+          if (data_len != sizeof (expiry_time_secs.u8))
             {
               /* Increment the pending operation count. */
               g_task_set_task_data (task, GUINT_TO_POINTER (++operation_count), NULL);
@@ -727,9 +730,9 @@ file_load_cb (GObject      *source_object,
 
           /* Set the expiry time. No other validation is needed on the loaded
            * number, as the entire range of the type is valid. */
-          memcpy (expiry_time.u8, data, sizeof (expiry_time.u8));
-          set_expiry_time (self, now,
-                           (expiry_time.u64 > now) ? expiry_time.u64 - now : 0);
+          memcpy (expiry_time_secs.u8, data, sizeof (expiry_time_secs.u8));
+          set_expiry_time (self, now_secs,
+                           (expiry_time_secs.u64 > now_secs) ? expiry_time_secs.u64 - now_secs : 0);
         }
     }
   else if (g_file_equal (file, used_counters_file))
@@ -855,12 +858,12 @@ epg_manager_save_state_async (EpgManager          *self,
     {
       guint64 u64;
       const guint8 u8[8];
-    } expiry_time;
-  G_STATIC_ASSERT (sizeof (expiry_time.u8) == sizeof (self->expiry_time));
-  expiry_time.u64 = self->expiry_time;
+    } expiry_time_secs;
+  G_STATIC_ASSERT (sizeof (expiry_time_secs.u8) == sizeof (self->expiry_time_secs));
+  expiry_time_secs.u64 = self->expiry_time_secs;
 
-  g_autoptr(GBytes) expiry_time_bytes = g_bytes_new (expiry_time.u8,
-                                                     sizeof (expiry_time.u8));
+  g_autoptr(GBytes) expiry_time_bytes = g_bytes_new (expiry_time_secs.u8,
+                                                     sizeof (expiry_time_secs.u8));
 
   g_file_replace_contents_bytes_async (expiry_time_file,
                                        expiry_time_bytes,
@@ -989,7 +992,7 @@ epg_manager_save_state_finish (EpgManager    *self,
  * Get the value of #EpgManager:expiry-time.
  *
  * Returns: (transfer none): the UNIX timestamp when the current pay as you go
- *    top up will expire
+ *    top up will expire, in seconds since the UNIX epoch
  * Since: 0.1.0
  */
 guint64
@@ -997,7 +1000,7 @@ epg_manager_get_expiry_time (EpgManager *self)
 {
   g_return_val_if_fail (EPG_IS_MANAGER (self), 0);
 
-  return self->expiry_time;
+  return self->expiry_time_secs;
 }
 
 /**
