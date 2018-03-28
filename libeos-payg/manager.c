@@ -42,6 +42,18 @@ static void epg_manager_set_property (GObject      *object,
                                       const GValue *value,
                                       GParamSpec   *pspec);
 
+/* Struct for storing the values in a used-counters file. The alignment and
+ * size of this struct are file format ABI, and must be kept the same. */
+typedef struct
+{
+  guint8 counter;
+  guint8 period;
+} UsedCode;
+
+G_STATIC_ASSERT (sizeof (UsedCode) == 2);
+G_STATIC_ASSERT (offsetof (UsedCode, counter) == 0);
+G_STATIC_ASSERT (offsetof (UsedCode, period) == 1);
+
 /**
  * EpgManager:
  *
@@ -58,7 +70,7 @@ struct _EpgManager
 {
   GObject parent;
 
-  GArray *used_counters;  /* (element-type EpcCounter) (owned) */
+  GArray *used_counters;  /* (element-type UsedCode) (owned) */
   guint64 expiry_time_secs;  /* UNIX timestamp in seconds */
   gboolean enabled;
   GBytes *key_bytes;  /* (owned) */
@@ -176,7 +188,7 @@ static void
 epg_manager_init (EpgManager *self)
 {
   /* @used_counters is populated when epg_manager_load_state_async() is called. */
-  self->used_counters = g_array_new (FALSE, FALSE, sizeof (EpcCounter));
+  self->used_counters = g_array_new (FALSE, FALSE, sizeof (UsedCode));
   self->context = g_main_context_ref_thread_default ();
 }
 
@@ -325,10 +337,11 @@ check_enabled (EpgManager  *self,
   return TRUE;
 }
 
-/* Check that @counter has not been used yet. If it has, return
+/* Check that @counter/@period has not been used yet. If it has, return
  * %EPG_MANAGER_ERROR_CODE_ALREADY_USED; otherwise, return %TRUE. */
 static gboolean
 check_is_counter_unused (EpgManager  *self,
+                         EpcPeriod    period,
                          EpcCounter   counter,
                          GError     **error)
 {
@@ -337,9 +350,10 @@ check_is_counter_unused (EpgManager  *self,
    * sorted. */
   for (gsize i = 0; i < self->used_counters->len; i++)
     {
-      EpcCounter used_counter = g_array_index (self->used_counters, EpcCounter, i);
+      const UsedCode *used_code = &g_array_index (self->used_counters, UsedCode, i);
 
-      if (counter == used_counter)
+      if (counter == used_code->counter &&
+          period == used_code->period)
         {
           g_set_error_literal (error, EPG_MANAGER_ERROR,
                                EPG_MANAGER_ERROR_CODE_ALREADY_USED,
@@ -493,10 +507,16 @@ static gint
 used_counters_sort_cb (gconstpointer a,
                        gconstpointer b)
 {
-  const EpcCounter *counter_a = a;
-  const EpcCounter *counter_b = b;
+  const UsedCode *code_a = a;
+  const UsedCode *code_b = b;
 
-  return *counter_a - *counter_b;
+  if (code_a->counter != code_b->counter)
+    return code_a->counter - code_b->counter;
+
+  if (code_a->period != code_b->period)
+    return code_a->period - code_b->period;
+
+  return 0;
 }
 
 /**
@@ -557,12 +577,13 @@ epg_manager_add_code (EpgManager   *self,
     }
 
   /* Check the counter hasn’t been used before. */
-  if (!check_is_counter_unused (self, counter, error))
+  if (!check_is_counter_unused (self, period, counter, error))
     return FALSE;
 
   /* Mark the counter as used. Typically, the sort should be a no-op, as we
    * expect (but don’t require) that counters should be used in order. */
-  g_array_append_val (self->used_counters, counter);
+  UsedCode used_code = { counter, period };
+  g_array_append_val (self->used_counters, used_code);
   g_array_sort (self->used_counters, used_counters_sort_cb);
 
   /* Extend the expiry time. */
@@ -744,14 +765,49 @@ file_load_cb (GObject      *source_object,
         }
       else
         {
-          /* Load the stored used counters. No additional validation is needed,
-           * since each counter is only one byte, and the whole range of the
-           * type is valid. */
-          G_STATIC_ASSERT (sizeof (EpcCounter) == 1);
+          /* Check the file is the right size. If not, delete it so that we
+           * don’t error next time we start. */
+          if ((data_len % sizeof (UsedCode)) != 0)
+            {
+              /* Increment the pending operation count. */
+              g_task_set_task_data (task, GUINT_TO_POINTER (++operation_count), NULL);
+
+              g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
+                                   file_load_delete_cb, g_object_ref (task));
+              return;
+            }
+
+          /* Load the stored used counters. We’ve just validated the file size,
+           * but we also need to validate the loaded structs: the whole range
+           * of the counter type is valid, but the whole range of the period
+           * type is not. */
+          union
+            {
+              const UsedCode *p;
+              const gchar *u8;
+            } used_codes;
+
+          used_codes.u8 = data;
+          gsize n_used_codes = data_len / sizeof (UsedCode);
+
+          for (gsize i = 0; i < n_used_codes; i++)
+            {
+              const UsedCode *used_code = &used_codes.p[i];
+
+              if (!epc_period_validate (used_code->period, &local_error))
+                {
+                  /* Increment the pending operation count. */
+                  g_task_set_task_data (task, GUINT_TO_POINTER (++operation_count), NULL);
+
+                  g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
+                                       file_load_delete_cb, g_object_ref (task));
+                  return;
+                }
+            }
 
           g_array_set_size (self->used_counters, 0);
           g_array_append_vals (self->used_counters,
-                               data, data_len / sizeof (EpcCounter));
+                               data, data_len / sizeof (UsedCode));
           g_array_sort (self->used_counters, used_counters_sort_cb);
         }
     }
@@ -880,7 +936,7 @@ epg_manager_save_state_async (EpgManager          *self,
   if (self->used_counters->len > 0)
     {
       g_autoptr(GBytes) used_counters_bytes = g_bytes_new (self->used_counters->data,
-                                                           self->used_counters->len);
+                                                           self->used_counters->len * sizeof (UsedCode));
 
       g_file_replace_contents_bytes_async (used_counters_file,
                                            used_counters_bytes,
