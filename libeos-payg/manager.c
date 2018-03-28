@@ -64,6 +64,12 @@ G_STATIC_ASSERT (offsetof (UsedCode, period) == 1);
  * Its state is stored in files in #EpgManager:state-directory. Any integers
  * stored in those files are in host endianness.
  *
+ * The `used-codes` state file stores pairs of #EpcCounter and #EpcPeriod,
+ * rather than full #EpcCodes, to make it a bit harder for users to modify the
+ * file to give themselves use of a code again. It also halves the storage
+ * size requirements (although they are not a large concern). The file format
+ * is a serialised array of `UsedCode` instances.
+ *
  * Since: 0.1.0
  */
 struct _EpgManager
