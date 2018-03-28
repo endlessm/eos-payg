@@ -27,6 +27,7 @@ ProtectHome=yes
 ProtectKernelModules=yes
 ProtectKernelTunables=yes
 ProtectSystem=strict
+ReadWritePaths=@localstatedir@/lib/eos-payg
 RestrictAddressFamilies=AF_UNIX
 RestrictRealtime=yes
 SystemCallErrorNumber=EPERM
