@@ -58,7 +58,7 @@ EpgManager *epg_manager_new (gboolean  enabled,
 
 gboolean    epg_manager_add_code   (EpgManager   *self,
                                     const gchar  *code_str,
-                                    guint64       now,
+                                    guint64       now_secs,
                                     GError      **error);
 gboolean    epg_manager_clear_code (EpgManager   *self,
                                     GError      **error);
