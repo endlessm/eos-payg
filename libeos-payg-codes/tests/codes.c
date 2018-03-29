@@ -32,7 +32,6 @@
 #define SIGN_WIDTH_BITS 13
 #define CODE_VALUE_WIDTH_BITS (COUNTER_WIDTH_BITS + PERIOD_WIDTH_BITS + SIGN_WIDTH_BITS)
 #define CODE_STR_WIDTH_DIGITS 8
-#define KEY_LENGTH_BYTES_MINIMUM 64
 
 
 /* Test epc_period_validate() works correctly for valid and invalid periods. */

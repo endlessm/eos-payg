@@ -151,7 +151,8 @@ epg_manager_class_init (EpgManagerClass *klass)
    * no surrounding whitespace or padding. This must be the same key used to
    * generate the codes being verified.
    *
-   * Keys must be at least 64 bytes in length, or they will be rejected.
+   * Keys must be at least %EPC_KEY_MINIMUM_LENGTH_BYTES bytes in length, or
+   * they will be rejected.
    *
    * Since: 0.1.0
    */

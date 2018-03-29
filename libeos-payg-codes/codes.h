@@ -137,6 +137,16 @@ typedef guint8 EpcCounter;
 #define EPC_MAXCOUNTER G_MAXUINT8
 
 /**
+ * EPC_KEY_MINIMUM_LENGTH_BYTES:
+ *
+ * Minimum valid length of a shared key, in bytes. Shorter keys will be
+ * rejected; longer keys will be hashed down to this length.
+ *
+ * Since: 0.1.0
+ */
+#define EPC_KEY_MINIMUM_LENGTH_BYTES 64
+
+/**
  * EpcCode:
  *
  * An integer representation of a code, as calculated by epc_calculate_code().
