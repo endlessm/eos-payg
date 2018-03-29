@@ -83,5 +83,6 @@ guint64     epg_manager_get_expiry_time     (EpgManager *self);
 gboolean    epg_manager_get_enabled         (EpgManager *self);
 GBytes     *epg_manager_get_key_bytes       (EpgManager *self);
 GFile      *epg_manager_get_state_directory (EpgManager *self);
+guint64     epg_manager_get_rate_limit_end_time (EpgManager *self);
 
 G_END_DECLS
