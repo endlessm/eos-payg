@@ -1,7 +1,7 @@
 project('eos-payg','c',
   version: '0.1.0',
   meson_version: '>= 0.40.0',
-  license: 'LGPLv2.1+',
+  license: 'MPL-2.0 or LGPLv2.1+',
   default_options: [
     'c_std=gnu11',
     'warning_level=2',

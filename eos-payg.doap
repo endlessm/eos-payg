@@ -3,6 +3,7 @@
 	<shortdesc xml:lang="en">eos-payg provides pay-as-you-go monitoring for EOS</shortdesc>
 	<description xml:lang="en">eos-payg implements pay-as-you-go support for EOS, providing a way to verify top-up codes and monitor the amount of time the user has remaining before they next need to top up the lease on their computer.</description>
 	<homepage rdf:resource="https://github.com/endlessm/eos-payg"/>
+	<license rdf:resource="http://usefulinc.com/doap/licenses/mpl"/>
 	<license rdf:resource="http://usefulinc.com/doap/licenses/lgpl"/>
 	<download-page rdf:resource="https://github.com/endlessm/eos-payg"/>
 </Project>
