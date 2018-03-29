@@ -54,6 +54,15 @@ G_STATIC_ASSERT (sizeof (UsedCode) == 2);
 G_STATIC_ASSERT (offsetof (UsedCode, counter) == 0);
 G_STATIC_ASSERT (offsetof (UsedCode, period) == 1);
 
+/* Limit calls to epg_manager_add_code() to 10 attempts every 30 minutes. These
+ * values are not arbitrary, and are an inherent part of the security of the
+ * codes in libeos-payg-codes against brute force attacks. By rate limiting at
+ * this level, we can probabilistically say that brute force attacks will take
+ * longer than the period of the code they would reveal, assuming codes have
+ * an average period of 1 week. */
+#define RATE_LIMITING_N_ATTEMPTS 10
+#define RATE_LIMITING_TIME_PERIOD_SECS (30 * 60)
+
 /**
  * EpgManager:
  *
@@ -88,6 +97,11 @@ struct _EpgManager
 
   GMainContext *context;  /* (owned) */
   GSource *expiry;  /* (owned) (nullable) */
+
+  /* Rate limiting history. This is a FIFO queue of UNIX timestamps (in seconds)
+   * of recent epg_manager_add_code() attempts. See check_rate_limiting(). */
+  guint64 rate_limiting_history[RATE_LIMITING_N_ATTEMPTS];
+  guint64 rate_limit_end_time_secs;
 };
 
 typedef enum
@@ -96,6 +110,7 @@ typedef enum
   PROP_ENABLED,
   PROP_KEY_BYTES,
   PROP_STATE_DIRECTORY,
+  PROP_RATE_LIMIT_END_TIME,
 } EpgManagerProperty;
 
 G_DEFINE_TYPE (EpgManager, epg_manager, G_TYPE_OBJECT)
@@ -104,7 +119,7 @@ static void
 epg_manager_class_init (EpgManagerClass *klass)
 {
   GObjectClass *object_class = (GObjectClass *) klass;
-  GParamSpec *props[PROP_STATE_DIRECTORY + 1] = { NULL, };
+  GParamSpec *props[PROP_RATE_LIMIT_END_TIME + 1] = { NULL, };
 
   object_class->constructed = epg_manager_constructed;
   object_class->dispose = epg_manager_dispose;
@@ -178,6 +193,24 @@ epg_manager_class_init (EpgManagerClass *klass)
                            "Directory to store and load state from.",
                            G_TYPE_FILE,
                            G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
+
+  /**
+   * EpgManager:rate-limit-end-time:
+   *
+   * UNIX timestamp when the rate limit on adding codes will end, in seconds
+   * since the epoch. At this point, a new call to epg_manager_add_code() will
+   * not immediately result in an %EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS error.
+   *
+   * If #EpgManager:enabled is %FALSE, this will always be zero.
+   *
+   * Since: 0.1.0
+   */
+  props[PROP_RATE_LIMIT_END_TIME] =
+      g_param_spec_uint64 ("rate-limit-end-time", "Rate Limit End Time",
+                           "UNIX timestamp when the rate limit on adding codes "
+                           "will end, in seconds since the epoch.",
+                           0, G_MAXUINT64, 0,
+                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (object_class, G_N_ELEMENTS (props), props);
 
@@ -276,6 +309,9 @@ epg_manager_get_property (GObject    *object,
     case PROP_STATE_DIRECTORY:
       g_value_set_object (value, epg_manager_get_state_directory (self));
       break;
+    case PROP_RATE_LIMIT_END_TIME:
+      g_value_set_uint64 (value, epg_manager_get_rate_limit_end_time (self));
+      break;
     default:
       g_assert_not_reached ();
     }
@@ -292,6 +328,7 @@ epg_manager_set_property (GObject      *object,
   switch ((EpgManagerProperty) property_id)
     {
     case PROP_EXPIRY_TIME:
+    case PROP_RATE_LIMIT_END_TIME:
       /* Read only. */
       g_assert_not_reached ();
       break;
@@ -356,6 +393,76 @@ check_enabled (EpgManager  *self,
     }
 
   return TRUE;
+}
+
+/* Check whether there is a limit on calls to the manager due to rate limiting
+ * being in effect. If there have been too many calls to check_rate_limiting()
+ * recently, this will update the rate limiting state to include this call, and
+ * will return %EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS.
+ * This will also update @rate_limit_end_time_secs.
+ *
+ * It is expected that if this method returns %TRUE, clear_rate_limiting() will
+ * be called shortly afterwards; and hence #EpgManager:rate-limit-end-time is
+ * only notified if this method returns %FALSE. */
+static gboolean
+check_rate_limiting (EpgManager  *self,
+                     guint64      now_secs,
+                     GError     **error)
+{
+  /* Count how many attempts there have been in the last
+   * %RATE_LIMITING_TIME_PERIOD_SECS. If it’s over %RATE_LIMITING_N_ATTEMPTS,
+   * reject the attempt. In any case, update the list of attempts. */
+  gsize n_attempts_in_last_period = 0;
+
+  for (gsize i = 0; i < G_N_ELEMENTS (self->rate_limiting_history); i++)
+    {
+      if (self->rate_limiting_history[i] >= now_secs - RATE_LIMITING_TIME_PERIOD_SECS)
+        n_attempts_in_last_period++;
+    }
+
+  g_debug ("%s: Checking rate limiting: %" G_GSIZE_FORMAT " attempts in last "
+           "%u seconds; limit is %u attempts",
+           G_STRFUNC, n_attempts_in_last_period,
+           (guint) RATE_LIMITING_TIME_PERIOD_SECS,
+           (guint) RATE_LIMITING_N_ATTEMPTS);
+
+  /* Update the history: shift the first N-1 elements of the array to indexes
+   * 1..N, and push the new entry in at index 0. */
+  memmove (self->rate_limiting_history + 1, self->rate_limiting_history,
+           (G_N_ELEMENTS (self->rate_limiting_history) - 1) * sizeof (*self->rate_limiting_history));
+  self->rate_limiting_history[0] = now_secs;
+
+  /* Update the end time (when the user will first be able to try again). This
+   * will be when the oldest attempt leaves the sliding time period window. If
+   * there have not been enough attempts (ever) to trigger rate limiting, clamp
+   * to zero. */
+  guint64 oldest_attempt_secs = self->rate_limiting_history[G_N_ELEMENTS (self->rate_limiting_history) - 1];
+  self->rate_limit_end_time_secs = (oldest_attempt_secs > 0) ? oldest_attempt_secs + RATE_LIMITING_TIME_PERIOD_SECS : 0;
+
+  if (n_attempts_in_last_period >= RATE_LIMITING_N_ATTEMPTS)
+    {
+      if (self->enabled)
+        g_object_notify (G_OBJECT (self), "rate-limit-end-time");
+
+      g_set_error_literal (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS,
+                           _("Too many invalid codes entered recently; please wait"));
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
+/* Clear the rate limiting history, so that the next call to
+ * check_rate_limiting() is guaranteed to not return an error. It will notify of
+ * changes to #EpgManager:rate-limit-end-time. */
+static void
+clear_rate_limiting (EpgManager *self)
+{
+  memset (self->rate_limiting_history, 0, sizeof (self->rate_limiting_history));
+  self->rate_limit_end_time_secs = 0;
+
+  if (self->enabled)
+    g_object_notify (G_OBJECT (self), "rate-limit-end-time");
 }
 
 /* Check that @counter/@period has not been used yet. If it has, return
@@ -557,6 +664,11 @@ used_codes_sort_cb (gconstpointer a,
  * @code_str to #EpgManager:expiry-time. If @code_str fails verification or
  * cannot be added, an error will be returned.
  *
+ * Calls to this function are rate limited: if too many attempts are made within
+ * a given time period, %EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS will be returned
+ * until that period expires. The rate limiting history is reset on a successful
+ * verification of a code.
+ *
  * Returns: %TRUE on success, %FALSE otherwise
  * Since: 0.1.0
  */
@@ -575,7 +687,8 @@ epg_manager_add_code (EpgManager   *self,
   if (!check_enabled (self, error))
     return FALSE;
 
-  /* FIXME: We need to rate limit attempts here. */
+  if (!check_rate_limiting (self, now_secs, error))
+    return FALSE;
 
   /* Convert from a string to #EpcCode. */
   EpcCode code;
@@ -611,6 +724,9 @@ epg_manager_add_code (EpgManager   *self,
 
   /* Extend the expiry time. */
   extend_expiry_time (self, now_secs, period);
+
+  /* Reset the rate limiting history, since the code was successful. */
+  clear_rate_limiting (self);
 
   /* Kick off an asynchronous save. */
   epg_manager_save_state_async (self, self->cancellable, NULL, NULL);
@@ -1145,4 +1261,22 @@ epg_manager_get_state_directory (EpgManager *self)
   g_return_val_if_fail (EPG_IS_MANAGER (self), NULL);
 
   return self->state_directory;
+}
+
+/**
+ * epg_manager_get_rate_limit_end_time:
+ * @self: a #EpgManager
+ *
+ * Get the value of #EpgManager:rate-limit-end-time.
+ *
+ * Returns: the UNIX timestamp when the current rate limit on calling
+ *    epg_manager_add_code() will reset, in seconds since the UNIX epoch
+ * Since: 0.1.0
+ */
+guint64
+epg_manager_get_rate_limit_end_time (EpgManager *self)
+{
+  g_return_val_if_fail (EPG_IS_MANAGER (self), 0);
+
+  return self->enabled ? self->rate_limit_end_time_secs : 0;
 }
