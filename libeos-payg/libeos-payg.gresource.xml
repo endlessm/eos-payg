@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+  <gresource prefix="/com/endlessm/Payg1/config">
+    <file alias="eos-payg.conf">../eos-paygd/eos-payg.conf</file>
+  </gresource>
+</gresources>

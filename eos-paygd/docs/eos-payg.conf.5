@@ -1,0 +1,54 @@
+.\" Manpage for eos\-payg.conf.
+.\" Documentation is under the same licence as the eos\-paygd package.
+.TH man 5 "29 Mar 2018" "1.0" "eos\-payg.conf man page"
+.\"
+.SH NAME
+.IX Header "NAME"
+eos\-payg.conf — Pay As You Go Daemon Configuration
+.\"
+.SH SYNOPSIS
+.IX Header "SYNOPSIS"
+.\"
+\fB/etc/eos\-payg/eos\-payg.conf\fP
+.br
+\fB/usr/local/share/eos\-payg/eos\-payg.conf\fP
+.br
+\fB/usr/share/eos\-payg/eos\-payg.conf\fP
+.\"
+.SH DESCRIPTION
+.IX Header "DESCRIPTION"
+.\"
+\fBeos\-payg.conf\fP provides the configuration for \fBeos\-paygd\fP(8). It
+specifies whether pay as you go is enabled on this machine.
+.PP
+The configuration file contains a single mandatory section, \fI[PAYG]\fP, whose
+keys are described below.
+.PP
+Default values are stored in \fI/usr/share/eos\-payg/eos\-payg.conf\fP, which
+must always exist. To override the configuration, copy it to
+\fI/usr/local/share/eos\-payg/\fP or \fI/etc/eos\-payg/\fP. Configuration
+in \fI/etc\fP overrides that in \fI/usr\fP.
+.\"
+.SH [PAYG] SECTION OPTIONS
+.IX Header "[PAYG] SECTION OPTIONS"
+.\"
+.IP "\fIEnabled=\fP"
+.IX Item "Enabled="
+Whether pay as you go is enabled on this machine. If \fItrue\fP, the
+\fBeos\-paygd\fP(8) daemon will run, and \fBgnome\-shell\fP(1) will prompt the
+user for pay as you go codes. If \fIfalse\fP, this will all be disabled.
+.\"
+.SH "SEE ALSO"
+.IX Header "SEE ALSO"
+.\"
+\fBeos\-paygd\fP(8)
+.\"
+.SH AUTHOR
+.IX Header "AUTHOR"
+.\"
+Endless Mobile, Inc.
+.\"
+.SH COPYRIGHT
+.IX Header "COPYRIGHT"
+.\"
+Copyright © 2018 Endless Mobile, Inc.

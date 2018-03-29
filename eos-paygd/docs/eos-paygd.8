@@ -35,6 +35,10 @@ Inactivity timeout (in milliseconds) to wait before exiting the service if no
 code additions have been made during that period. If set to \fB0\fP, the
 timeout is disabled and the service will run indefinitely. (Default: Disabled.)
 .\"
+.IP "\fB\-c\fP, \fB\-\-config\-file=\fP"
+Load configuration for \fBeos\-paygd\fP from the given file. This is intended
+to be used for testing. (Default: \fI/etc/eos\-payg/eos\-payg.conf\fP.)
+.\"
 .SH "ENVIRONMENT"
 .IX Header "ENVIRONMENT"
 .\"
@@ -82,7 +86,8 @@ as the root user.
 .SH "SEE ALSO"
 .IX Header "SEE ALSO"
 .\"
-\fBgnome\-shell\fP(1),
+\fBeos\-payg.conf\fP(5),
+\fBgnome\-shell\fP(1)
 .\"
 .SH BUGS
 .IX Header "BUGS"

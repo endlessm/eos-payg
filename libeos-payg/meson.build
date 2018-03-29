@@ -19,8 +19,14 @@ libeos_payg_deps = [
   libhelper_dep,
 ]
 
+libeos_payg_resources = gnome.compile_resources(
+  'resources',
+  'libeos-payg.gresource.xml',
+  c_name : 'epg',
+)
+
 libeos_payg = static_library('eos-payg-' + libeos_payg_api_version,
-  libeos_payg_sources + libeos_payg_headers,
+  libeos_payg_sources + libeos_payg_headers + libeos_payg_resources,
   dependencies: libeos_payg_deps,
   include_directories: root_inc,
   install: false,

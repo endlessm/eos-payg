@@ -18,12 +18,15 @@ libexecdir = join_paths(prefix, get_option('libexecdir'))
 localedir = join_paths(prefix, get_option('localedir'))
 includedir = join_paths(prefix, get_option('includedir'))
 localstatedir = join_paths(prefix, get_option('localstatedir'))
+sysconfdir = join_paths(prefix, get_option('sysconfdir'))
 
 config_h = configuration_data()
 config_h.set_quoted('DATADIR', datadir)
 config_h.set_quoted('GETTEXT_PACKAGE', meson.project_name())
 config_h.set_quoted('LOCALEDIR', localedir)
 config_h.set_quoted('LOCALSTATEDIR', localstatedir)
+config_h.set_quoted('PREFIX', prefix)
+config_h.set_quoted('SYSCONFDIR', sysconfdir)
 configure_file(
   output: 'config.h',
   configuration: config_h,
