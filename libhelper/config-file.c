@@ -370,7 +370,7 @@ hlp_config_file_get_file_for_key (HlpConfigFile  *self,
     }
 
   /* Not found? */
-  if (i >= self->n_paths)
+  if (i > self->n_paths)
     {
       key_file = NULL;
       path = NULL;
