@@ -116,6 +116,8 @@ epg_manager_class_init (EpgManagerClass *klass)
    * will lock the computer until a new code is entered. Use
    * epg_manager_add_code() to add a new code and extend the expiry time.
    *
+   * If #EpgManager:enabled is %FALSE, this will always be zero.
+   *
    * Since: 0.1.0
    */
   props[PROP_EXPIRY_TIME] =
@@ -183,6 +185,8 @@ epg_manager_class_init (EpgManagerClass *klass)
    * Emitted when the #EpgManager:expiry-time is reached, and the current pay as
    * you go code expires. It is expected that when this is emitted, clients of
    * this service will lock the computer until a new code is entered.
+   *
+   * This will never be emitted when #EpgManager:enabled is %FALSE.
    *
    * Since: 0.1.0
    */
@@ -377,7 +381,8 @@ expired_cb (gpointer user_data)
 {
   EpgManager *self = EPG_MANAGER (user_data);
 
-  g_signal_emit_by_name (self, "expired");
+  if (self->enabled)
+    g_signal_emit_by_name (self, "expired");
 
   return G_SOURCE_REMOVE;
 }
@@ -411,7 +416,8 @@ set_expiry_time (EpgManager *self,
       g_source_attach (self->expiry, self->context);
     }
 
-  if (old_expiry_time_secs != self->expiry_time_secs)
+  if (old_expiry_time_secs != self->expiry_time_secs &&
+      self->enabled)
     g_object_notify (G_OBJECT (self), "expiry-time");
 }
 
@@ -1071,7 +1077,7 @@ epg_manager_get_expiry_time (EpgManager *self)
 {
   g_return_val_if_fail (EPG_IS_MANAGER (self), 0);
 
-  return self->expiry_time_secs;
+  return self->enabled ? self->expiry_time_secs : 0;
 }
 
 /**
