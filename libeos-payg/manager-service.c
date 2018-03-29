@@ -101,6 +101,12 @@ static GVariant *epg_manager_service_manager_get_enabled     (EpgManagerService 
                                                               const gchar           *interface_name,
                                                               const gchar           *property_name,
                                                               GDBusMethodInvocation *invocation);
+static GVariant *epg_manager_service_manager_get_rate_limit_end_time (EpgManagerService     *self,
+                                                                      GDBusConnection       *connection,
+                                                                      const gchar           *sender,
+                                                                      const gchar           *interface_name,
+                                                                      const gchar           *property_name,
+                                                                      GDBusMethodInvocation *invocation);
 
 static void expired_cb (EpgManager *manager,
                         gpointer    user_data);
@@ -579,6 +585,8 @@ manager_properties[] =
       epg_manager_service_manager_get_expiry_time, NULL  /* read-only */ },
     { "com.endlessm.Payg1", "Enabled", "enabled",
       epg_manager_service_manager_get_enabled, NULL  /* read-only */ },
+    { "com.endlessm.Payg1", "RateLimitEndTime", "rate-limit-end-time",
+      epg_manager_service_manager_get_rate_limit_end_time, NULL  /* read-only */ },
   };
 
 G_STATIC_ASSERT (G_N_ELEMENTS (manager_properties) ==
@@ -786,6 +794,17 @@ epg_manager_service_manager_get_enabled (EpgManagerService     *self,
                                          GDBusMethodInvocation *invocation)
 {
   return g_variant_new_boolean (epg_manager_get_enabled (self->manager));
+}
+
+static GVariant *
+epg_manager_service_manager_get_rate_limit_end_time (EpgManagerService     *self,
+                                                     GDBusConnection       *connection,
+                                                     const gchar           *sender,
+                                                     const gchar           *interface_name,
+                                                     const gchar           *property_name,
+                                                     GDBusMethodInvocation *invocation)
+{
+  return g_variant_new_uint64 (epg_manager_get_rate_limit_end_time (self->manager));
 }
 
 static void

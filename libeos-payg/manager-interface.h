@@ -101,10 +101,20 @@ static const GDBusPropertyInfo manager_interface_enabled =
   NULL,  /* annotations */
 };
 
+static const GDBusPropertyInfo manager_interface_rate_limit_end_time =
+{
+  -1,  /* ref count */
+  (gchar *) "RateLimitEndTime",
+  (gchar *) "t",
+  G_DBUS_PROPERTY_INFO_FLAGS_READABLE,
+  NULL,  /* annotations */
+};
+
 static const GDBusPropertyInfo *manager_interface_properties[] =
 {
   &manager_interface_expiry_time,
   &manager_interface_enabled,
+  &manager_interface_rate_limit_end_time,
   NULL,
 };
 
