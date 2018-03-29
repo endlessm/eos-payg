@@ -1084,8 +1084,8 @@ epg_manager_save_state_finish (EpgManager    *self,
  *
  * Get the value of #EpgManager:expiry-time.
  *
- * Returns: (transfer none): the UNIX timestamp when the current pay as you go
- *    top up will expire, in seconds since the UNIX epoch
+ * Returns: the UNIX timestamp when the current pay as you go top up will
+ *    expire, in seconds since the UNIX epoch
  * Since: 0.1.0
  */
 guint64
