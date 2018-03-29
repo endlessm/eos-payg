@@ -76,6 +76,9 @@ struct _EpgManager
 {
   GObject parent;
 
+  /* Used to cancel any pending asynchronous operations when we are disposed. */
+  GCancellable *cancellable;  /* (owned) */
+
   GArray *used_codes;  /* (element-type UsedCode) (owned) */
   guint64 expiry_time_secs;  /* UNIX timestamp in seconds */
   gboolean enabled;
@@ -196,6 +199,7 @@ epg_manager_init (EpgManager *self)
   /* @used_codes is populated when epg_manager_load_state_async() is called. */
   self->used_codes = g_array_new (FALSE, FALSE, sizeof (UsedCode));
   self->context = g_main_context_ref_thread_default ();
+  self->cancellable = g_cancellable_new ();
 }
 
 /* Clear the expiry #GSource timer, if it hasn’t been already cleared. */
@@ -227,6 +231,12 @@ static void
 epg_manager_dispose (GObject *object)
 {
   EpgManager *self = EPG_MANAGER (object);
+
+  /* Cancel any outstanding save operations.
+   * FIXME: This will never actually be reached, since a save_state_async()
+   * holds a strong reference on the #EpgManager. */
+  g_cancellable_cancel (self->cancellable);
+  g_clear_object (&self->cancellable);
 
   clear_expiry_timer (self);
 
@@ -595,6 +605,9 @@ epg_manager_add_code (EpgManager   *self,
   /* Extend the expiry time. */
   extend_expiry_time (self, now_secs, period);
 
+  /* Kick off an asynchronous save. */
+  epg_manager_save_state_async (self, self->cancellable, NULL, NULL);
+
   return TRUE;
 }
 
@@ -623,6 +636,9 @@ epg_manager_clear_code (EpgManager *self)
     }
 
   clear_expiry_timer (self);
+
+  /* Kick off an asynchronous save. */
+  epg_manager_save_state_async (self, self->cancellable, NULL, NULL);
 }
 
 /* Get the path of the state file containing the expiry time. */
