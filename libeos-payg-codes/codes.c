@@ -76,7 +76,7 @@
  * If the key is too short, it is padded; if it’s too long, it’s hashed. We want
  * to avoid padding, so set the minimum size to be the block size of the hash
  * function. */
-#define KEY_LENGTH_BYTES_MINIMUM 64
+#define KEY_LENGTH_BYTES_MINIMUM EPC_KEY_MINIMUM_LENGTH_BYTES
 
 G_DEFINE_QUARK (EpcCodeError, epc_code_error)
 
