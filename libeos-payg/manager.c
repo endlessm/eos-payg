@@ -602,20 +602,26 @@ epg_manager_add_code (EpgManager   *self,
 /**
  * epg_manager_clear_code:
  * @self: an #EpgManager
+ * @error: return location for a #GError
  *
  * Clear the current pay as you go code, reset #EpgManager:expiry-time to zero,
  * and cause #EpgManager::expired to be emitted instantly. This is typically
  * intended to be used for testing.
  *
+ * If pay as you go is disabled, %EPG_MANAGER_ERROR_DISABLED will be returned.
+ *
+ * Returns: %TRUE on success, %FALSE otherwise
  * Since: 0.1.0
  */
-void
-epg_manager_clear_code (EpgManager *self)
+gboolean
+epg_manager_clear_code (EpgManager  *self,
+                        GError     **error)
 {
-  g_return_if_fail (EPG_IS_MANAGER (self));
+  g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
-  if (!check_enabled (self, NULL))
-    return;
+  if (!check_enabled (self, error))
+    return FALSE;
 
   if (self->expiry_time_secs != 0)
     {
@@ -624,6 +630,8 @@ epg_manager_clear_code (EpgManager *self)
     }
 
   clear_expiry_timer (self);
+
+  return TRUE;
 }
 
 /* Get the path of the state file containing the expiry time. */

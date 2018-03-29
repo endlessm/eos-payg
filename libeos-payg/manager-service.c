@@ -816,8 +816,14 @@ epg_manager_service_manager_clear_code (EpgManagerService     *self,
                                         GVariant              *parameters,
                                         GDBusMethodInvocation *invocation)
 {
-  epg_manager_clear_code (self->manager);
-  g_dbus_method_invocation_return_value (invocation, NULL);
+  g_autoptr(GError) local_error = NULL;
+
+  epg_manager_clear_code (self->manager, &local_error);
+
+  if (local_error != NULL)
+    g_dbus_method_invocation_return_gerror (invocation, local_error);
+  else
+    g_dbus_method_invocation_return_value (invocation, NULL);
 }
 
 /**
