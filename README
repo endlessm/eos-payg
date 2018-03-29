@@ -22,8 +22,8 @@ Dependencies
 Licensing
 =========
 
-The daemon components of eos-payg are licensed under the LGPL. The libraries are
-also licensed under the LGPL. See COPYING for more details.
+With a couple of exceptions, all code in this project is dual-licensed under
+MPL-2.0 and LGPL-2.1+. See debian/copyright and COPYING.* for more details.
 
 Bugs
 ====
