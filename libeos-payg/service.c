@@ -179,7 +179,7 @@ epg_service_startup_async (HlpService          *service,
    * might not be one installed on this image. */
   if (enabled)
     {
-      g_autoptr(GFile) key_file = g_file_new_for_path (DATADIR "/eos-payg/key");
+      g_autoptr(GFile) key_file = g_file_new_for_path (PREFIX "/local/share/eos-payg/key");
 
       g_file_load_contents_async (key_file, cancellable,
                                   load_key_cb, g_steal_pointer (&task));
