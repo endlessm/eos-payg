@@ -25,11 +25,22 @@
 #include <glib/gi18n-lib.h>
 #include <gio/gio.h>
 #include <libeos-payg/manager-service.h>
+#include <libeos-payg/resources.h>
 #include <libeos-payg/service.h>
+#include <libeos-payg-codes/codes.h>
+#include <libhelper/config-file.h>
 #include <locale.h>
 
 
+/* Paths to the various places the config file could be loaded from. */
+#define ETC_CONFIG_FILE_PATH SYSCONFDIR "/eos-payg/eos-payg.conf"
+#define USR_LOCAL_SHARE_CONFIG_FILE_PATH PREFIX "/local/share/eos-payg/eos-payg.conf"
+#define USR_SHARE_CONFIG_FILE_PATH DATADIR "/eos-payg/eos-payg.conf"
+
+
 static void epg_service_dispose (GObject *object);
+
+static GOptionEntry *epg_service_get_main_option_entries (HlpService *service);
 
 static void epg_service_startup_async (HlpService          *service,
                                        GCancellable        *cancellable,
@@ -54,6 +65,10 @@ struct _EpgService
 
   EpgManager *manager;  /* (owned) */
   EpgManagerService *manager_service;  /* (owned) */
+
+  /* This is normally %NULL, and is only non-%NULL when overridden from the
+   * command line: */
+  gchar *config_file_path;  /* (type filename) (owned) (nullable) */
 };
 
 G_DEFINE_TYPE (EpgService, epg_service, HLP_TYPE_SERVICE)
@@ -66,6 +81,7 @@ epg_service_class_init (EpgServiceClass *klass)
 
   object_class->dispose = epg_service_dispose;
 
+  service_class->get_main_option_entries = epg_service_get_main_option_entries;
   service_class->startup_async = epg_service_startup_async;
   service_class->startup_finish = epg_service_startup_finish;
   service_class->shutdown = epg_service_shutdown;
@@ -84,9 +100,28 @@ epg_service_dispose (GObject *object)
 
   g_clear_object (&self->manager_service);
   g_clear_object (&self->manager);
+  g_clear_pointer (&self->config_file_path, g_free);
 
   /* Chain up to the parent class */
   G_OBJECT_CLASS (epg_service_parent_class)->dispose (object);
+}
+
+static GOptionEntry *
+epg_service_get_main_option_entries (HlpService *service)
+{
+  EpgService *self = EPG_SERVICE (service);
+
+  g_autofree GOptionEntry *entries = g_new0 (GOptionEntry, 1 + 1 /* NULL terminator */);
+
+  entries[0].long_name = "config-file";
+  entries[0].short_name = 'c';
+  entries[0].flags = G_OPTION_FLAG_NONE;
+  entries[0].arg = G_OPTION_ARG_FILENAME;
+  entries[0].arg_data = &self->config_file_path;
+  entries[0].description = N_("Configuration file to use (default: " ETC_CONFIG_FILE_PATH ")");
+  entries[0].arg_description = N_("PATH");
+
+  return g_steal_pointer (&entries);
 }
 
 static void load_state_cb (GObject      *source_object,
@@ -103,14 +138,56 @@ epg_service_startup_async (HlpService          *service,
                            GAsyncReadyCallback  callback,
                            gpointer             user_data)
 {
+  EpgService *self = EPG_SERVICE (service);
+  g_autoptr(GError) local_error = NULL;
+
   g_autoptr(GTask) task = g_task_new (service, cancellable, callback, user_data);
   g_task_set_source_tag (task, epg_service_startup_async);
 
-  /* Load the shared key. */
-  g_autoptr(GFile) key_file = g_file_new_for_path (DATADIR "/eos-payg/key");
+  /* Load the configuration file. */
+  const gchar * const default_paths[] =
+    {
+      ETC_CONFIG_FILE_PATH,
+      USR_LOCAL_SHARE_CONFIG_FILE_PATH,
+      USR_SHARE_CONFIG_FILE_PATH,
+      NULL,
+    };
+  const gchar * const override_paths[] =
+    {
+      self->config_file_path,
+      USR_SHARE_CONFIG_FILE_PATH,
+      NULL,
+    };
 
-  g_file_load_contents_async (key_file, cancellable,
-                              load_key_cb, g_steal_pointer (&task));
+  g_autoptr(HlpConfigFile) config_file = NULL;
+  config_file = hlp_config_file_new ((self->config_file_path != NULL) ? override_paths : default_paths,
+                                     epg_get_resource (),
+                                     "/com/endlessm/Payg1/config/eos-payg.conf");
+
+  /* Is pay as you go enabled? */
+  gboolean enabled = hlp_config_file_get_boolean (config_file,
+                                                  "PAYG", "Enabled",
+                                                  &local_error);
+
+  if (local_error != NULL)
+    {
+      g_task_return_error (task, g_steal_pointer (&local_error));
+      return;
+    }
+
+  /* If we are enabled, load the shared key. Otherwise, skip it, since there
+   * might not be one installed on this image. */
+  if (enabled)
+    {
+      g_autoptr(GFile) key_file = g_file_new_for_path (DATADIR "/eos-payg/key");
+
+      g_file_load_contents_async (key_file, cancellable,
+                                  load_key_cb, g_steal_pointer (&task));
+    }
+  else
+    {
+      load_key_cb (NULL, NULL, g_steal_pointer (&task));
+    }
 }
 
 static void
@@ -127,10 +204,20 @@ load_key_cb (GObject      *source_object,
   g_autofree gchar *data = NULL;  /* would be guint8* if it weren’t for strict aliasing */
   gsize data_len = 0;
 
-  if (!g_file_load_contents_finish (key_file, result, &data, &data_len, NULL, &local_error))
+  gboolean enabled = (result != NULL);
+
+  if (enabled &&
+      !g_file_load_contents_finish (key_file, result, &data, &data_len, NULL, &local_error))
     {
       g_task_return_error (task, g_steal_pointer (&local_error));
       return;
+    }
+  else if (!enabled)
+    {
+      /* Use a key of all zeros, just to avoid having to propagate the special
+       * case of (¬enabled ⇒ key_bytes == NULL) throughout the code. */
+      data_len = EPC_KEY_MINIMUM_LENGTH_BYTES;
+      data = g_malloc0 (data_len);
     }
 
   g_autoptr(GBytes) key_bytes = g_bytes_new_take (g_steal_pointer (&data), data_len);
@@ -138,8 +225,7 @@ load_key_cb (GObject      *source_object,
 
   g_autoptr(GFile) state_directory = g_file_new_for_path (LOCALSTATEDIR "/lib/eos-payg");
 
-  /* FIXME: Load the enabled state from a configuration file. */
-  self->manager = epg_manager_new (TRUE,
+  self->manager = epg_manager_new (enabled,
                                    key_bytes,
                                    state_directory);
 

@@ -51,5 +51,6 @@ configure_file(
 
 # Documentation
 install_man('docs/eos-paygd.8')
+install_man('docs/eos-payg.conf.5')
 
 subdir('tests')
