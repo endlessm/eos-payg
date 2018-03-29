@@ -60,7 +60,8 @@ gboolean    epg_manager_add_code   (EpgManager   *self,
                                     const gchar  *code_str,
                                     guint64       now,
                                     GError      **error);
-void        epg_manager_clear_code (EpgManager   *self);
+gboolean    epg_manager_clear_code (EpgManager   *self,
+                                    GError      **error);
 
 void        epg_manager_load_state_async  (EpgManager           *self,
                                            GCancellable         *cancellable,
