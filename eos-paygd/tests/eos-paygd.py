@@ -58,13 +58,15 @@ class TestEosPaygd(dbusmock.DBusTestCase):
     @unittest.skipIf(os.geteuid() != 0, "Must be run as root")
     def test_abort_if_root(self):
         """Test the daemon exits immediately if run as root."""
-        info = subprocess.run([self.__eos_paygd],
-                              timeout=self.timeout_seconds,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT)
-        out = info.stdout.decode('utf-8').strip()
+        p = subprocess.Popen([self.__eos_paygd],
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT)
+        out, _ = p.communicate(timeout=self.timeout_seconds)
+        rc = p.returncode
+
+        out = out.decode('utf-8').strip()
         self.assertIn('This daemon must not be run as root', out)
-        self.assertEqual(info.returncode, 3)  # ERROR_INVALID_ENVIRONMENT
+        self.assertEqual(rc, 3)  # ERROR_INVALID_ENVIRONMENT
 
 
 if __name__ == '__main__':
