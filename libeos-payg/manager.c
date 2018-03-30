@@ -54,13 +54,14 @@ G_STATIC_ASSERT (sizeof (UsedCode) == 2);
 G_STATIC_ASSERT (offsetof (UsedCode, counter) == 0);
 G_STATIC_ASSERT (offsetof (UsedCode, period) == 1);
 
-/* Limit calls to epg_manager_add_code() to 5 attempts every 1 hour. These
+/* Limit calls to epg_manager_add_code() to 10 attempts every 30 minutes. These
  * values are not arbitrary, and are an inherent part of the security of the
  * codes in libeos-payg-codes against brute force attacks. By rate limiting at
  * this level, we can probabilistically say that brute force attacks will take
- * longer than the period of the code they would reveal. */
-#define RATE_LIMITING_N_ATTEMPTS 5
-#define RATE_LIMITING_TIME_PERIOD_SECS (60 * 60)
+ * longer than the period of the code they would reveal, assuming codes have
+ * an average period of 1 week. */
+#define RATE_LIMITING_N_ATTEMPTS 10
+#define RATE_LIMITING_TIME_PERIOD_SECS (30 * 60)
 
 /**
  * EpgManager:
