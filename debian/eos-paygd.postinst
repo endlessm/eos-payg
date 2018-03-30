@@ -3,7 +3,7 @@ set -e
 
 if [ "$1" = configure ]; then
     systemd-sysusers /lib/sysusers.d/eos-paygd.conf
-    systemd-tmpfiles --create /lib/tmpfiles.d/eos-paygd.conf
+    systemd-tmpfiles --create /lib/tmpfiles.d/eos-paygd-state.conf
 fi
 
 #DEBHELPER#
