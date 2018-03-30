@@ -44,8 +44,8 @@ configure_file(
   configuration: config,
 )
 configure_file(
-  input: 'eos-paygd.tmpfiles.conf.in',
-  output: 'eos-paygd.conf',
+  input: 'eos-paygd-state.conf.in',
+  output: 'eos-paygd-state.conf',
   install_dir: dependency('systemd').get_pkgconfig_variable('tmpfilesdir'),
   configuration: config,
 )
