@@ -23,6 +23,7 @@ executable('eos-paygd' + eos_paygd_api_version,
 config = configuration_data()
 config.set('DAEMON_USER', get_option('payg_daemon_user'))
 config.set('libexecdir', join_paths(get_option('prefix'), get_option('libexecdir')))
+config.set('localstatedir', join_paths(get_option('prefix'), get_option('localstatedir')))
 
 configure_file(
   input: 'com.endlessm.Payg1.conf.in',
@@ -40,6 +41,12 @@ configure_file(
   input: 'eos-paygd.conf.in',
   output: 'eos-paygd.conf',
   install_dir: dependency('systemd').get_pkgconfig_variable('sysusersdir'),
+  configuration: config,
+)
+configure_file(
+  input: 'eos-paygd.tmpfiles.conf.in',
+  output: 'eos-paygd.conf',
+  install_dir: dependency('systemd').get_pkgconfig_variable('tmpfilesdir'),
   configuration: config,
 )
 configure_file(

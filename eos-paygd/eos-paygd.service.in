@@ -2,6 +2,8 @@
 Description=Pay As You Go Daemon
 Documentation=man:eos-paygd(8)
 Before=systemd-user-sessions.service
+Requires=systemd-tmpfiles-setup.service
+After=systemd-tmpfiles-setup.service
 
 [Service]
 ExecStart=@libexecdir@/eos-paygd1
@@ -27,8 +29,7 @@ ProtectHome=yes
 ProtectKernelModules=yes
 ProtectKernelTunables=yes
 ProtectSystem=strict
-StateDirectory=eos-payg
-StateDirectoryMode=0700
+ReadWritePaths=/var/lib/eos-payg
 RestrictAddressFamilies=AF_UNIX
 RestrictRealtime=yes
 SystemCallErrorNumber=EPERM

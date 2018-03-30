@@ -17,7 +17,7 @@ Section: misc
 Architecture: any
 Multi-arch: same
 Depends:
- systemd (>= 235),
+ systemd (>= 232),
  ${misc:Depends},
  ${shlibs:Depends},
 Description: Pay As You Go Daemon
