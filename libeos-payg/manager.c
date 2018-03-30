@@ -504,7 +504,8 @@ expired_cb (gpointer user_data)
   return G_SOURCE_REMOVE;
 }
 
-/* Set the #EpgManager:expiry-time to `MIN (G_MAXUINT64, @now + @span)` and set
+/* Set the #EpgManager:expiry-time to
+ * `MIN (G_MAXUINT64, MAX (@now, #EpgManager:expiry-time) + @span)` and set
  * the #GSource expiry timer to the new expiry time. Everything is handled in
  * seconds. */
 static void
@@ -517,8 +518,12 @@ set_expiry_time (EpgManager *self,
    * use a different epoch across reboots. */
   guint64 old_expiry_time_secs = self->expiry_time_secs;
 
+  /* If the old PAYG code had expired, start from @now_secs; otherwise start
+   * from the current expiry time (in the future). */
+  guint64 base_secs = (now_secs < old_expiry_time_secs) ? old_expiry_time_secs : now_secs;
+
   /* Clamp to the end of time instead of overflowing. */
-  self->expiry_time_secs = (now_secs <= G_MAXUINT64 - span_secs) ? now_secs + span_secs : G_MAXUINT64;
+  self->expiry_time_secs = (base_secs <= G_MAXUINT64 - span_secs) ? base_secs + span_secs : G_MAXUINT64;
 
   /* Set the expiry timer. g_timeout_source_new_seconds() takes a #guint, and
    * @span is a #guint64. However, the maximum span is 365 days, which is
@@ -527,8 +532,9 @@ set_expiry_time (EpgManager *self,
 
   if (self->expiry_time_secs != G_MAXUINT64)
     {
-      g_assert (span_secs <= G_MAXUINT);
-      self->expiry = g_timeout_source_new_seconds (span_secs);
+      g_assert (self->expiry_time_secs >= now_secs);
+      g_assert (self->expiry_time_secs - now_secs <= G_MAXUINT);
+      self->expiry = g_timeout_source_new_seconds (self->expiry_time_secs - now_secs);
       g_source_set_callback (self->expiry, expired_cb, self, NULL);
       g_source_attach (self->expiry, self->context);
     }
@@ -538,10 +544,11 @@ set_expiry_time (EpgManager *self,
     g_object_notify (G_OBJECT (self), "expiry-time");
 }
 
-/* Set the #EpgManager:expiry-time to be the current time (@now), plus the given
- * @period. If @period is %EPC_PERIOD_INFINITE, or if the expiry time would
- * overflow, set the expiry time as high as possible. Everything is handled in
- * seconds.
+/* Set the #EpgManager:expiry-time to be `MAX (@now, #EpgManager:expiry-time)`,
+ * plus the given @period, guaranteeing to give the user @period extra time on
+ * their computer. If @period is %EPC_PERIOD_INFINITE, or if the expiry time
+ * would overflow, set the expiry time as high as possible. Everything is
+ * handled in seconds.
  *
  * @now will typically be the value of (g_get_real_time() / G_USEC_PER_SEC).
  * It is parameterised to allow easy testing. */
@@ -654,14 +661,15 @@ used_codes_sort_cb (gconstpointer a,
  * @self: an #EpgManager
  * @code_str: code to verify and add, in a form suitable for parsing with
  *    epc_parse_code()
- * @now: the current time, in seconds since the UNIX epoch, as returned by
+ * @now_secs: the current time, in seconds since the UNIX epoch, as returned by
  *    (g_get_real_time() / G_USEC_PER_SEC); this is parameterised to allow for
  *    easy testing
  * @error: return location for a #GError
  *
  * Verify and add the given @code_str. This checks that @code_str is valid, and
  * has not been used already. If so, it will add the time period given in the
- * @code_str to #EpgManager:expiry-time. If @code_str fails verification or
+ * @code_str to #EpgManager:expiry-time (or to @now_secs if
+ * #EpgManager:expiry-time is in the past). If @code_str fails verification or
  * cannot be added, an error will be returned.
  *
  * Calls to this function are rate limited: if too many attempts are made within
