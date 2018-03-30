@@ -65,6 +65,28 @@ class TestEosPaygGenerate(unittest.TestCase):
             key_file.write(contents)
         return 'key'
 
+    def runGenerateCheck(self, *args):
+        argv = [self.__eos_payg_generate]
+        argv.extend(args)
+        print('Running:', argv)
+
+        env = os.environ.copy()
+        env['LC_ALL'] = 'C.UTF-8'
+        print('Environment:', env)
+
+        p = subprocess.Popen(argv,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT,
+                             env=env)
+        out, _ = p.communicate(timeout=self.timeout_seconds)
+        rc = p.returncode
+
+        out = subprocess.check_output(argv, timeout=self.timeout_seconds,
+                                       stderr=subprocess.STDOUT,
+                                       env=env)
+        print('Output:', out.decode('utf-8'))
+        return out
+
     def runGenerate(self, *args):
         argv = [self.__eos_payg_generate]
         argv.extend(args)
@@ -74,42 +96,40 @@ class TestEosPaygGenerate(unittest.TestCase):
         env['LC_ALL'] = 'C.UTF-8'
         print('Environment:', env)
 
-        info = subprocess.run(argv, timeout=self.timeout_seconds,
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT,
-                              env=env)
-        print('Output:', info.stdout.decode('utf-8'))
-        return info
+        p = subprocess.Popen(argv,
+                             stdout=subprocess.PIPE,
+                             stderr=subprocess.STDOUT,
+                             env=env)
+        out, _ = p.communicate(timeout=self.timeout_seconds)
+        rc = p.returncode
+        print('Output:', out.decode('utf-8'))
+        return (rc, out)
 
     def test_list_periods(self):
         """Test listing periods."""
-        info = self.runGenerate('-l')
-        info.check_returncode()
-        out = info.stdout.decode('utf-8').strip()
+        out = self.runGenerateCheck('-l')
+        out = out.decode('utf-8').strip()
         self.assertIn('Available periods:\n', out)
         self.assertIn(' • 5d — 5 days\n', out)
 
     def test_list_periods_quiet(self):
         """Test listing periods with -q."""
-        info = self.runGenerate('-l', '-q')
-        info.check_returncode()
-        out = info.stdout.decode('utf-8').strip()
+        out = self.runGenerateCheck('-l', '-q')
+        out = out.decode('utf-8').strip()
         self.assertNotIn('Available periods:\n', out)
         self.assertNotIn(' • 5d — 5 days\n', out)
         self.assertIn('5d\n', out)
 
     def test_generate_with_counter(self):
         """Test generating a single code by specifying a counter."""
-        info = self.runGenerate(self.createKey(), '1d', '5')
-        info.check_returncode()
-        out = info.stdout.decode('utf-8').strip()
+        out = self.runGenerateCheck(self.createKey(), '1d', '5')
+        out = out.decode('utf-8').strip()
         self.assertEqual('08433942', out)
 
     def test_generate_without_counter(self):
         """Test generating a whole set of codes by omitting a counter."""
-        info = self.runGenerate(self.createKey(), '1d')
-        info.check_returncode()
-        out = info.stdout.decode('utf-8').strip()
+        out = self.runGenerateCheck(self.createKey(), '1d')
+        out = out.decode('utf-8').strip()
 
         # Test that some arbitary counters are in there:
         self.assertIn('08433942\n', out)
@@ -121,63 +141,63 @@ class TestEosPaygGenerate(unittest.TestCase):
 
     def test_generate_invalid_period(self):
         """Test error handling when passing an invalid period."""
-        info = self.runGenerate(self.createKey(), 'not really valid')
-        out = info.stdout.decode('utf-8').strip()
+        (rc, out) = self.runGenerate(self.createKey(), 'not really valid')
+        out = out.decode('utf-8').strip()
         self.assertIn('Invalid period ‘not really valid’', out)
-        self.assertEqual(info.returncode, 1)  # EXIT_INVALID_OPTIONS
+        self.assertEqual(rc, 1)  # EXIT_INVALID_OPTIONS
 
     def test_generate_missing_period(self):
         """Test error handling when passing no period."""
-        info = self.runGenerate(self.createKey())
-        out = info.stdout.decode('utf-8').strip()
+        (rc, out) = self.runGenerate(self.createKey())
+        out = out.decode('utf-8').strip()
         self.assertIn('Option parsing failed: A KEY-FILENAME and PERIOD are '
                       'required', out)
-        self.assertEqual(info.returncode, 1)  # EXIT_INVALID_OPTIONS
+        self.assertEqual(rc, 1)  # EXIT_INVALID_OPTIONS
 
     def test_generate_missing_key(self):
         """Test error handling when passing no key or period."""
-        info = self.runGenerate()
-        out = info.stdout.decode('utf-8').strip()
+        (rc, out) = self.runGenerate()
+        out = out.decode('utf-8').strip()
         self.assertIn('Option parsing failed: A KEY-FILENAME and PERIOD are '
                       'required', out)
-        self.assertEqual(info.returncode, 1)  # EXIT_INVALID_OPTIONS
+        self.assertEqual(rc, 1)  # EXIT_INVALID_OPTIONS
 
     def test_generate_too_many_options(self):
         """Test error handling when passing too many options."""
-        info = self.runGenerate('key', '1d', '123', 'spurious option')
-        out = info.stdout.decode('utf-8').strip()
+        (rc, out) = self.runGenerate('key', '1d', '123', 'spurious option')
+        out = out.decode('utf-8').strip()
         self.assertIn('Option parsing failed: Too many arguments provided',
                       out)
-        self.assertEqual(info.returncode, 1)  # EXIT_INVALID_OPTIONS
+        self.assertEqual(rc, 1)  # EXIT_INVALID_OPTIONS
 
     def test_generate_invalid_argument(self):
         """Test error handling when passing an invalid argument."""
-        info = self.runGenerate('--not-an-argument')
-        out = info.stdout.decode('utf-8').strip()
+        (rc, out) = self.runGenerate('--not-an-argument')
+        out = out.decode('utf-8').strip()
         self.assertIn('Option parsing failed: Unknown option '
                       '--not-an-argument', out)
-        self.assertEqual(info.returncode, 1)  # EXIT_INVALID_OPTIONS
+        self.assertEqual(rc, 1)  # EXIT_INVALID_OPTIONS
 
     def test_generate_invalid_key(self):
         """Test error handling when passing an invalid key."""
-        info = self.runGenerate('not a key', '1d')
-        out = info.stdout.decode('utf-8').strip()
+        (rc, out) = self.runGenerate('not a key', '1d')
+        out = out.decode('utf-8').strip()
         self.assertIn('No such file or directory', out)
-        self.assertEqual(info.returncode, 1)  # EXIT_INVALID_OPTIONS
+        self.assertEqual(rc, 1)  # EXIT_INVALID_OPTIONS
 
     def test_generate_invalid_counter(self):
         """Test error handling when passing an invalid counter."""
-        info = self.runGenerate(self.createKey(), '1d', 'hello world')
-        out = info.stdout.decode('utf-8').strip()
+        (rc, out) = self.runGenerate(self.createKey(), '1d', 'hello world')
+        out = out.decode('utf-8').strip()
         self.assertIn('“hello world” is not an unsigned number', out)
-        self.assertEqual(info.returncode, 1)  # EXIT_INVALID_OPTIONS
+        self.assertEqual(rc, 1)  # EXIT_INVALID_OPTIONS
 
     def test_generate_short_key(self):
         """Test error handling when passing a key which is too short."""
-        info = self.runGenerate(self.createKey('short'), '1d')
-        out = info.stdout.decode('utf-8').strip()
+        (rc, out) = self.runGenerate(self.createKey('short'), '1d')
+        out = out.decode('utf-8').strip()
         self.assertIn('Key is too short; minimum length 64 bytes.', out)
-        self.assertEqual(info.returncode, 2)  # EXIT_FAILED
+        self.assertEqual(rc, 2)  # EXIT_FAILED
 
 
 if __name__ == '__main__':
