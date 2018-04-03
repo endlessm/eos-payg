@@ -17,6 +17,7 @@ Section: misc
 Architecture: any
 Multi-arch: same
 Depends:
+ eos-payg-data (= ${source:Version}),
  systemd (>= 232),
  ${misc:Depends},
  ${shlibs:Depends},
@@ -43,6 +44,7 @@ Section: misc
 Architecture: any
 Multi-arch: same
 Depends:
+ eos-payg-data (= ${source:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
 Description: Pay As You Go Code Generator
@@ -98,3 +100,11 @@ Description: Pay As You Go Daemon - helper library tests
  verification of pay as you go codes.
  .
  This package contains unit tests for the APIs used by the daemon.
+
+Package: eos-payg-data
+Section: misc
+Architecture: all
+Depends:
+ ${misc:Depends},
+Description: Pay As You Go Daemon - architecture independent files
+ This package contains the architecture-independent data files.
