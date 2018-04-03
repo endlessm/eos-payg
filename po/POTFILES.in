@@ -1,0 +1,6 @@
+eos-payg-generate/main.c
+libeos-payg-codes/codes.c
+libeos-payg/manager.c
+libeos-payg/manager-service.c
+libeos-payg/service.c
+libhelper/service.c
