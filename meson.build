@@ -33,6 +33,9 @@ configure_file(
 )
 root_inc = include_directories('.')
 
+# Translations support
+i18n = import('i18n')
+
 # Enable warning flags
 test_args = [
   '-fno-strict-aliasing',
@@ -113,3 +116,4 @@ subdir('libeos-payg-codes')
 subdir('libeos-payg')
 subdir('eos-paygd')
 subdir('eos-payg-generate')
+subdir('po')
