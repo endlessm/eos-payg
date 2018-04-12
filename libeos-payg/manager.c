@@ -494,14 +494,23 @@ check_is_counter_unused (EpgManager  *self,
 }
 
 static gboolean
-expired_cb (gpointer user_data)
+check_expired_cb (gpointer user_data)
 {
   EpgManager *self = EPG_MANAGER (user_data);
 
-  if (self->enabled)
-    g_signal_emit_by_name (self, "expired");
+  if (!self->enabled)
+    return G_SOURCE_REMOVE;
 
-  return G_SOURCE_REMOVE;
+  /* Expired yet? */
+  guint64 now_secs = g_get_real_time () / G_USEC_PER_SEC;
+
+  if (self->expiry_time_secs <= now_secs)
+    {
+      g_signal_emit_by_name (self, "expired");
+      return G_SOURCE_REMOVE;
+    }
+
+  return G_SOURCE_CONTINUE;
 }
 
 /* Set the #EpgManager:expiry-time to
@@ -527,15 +536,20 @@ set_expiry_time (EpgManager *self,
 
   /* Set the expiry timer. g_timeout_source_new_seconds() takes a #guint, and
    * @span is a #guint64. However, the maximum span is 365 days, which is
-   * representable in 32 bits. We don’t set a timer for infinite periods. */
+   * representable in 32 bits. We don’t set a timer for infinite periods.
+   *
+   * FIXME: For the moment, poll every 60s until the expiry time is reached, so
+   * we don’t have to worry about recalculating the timeout period after
+   * resuming from suspend, or if the system clock or timezone changes.
+   * See: https://phabricator.endlessm.com/T22074 */
   clear_expiry_timer (self);
 
   if (self->expiry_time_secs != G_MAXUINT64)
     {
       g_assert (self->expiry_time_secs >= now_secs);
       g_assert (self->expiry_time_secs - now_secs <= G_MAXUINT);
-      self->expiry = g_timeout_source_new_seconds (self->expiry_time_secs - now_secs);
-      g_source_set_callback (self->expiry, expired_cb, self, NULL);
+      self->expiry = g_timeout_source_new_seconds (MIN (self->expiry_time_secs - now_secs, 60));
+      g_source_set_callback (self->expiry, check_expired_cb, self, NULL);
       g_source_attach (self->expiry, self->context);
     }
 
