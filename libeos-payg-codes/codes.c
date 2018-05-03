@@ -105,7 +105,9 @@ epc_period_validate (EpcPeriod   period,
     case EPC_PERIOD_5_SECONDS:
     case EPC_PERIOD_1_MINUTE:
     case EPC_PERIOD_5_MINUTES:
+    case EPC_PERIOD_30_MINUTES:
     case EPC_PERIOD_1_HOUR:
+    case EPC_PERIOD_8_HOURS:
     case EPC_PERIOD_1_DAY:
     case EPC_PERIOD_2_DAYS:
     case EPC_PERIOD_3_DAYS:
