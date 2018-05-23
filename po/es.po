@@ -242,7 +242,7 @@ msgid ""
 " remaining before its lease next needs topping up."
 msgstr ""
 "Verifica los códigos de recarga ingresados y controla la cantidad de tiempo "
-"que le queda a la computadora antes de la próximo vez que necesite recargo."
+"que le queda a la computadora antes de la próxima vez que necesite recarga."
 
 #: libhelper/service.c:428
 #, c-format

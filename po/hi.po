@@ -32,7 +32,7 @@ msgstr "5 मिनट"
 
 #: eos-payg-generate/main.c:52
 msgid "30 minutes"
-msgstr ""
+msgstr "30 मिनट"
 
 #: eos-payg-generate/main.c:52
 msgid "1 hour"
@@ -40,7 +40,7 @@ msgstr "1 घंटा "
 
 #: eos-payg-generate/main.c:54
 msgid "8 hours"
-msgstr ""
+msgstr "8 घंटे "
 
 #: eos-payg-generate/main.c:53
 msgid "1 day"
