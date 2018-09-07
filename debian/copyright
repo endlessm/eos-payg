@@ -23,7 +23,7 @@ Files: *
 Copyright: Copyright 2018 Endless Mobile, Inc.
 License: MPL-2.0 or LGPL-2.1+
 
-Files: libhelper/*
+Files: subprojects/libgsystemservice/*
 Copyright: Copyright 2017, 2018 Endless Mobile, Inc.
 License: LGPL-2.1+
  This library is free software; you can redistribute it and/or

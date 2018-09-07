@@ -111,7 +111,9 @@ test_env = [
   'LC_ALL=C.UTF-8',
 ]
 
-subdir('libhelper')
+libgsystemservice = subproject('libgsystemservice')
+libgsystemservice_dep = libgsystemservice.get_variable('libgsystemservice_dep')
+
 subdir('libeos-payg-codes')
 subdir('libeos-payg')
 subdir('eos-paygd')
