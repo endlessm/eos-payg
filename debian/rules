@@ -8,6 +8,7 @@ override_dh_auto_configure:
 	dh_auto_configure \
 		-- \
 		-Dinstalled_tests=true \
+		-Ddefault_library=static \
 		$(NULL)
 
 # Don't start the services on install
