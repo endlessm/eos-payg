@@ -26,5 +26,4 @@ exec gnome-desktop-testing-runner \
 	eos-payg-generate-1 \
 	libeos-payg-1 \
 	libeos-payg-codes-1 \
-	libeos-payg-helper-1 \
 	--
