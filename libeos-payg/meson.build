@@ -1,10 +1,12 @@
 libeos_payg_api_version = '1'
 libeos_payg_sources = [
+  'boottime-source.c',
   'manager.c',
   'manager-service.c',
   'service.c',
 ]
 libeos_payg_headers = [
+  'boottime-source.h',
   'manager.h',
   'manager-interface.h',
   'manager-service.h',
