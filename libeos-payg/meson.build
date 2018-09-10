@@ -1,4 +1,5 @@
 libeos_payg_sources = [
+  'boottime-source.c',
   'errors.c',
   'manager.c',
   'manager-service.c',
@@ -13,6 +14,7 @@ libeos_payg_exported_headers = [
   'provider.h',
 ]
 libeos_payg_headers = libeos_payg_exported_headers + [
+  'boottime-source.h',
   'manager.h',
   'manager-interface.h',
   'manager-service.h',
