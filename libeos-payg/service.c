@@ -28,7 +28,7 @@
 #include <libeos-payg/resources.h>
 #include <libeos-payg/service.h>
 #include <libeos-payg-codes/codes.h>
-#include <libhelper/config-file.h>
+#include <libgsystemservice/config-file.h>
 #include <locale.h>
 
 
@@ -40,16 +40,16 @@
 
 static void epg_service_dispose (GObject *object);
 
-static GOptionEntry *epg_service_get_main_option_entries (HlpService *service);
+static GOptionEntry *epg_service_get_main_option_entries (GssService *service);
 
-static void epg_service_startup_async (HlpService          *service,
+static void epg_service_startup_async (GssService          *service,
                                        GCancellable        *cancellable,
                                        GAsyncReadyCallback  callback,
                                        gpointer             user_data);
-static void epg_service_startup_finish (HlpService    *service,
+static void epg_service_startup_finish (GssService    *service,
                                         GAsyncResult  *result,
                                         GError       **error);
-static void epg_service_shutdown (HlpService *service);
+static void epg_service_shutdown (GssService *service);
 
 /**
  * EpgService:
@@ -61,7 +61,7 @@ static void epg_service_shutdown (HlpService *service);
  */
 struct _EpgService
 {
-  HlpService parent;
+  GssService parent;
 
   EpgManager *manager;  /* (owned) */
   EpgManagerService *manager_service;  /* (owned) */
@@ -71,13 +71,13 @@ struct _EpgService
   gchar *config_file_path;  /* (type filename) (owned) (nullable) */
 };
 
-G_DEFINE_TYPE (EpgService, epg_service, HLP_TYPE_SERVICE)
+G_DEFINE_TYPE (EpgService, epg_service, GSS_TYPE_SERVICE)
 
 static void
 epg_service_class_init (EpgServiceClass *klass)
 {
   GObjectClass *object_class = (GObjectClass *) klass;
-  HlpServiceClass *service_class = (HlpServiceClass *) klass;
+  GssServiceClass *service_class = (GssServiceClass *) klass;
 
   object_class->dispose = epg_service_dispose;
 
@@ -107,7 +107,7 @@ epg_service_dispose (GObject *object)
 }
 
 static GOptionEntry *
-epg_service_get_main_option_entries (HlpService *service)
+epg_service_get_main_option_entries (GssService *service)
 {
   EpgService *self = EPG_SERVICE (service);
 
@@ -133,7 +133,7 @@ static void load_key_cb   (GObject      *source_object,
                            gpointer      user_data);
 
 static void
-epg_service_startup_async (HlpService          *service,
+epg_service_startup_async (GssService          *service,
                            GCancellable        *cancellable,
                            GAsyncReadyCallback  callback,
                            gpointer             user_data)
@@ -159,13 +159,13 @@ epg_service_startup_async (HlpService          *service,
       NULL,
     };
 
-  g_autoptr(HlpConfigFile) config_file = NULL;
-  config_file = hlp_config_file_new ((self->config_file_path != NULL) ? override_paths : default_paths,
+  g_autoptr(GssConfigFile) config_file = NULL;
+  config_file = gss_config_file_new ((self->config_file_path != NULL) ? override_paths : default_paths,
                                      epg_get_resource (),
                                      "/com/endlessm/Payg1/config/eos-payg.conf");
 
   /* Is pay as you go enabled? */
-  gboolean enabled = hlp_config_file_get_boolean (config_file,
+  gboolean enabled = gss_config_file_get_boolean (config_file,
                                                   "PAYG", "Enabled",
                                                   &local_error);
 
@@ -250,7 +250,7 @@ load_state_cb (GObject      *source_object,
     }
 
   /* Create our D-Bus service. */
-  GDBusConnection *connection = hlp_service_get_dbus_connection (HLP_SERVICE (self));
+  GDBusConnection *connection = gss_service_get_dbus_connection (GSS_SERVICE (self));
 
   self->manager_service = epg_manager_service_new (connection,
                                                    "/com/endlessm/Payg1",
@@ -263,7 +263,7 @@ load_state_cb (GObject      *source_object,
 }
 
 static void
-epg_service_startup_finish (HlpService    *service,
+epg_service_startup_finish (GssService    *service,
                             GAsyncResult  *result,
                             GError       **error)
 {
@@ -280,7 +280,7 @@ async_result_cb (GObject      *source_object,
 }
 
 static void
-epg_service_shutdown (HlpService *service)
+epg_service_shutdown (GssService *service)
 {
   EpgService *self = EPG_SERVICE (service);
   g_autoptr(GError) local_error = NULL;

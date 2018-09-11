@@ -3,4 +3,4 @@ libeos-payg-codes/codes.c
 libeos-payg/manager.c
 libeos-payg/manager-service.c
 libeos-payg/service.c
-libhelper/service.c
+subprojects/libgsystemservice/libgsystemservice/service.c

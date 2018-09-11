@@ -21,12 +21,12 @@
 
 #include <glib.h>
 #include <glib-object.h>
-#include <libhelper/service.h>
+#include <libgsystemservice/service.h>
 
 G_BEGIN_DECLS
 
 #define EPG_TYPE_SERVICE epg_service_get_type ()
-G_DECLARE_FINAL_TYPE (EpgService, epg_service, EPG, SERVICE, HlpService)
+G_DECLARE_FINAL_TYPE (EpgService, epg_service, EPG, SERVICE, GssService)
 
 EpgService *epg_service_new (void);
 
