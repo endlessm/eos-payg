@@ -473,9 +473,11 @@ check_is_counter_unused (EpgManager  *self,
                          EpcCounter   counter,
                          GError     **error)
 {
-  /* FIXME: Since the counter list could be long (up to 256 entries), we could
-   * use a binary search to speed things up here. The list is guaranteed to be
-   * sorted. */
+  /* As per https://www.evanjones.ca/linear-search.html, there’s not much
+   * point using anything more complex than linear search here. The counter
+   * list is limited to 256 entries, and linear search is fast to around 100
+   * entries, and still competitive above that.
+   * The list is guaranteed to be sorted. */
   for (gsize i = 0; i < self->used_codes->len; i++)
     {
       const UsedCode *used_code = &g_array_index (self->used_codes, UsedCode, i);
