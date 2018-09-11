@@ -2,8 +2,8 @@ usr/include/gsystemservice-0/libgsystemservice/config-file.h
 usr/include/gsystemservice-0/libgsystemservice/peer-manager.h
 usr/include/gsystemservice-0/libgsystemservice/peer-manager-dbus.h
 usr/include/gsystemservice-0/libgsystemservice/service.h
-usr/lib/x86_64-linux-gnu/libgsystemservice-0.a
-usr/lib/x86_64-linux-gnu/pkgconfig/gsystemservice-0.pc
+usr/lib/*/libgsystemservice-0.a
+usr/lib/*/pkgconfig/gsystemservice-0.pc
 usr/share/gtk-doc/html/libgsystemservice/right-insensitive.png
 usr/share/gtk-doc/html/libgsystemservice/libgsystemservice-GssConfigFile.html
 usr/share/gtk-doc/html/libgsystemservice/left-insensitive.png
