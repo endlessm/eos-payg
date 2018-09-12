@@ -176,7 +176,7 @@ class TestEosPaygGenerate(unittest.TestCase):
         """Test error handling when passing a key which is too short."""
         info = self.runGenerate(self.createKey('short'), '1d')
         out = info.stdout.decode('utf-8').strip()
-        self.assertIn('Key is too short; minimum length 64 bytes.', out)
+        self.assertIn('Key is too short (5 bytes); minimum length 64 bytes.', out)
         self.assertEqual(info.returncode, 2)  # EXIT_FAILED
 
 
