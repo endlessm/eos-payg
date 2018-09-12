@@ -12,6 +12,7 @@ envs = test_env + [
 ]
 
 test_programs = [
+  ['manager', [], deps],
   ['service', [], deps],
 ]
 
