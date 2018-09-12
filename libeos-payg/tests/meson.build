@@ -12,7 +12,7 @@ envs = test_env + [
 ]
 
 test_programs = [
-  ['manager-service', [], deps],
+  ['service', [], deps],
 ]
 
 installed_tests_metadir = join_paths(datadir, 'installed-tests',
