@@ -24,31 +24,6 @@
 
 G_BEGIN_DECLS
 
-/**
- * EpgManagerError:
- * @EPG_MANAGER_ERROR_INVALID_CODE: The given code was invalid, such as having
- *    an invalid signature or time period.
- * @EPG_MANAGER_ERROR_CODE_ALREADY_USED: The given code has already been used.
- * @EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS: Too many attempts to verify a code
- *    in recent history.
- * @EPG_MANAGER_ERROR_DISABLED: Pay as you go is disabled.
- *
- * Errors which can be returned by #EpgManager.
- *
- * Since: 0.1.0
- */
-typedef enum
-{
-  EPG_MANAGER_ERROR_INVALID_CODE = 0,
-  EPG_MANAGER_ERROR_CODE_ALREADY_USED,
-  EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS,
-  EPG_MANAGER_ERROR_DISABLED,
-} EpgManagerError;
-#define EPG_MANAGER_N_ERRORS (EPG_MANAGER_ERROR_DISABLED + 1)
-
-GQuark epg_manager_error_quark (void);
-#define EPG_MANAGER_ERROR epg_manager_error_quark ()
-
 #define EPG_TYPE_MANAGER epg_manager_get_type ()
 G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
 

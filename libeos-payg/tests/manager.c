@@ -23,6 +23,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gio/gio.h>
+#include <libeos-payg/errors.h>
 #include <libeos-payg/manager.h>
 #include <libeos-payg-codes/codes.h>
 #include <locale.h>

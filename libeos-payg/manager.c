@@ -23,13 +23,11 @@
 #include <glib-object.h>
 #include <glib/gi18n-lib.h>
 #include <gio/gio.h>
+#include <libeos-payg/errors.h>
 #include <libeos-payg/manager.h>
 #include <libeos-payg/multi-task.h>
 #include <libeos-payg-codes/codes.h>
 
-
-/* These errors do go over the bus, and are registered in manager-service.c. */
-G_DEFINE_QUARK (EpgManagerError, epg_manager_error)
 
 static void epg_manager_async_initable_iface_init (gpointer g_iface,
                                                    gpointer iface_data);

@@ -23,6 +23,7 @@
 #include <glib-unix.h>
 #include <glib/gi18n-lib.h>
 #include <gio/gio.h>
+#include <libeos-payg/errors.h>
 #include <libeos-payg/manager-interface.h>
 #include <libeos-payg/manager-service.h>
 
