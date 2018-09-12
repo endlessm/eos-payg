@@ -124,9 +124,9 @@ epg_service_get_main_option_entries (GssService *service)
   return g_steal_pointer (&entries);
 }
 
-static void load_state_cb (GObject      *source_object,
-                           GAsyncResult *result,
-                           gpointer      user_data);
+static void manager_new_cb (GObject      *source_object,
+                            GAsyncResult *result,
+                            gpointer      user_data);
 
 static void load_key_cb   (GObject      *source_object,
                            GAsyncResult *result,
@@ -198,7 +198,6 @@ load_key_cb (GObject      *source_object,
   GFile *key_file = G_FILE (source_object);
   g_autoptr(GTask) task = G_TASK (user_data);
   GCancellable *cancellable = g_task_get_cancellable (task);
-  EpgService *self = EPG_SERVICE (g_task_get_source_object (task));
   g_autoptr(GError) local_error = NULL;
 
   g_autofree gchar *data = NULL;  /* would be guint8* if it weren’t for strict aliasing */
@@ -225,25 +224,22 @@ load_key_cb (GObject      *source_object,
 
   g_autoptr(GFile) state_directory = g_file_new_for_path (LOCALSTATEDIR "/lib/eos-payg");
 
-  self->manager = epg_manager_new (enabled,
-                                   key_bytes,
-                                   state_directory);
-
-  epg_manager_load_state_async (self->manager, cancellable,
-                                load_state_cb, g_steal_pointer (&task));
+  epg_manager_new (enabled, key_bytes, state_directory,
+                   cancellable,
+                   manager_new_cb, g_steal_pointer (&task));
 }
 
 static void
-load_state_cb (GObject      *source_object,
-               GAsyncResult *result,
-               gpointer      user_data)
+manager_new_cb (GObject      *source_object,
+                GAsyncResult *result,
+                gpointer      user_data)
 {
-  EpgManager *manager = EPG_MANAGER (source_object);
   g_autoptr(GTask) task = G_TASK (user_data);
   EpgService *self = EPG_SERVICE (g_task_get_source_object (task));
   g_autoptr(GError) local_error = NULL;
 
-  if (!epg_manager_load_state_finish (manager, result, &local_error))
+  self->manager = epg_manager_new_finish (result, &local_error);
+  if (self->manager == NULL)
     {
       g_task_return_error (task, g_steal_pointer (&local_error));
       return;
@@ -254,7 +250,7 @@ load_state_cb (GObject      *source_object,
 
   self->manager_service = epg_manager_service_new (connection,
                                                    "/com/endlessm/Payg1",
-                                                   manager);
+                                                   self->manager);
 
   if (!epg_manager_service_register (self->manager_service, &local_error))
     g_task_return_error (task, g_steal_pointer (&local_error));

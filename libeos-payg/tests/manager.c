@@ -122,21 +122,24 @@ async_cb (GObject      *source,
   *result_out = g_object_ref (result);
 }
 
-static void
-load_state (EpgManager *manager)
+static EpgManager *
+manager_new (Fixture *fixture)
 {
+  g_autoptr(EpgManager) manager = NULL;
   g_autoptr(GAsyncResult) result = NULL;
   g_autoptr(GError) error = NULL;
-  gboolean ret;
 
-  epg_manager_load_state_async (manager, NULL, async_cb, &result);
+  epg_manager_new (TRUE, fixture->key, fixture->tmp_dir,
+                   NULL, async_cb, &result);
 
   while (result == NULL)
     g_main_context_iteration (NULL, TRUE);
 
-  ret = epg_manager_load_state_finish (manager, result, &error);
+  manager = epg_manager_new_finish (result, &error);
   g_assert_no_error (error);
-  g_assert_true (ret);
+  g_assert_nonnull (manager);
+
+  return g_steal_pointer (&manager);
 }
 
 static void
@@ -163,8 +166,7 @@ test_manager_load_empty (Fixture *fixture,
   guint64 start, expiry, end;
 
   start = g_get_real_time () / G_USEC_PER_SEC;
-  g_autoptr(EpgManager) manager = epg_manager_new (TRUE, fixture->key, fixture->tmp_dir);
-  load_state (manager);
+  g_autoptr(EpgManager) manager = manager_new (fixture);
   end = g_get_real_time () / G_USEC_PER_SEC;
 
   /* Default expiry time is "now". */
@@ -177,13 +179,12 @@ static void
 test_manager_add_save_reload (Fixture *fixture,
                               gconstpointer data)
 {
-  g_autoptr(EpgManager) manager = epg_manager_new (TRUE, fixture->key, fixture->tmp_dir);
+  g_autoptr(EpgManager) manager = manager_new (fixture);
   g_autofree gchar *code_str = NULL;
   g_autoptr(GError) error = NULL;
   guint64 expiry_before_code, now, expiry_after_code, expiry_after_reload;
   gboolean ret;
 
-  load_state (manager);
   expiry_before_code = epg_manager_get_expiry_time (manager);
 
   code_str = get_next_code (fixture);
@@ -204,8 +205,7 @@ test_manager_add_save_reload (Fixture *fixture,
   save_state (manager);
 
   g_clear_object (&manager);
-  manager = epg_manager_new (TRUE, fixture->key, fixture->tmp_dir);
-  load_state (manager);
+  manager = manager_new (fixture);
   expiry_after_reload = epg_manager_get_expiry_time (manager);
   g_assert_cmpuint (now + 5, ==, expiry_after_reload);
 }
@@ -214,12 +214,11 @@ static void
 test_manager_error_malformed (Fixture *fixture,
                               gconstpointer data)
 {
-  g_autoptr(EpgManager) manager = epg_manager_new (TRUE, fixture->key, fixture->tmp_dir);
+  g_autoptr(EpgManager) manager = manager_new (fixture);
   g_autoptr(GError) error = NULL;
   guint64 expiry, now, expiry_after_code;
   gboolean ret;
 
-  load_state (manager);
   expiry = epg_manager_get_expiry_time (manager);
   now = expiry + 5;
 
@@ -236,13 +235,12 @@ static void
 test_manager_error_reused (Fixture *fixture,
                            gconstpointer data)
 {
-  g_autoptr(EpgManager) manager = epg_manager_new (TRUE, fixture->key, fixture->tmp_dir);
+  g_autoptr(EpgManager) manager = manager_new (fixture);
   g_autofree gchar *code_str = get_next_code (fixture);
   g_autoptr(GError) error = NULL;
   guint64 expiry_before_code, now, expiry_after_code;
   gboolean ret;
 
-  load_state (manager);
   expiry_before_code = epg_manager_get_expiry_time (manager);
 
   now = expiry_before_code + 5;
@@ -264,7 +262,7 @@ static void
 test_manager_error_rate_limit (Fixture *fixture,
                                gconstpointer data)
 {
-  g_autoptr(EpgManager) manager = epg_manager_new (TRUE, fixture->key, fixture->tmp_dir);
+  g_autoptr(EpgManager) manager = manager_new (fixture);
   g_autoptr(GError) error = NULL;
   g_autofree gchar *code_str = NULL;
   /* Avoid hardcoding the actual limit, but surely it should be less than this */
@@ -272,7 +270,6 @@ test_manager_error_rate_limit (Fixture *fixture,
   guint64 expiry, now, expiry_after_code, rate_limit_end_time;
   gboolean ret;
 
-  load_state (manager);
   expiry = epg_manager_get_expiry_time (manager);
   now = expiry + 5;
 

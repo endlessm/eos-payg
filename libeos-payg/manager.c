@@ -30,6 +30,9 @@
 /* These errors do go over the bus, and are registered in manager-service.c. */
 G_DEFINE_QUARK (EpgManagerError, epg_manager_error)
 
+static void epg_manager_async_initable_iface_init (gpointer g_iface,
+                                                   gpointer iface_data);
+
 static void epg_manager_constructed  (GObject *object);
 static void epg_manager_dispose      (GObject *object);
 
@@ -41,6 +44,15 @@ static void epg_manager_set_property (GObject      *object,
                                       guint         property_id,
                                       const GValue *value,
                                       GParamSpec   *pspec);
+
+static void epg_manager_init_async  (GAsyncInitable      *initable,
+                                     int                  priority,
+                                     GCancellable        *cancellable,
+                                     GAsyncReadyCallback  callback,
+                                     gpointer             user_data);
+static gboolean epg_manager_init_finish (GAsyncInitable  *initable,
+                                         GAsyncResult    *result,
+                                         GError         **error);
 
 /* Struct for storing the values in a used-codes file. The alignment and
  * size of this struct are file format ABI, and must be kept the same. */
@@ -113,7 +125,10 @@ typedef enum
   PROP_RATE_LIMIT_END_TIME,
 } EpgManagerProperty;
 
-G_DEFINE_TYPE (EpgManager, epg_manager, G_TYPE_OBJECT)
+G_DEFINE_TYPE_WITH_CODE (EpgManager, epg_manager, G_TYPE_OBJECT,
+                         G_IMPLEMENT_INTERFACE (G_TYPE_ASYNC_INITABLE,
+                                                epg_manager_async_initable_iface_init);
+                         )
 
 static void
 epg_manager_class_init (EpgManagerClass *klass)
@@ -184,7 +199,7 @@ epg_manager_class_init (EpgManagerClass *klass)
    *
    * Directory to store and load state from. This will typically be something
    * like `/var/lib/eos-payg`, apart from in unit tests. It is used by
-   * epg_manager_save_state_async() and epg_manager_load_state_async().
+   * epg_manager_new() and epg_manager_save_state_async().
    *
    * Since: 0.1.0
    */
@@ -232,9 +247,19 @@ epg_manager_class_init (EpgManagerClass *klass)
 }
 
 static void
+epg_manager_async_initable_iface_init (gpointer g_iface,
+                                       gpointer iface_data)
+{
+  GAsyncInitableIface *iface = g_iface;
+
+  iface->init_async = epg_manager_init_async;
+  iface->init_finish = epg_manager_init_finish;
+}
+
+static void
 epg_manager_init (EpgManager *self)
 {
-  /* @used_codes is populated when epg_manager_load_state_async() is called. */
+  /* @used_codes is populated when epg_manager_init_async() is called. */
   self->used_codes = g_array_new (FALSE, FALSE, sizeof (UsedCode));
   self->context = g_main_context_ref_thread_default ();
   self->cancellable = g_cancellable_new ();
@@ -358,26 +383,64 @@ epg_manager_set_property (GObject      *object,
  * @key_bytes: shared key to verify codes with; see #EpgManager:key-bytes
  * @state_directory: (transfer none): directory to load/store state in; see
  *    #EpgManager:state-directory
+ * @cancellable: (nullable): a #GCancellable or %NULL
+ * @callback: callback function to invoke when the #EpgManager is ready
+ * @user_data: user data to pass to @callback
  *
- * Create a new #EpgManager instance, which will load its previous state from
- * disk when epg_manager_load_state_async() is called.
+ * Asynchronously creates a new #EpgManager instance, which will load its
+ * previous state from disk.
  *
- * Returns: (transfer full): a new #EpgManager
- * Since: 0.1.0
+ * When the initialization is finished, @callback will be called. You can then
+ * call epg_manager_new_finish() to get the #EpgManager and check for any
+ * errors.
+ *
+ * Since: 0.2.0
+ */
+void
+epg_manager_new (gboolean             enabled,
+                 GBytes              *key_bytes,
+                 GFile               *state_directory,
+                 GCancellable        *cancellable,
+                 GAsyncReadyCallback  callback,
+                 gpointer             user_data)
+{
+  g_return_if_fail (key_bytes != NULL);
+  g_return_if_fail (G_IS_FILE (state_directory));
+  g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
+
+  g_async_initable_new_async (EPG_TYPE_MANAGER,
+                              G_PRIORITY_DEFAULT,
+                              cancellable,
+                              callback,
+                              user_data,
+                              "enabled", enabled,
+                              "key-bytes", key_bytes,
+                              "state-directory", state_directory,
+                              NULL);
+}
+
+/**
+ * epg_manager_new_finish:
+ * @result: a #GAsyncResult obtained from the #GAsyncReadyCallback passed to
+ *    epg_manager_new()
+ * @error: return location for error or %NULL
+ *
+ * Finishes creating an #EpgManager.
+ *
+ * Since: 0.2.0
  */
 EpgManager *
-epg_manager_new (gboolean  enabled,
-                 GBytes   *key_bytes,
-                 GFile    *state_directory)
+epg_manager_new_finish (GAsyncResult  *result,
+                        GError       **error)
 {
-  g_return_val_if_fail (key_bytes != NULL, NULL);
-  g_return_val_if_fail (G_IS_FILE (state_directory), NULL);
+  g_autoptr(GObject) source_object;
 
-  return g_object_new (EPG_TYPE_MANAGER,
-                       "enabled", enabled,
-                       "key-bytes", key_bytes,
-                       "state-directory", state_directory,
-                       NULL);
+  source_object = g_async_result_get_source_object (result);
+  g_assert (source_object != NULL);
+
+  return EPG_MANAGER (g_async_initable_new_finish (G_ASYNC_INITABLE (source_object),
+                                                   result,
+                                                   error));
 }
 
 /* Check whether PAYG is enabled. If not, set an error. */
@@ -823,29 +886,30 @@ static void file_load_delete_cb (GObject      *source_object,
                                  GAsyncResult *result,
                                  gpointer      user_data);
 
-/**
- * epg_manager_load_state_async:
+/*
+ * epg_manager_init_async:
  * @self: an #EpgManager
+ * @priority: priority
  * @cancellable: a #GCancellable, or %NULL
  * @callback: function to call once the async operation is complete
  * @user_data: data to pass to @callback
  *
- * Load the state for the #EpgManager from the #EpgManager:state-directory, and
- * overwrite any state currently in memory.
- *
- * Since: 0.1.0
+ * Load the state for the #EpgManager from the #EpgManager:state-directory.
  */
-void
-epg_manager_load_state_async (EpgManager          *self,
-                              GCancellable        *cancellable,
-                              GAsyncReadyCallback  callback,
-                              gpointer             user_data)
+static void
+epg_manager_init_async (GAsyncInitable      *initable,
+                        int                  priority,
+                        GCancellable        *cancellable,
+                        GAsyncReadyCallback  callback,
+                        gpointer             user_data)
 {
-  g_return_if_fail (EPG_IS_MANAGER (self));
+  g_return_if_fail (EPG_IS_MANAGER (initable));
   g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
 
+  EpgManager *self = EPG_MANAGER (initable);
   g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
-  g_task_set_source_tag (task, epg_manager_load_state_async);
+  g_task_set_source_tag (task, epg_manager_init_async);
+  g_task_set_priority (task, priority);
   g_task_set_task_data (task, GUINT_TO_POINTER (3), NULL);
 
   /* Load the expiry time. */
@@ -1034,26 +1098,26 @@ file_load_delete_cb (GObject      *source_object,
                              file_path);
 }
 
-/**
- * epg_manager_load_state_finish:
- * @self: an #EpgManager
+/*
+ * epg_manager_init_finish:
+ * @initable: an #EpgManager
  * @result: asynchronous operation result
  * @error: return location for an error, or %NULL
  *
  * Finish an asynchronous load operation started with
- * epg_manager_load_state_async().
+ * epg_manager_init_async().
  *
  * Returns: %TRUE on success, %FALSE otherwise
  * Since: 0.1.0
  */
-gboolean
-epg_manager_load_state_finish (EpgManager    *self,
-                               GAsyncResult  *result,
-                               GError       **error)
+static gboolean
+epg_manager_init_finish (GAsyncInitable  *initable,
+                         GAsyncResult    *result,
+                         GError         **error)
 {
-  g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
-  g_return_val_if_fail (g_task_is_valid (result, self), FALSE);
-  g_return_val_if_fail (g_async_result_is_tagged (result, epg_manager_load_state_async), FALSE);
+  g_return_val_if_fail (EPG_IS_MANAGER (initable), FALSE);
+  g_return_val_if_fail (g_task_is_valid (result, initable), FALSE);
+  g_return_val_if_fail (g_async_result_is_tagged (result, epg_manager_init_async), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   return g_task_propagate_boolean (G_TASK (result), error);
