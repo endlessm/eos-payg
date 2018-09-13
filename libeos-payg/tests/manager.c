@@ -38,6 +38,9 @@ typedef struct _Fixture {
   gchar *used_codes_path;
 
   GBytes *key;
+  gchar *key_path;
+  GFile *key_file;
+
   EpcCounter next_counter;
 } Fixture;
 
@@ -58,6 +61,13 @@ setup (Fixture *fixture,
 
   fixture->key = g_bytes_new_static (KEY, sizeof (KEY) - 1);
   fixture->next_counter = EPC_MINCOUNTER;
+
+  /* This would not normally live in the same directory, but the code doesn't care. */
+  fixture->key_path = g_build_filename (fixture->tmp_path, "key", NULL);
+  g_file_set_contents (fixture->key_path, KEY, -1, &error);
+  g_assert_no_error (error);
+  fixture->key_file = g_file_new_for_path (fixture->key_path);
+  g_assert_nonnull (fixture->key_file);
 }
 
 static gchar *
@@ -96,6 +106,7 @@ teardown (Fixture *fixture,
 {
   g_clear_pointer (&fixture->expiry_time_path, remove_and_free_path);
   g_clear_pointer (&fixture->used_codes_path, remove_and_free_path);
+  g_clear_pointer (&fixture->key_path, remove_and_free_path);
 
   if (fixture->tmp_path != NULL)
     {
@@ -129,7 +140,7 @@ manager_new_failable (Fixture *fixture,
 {
   g_autoptr(GAsyncResult) result = NULL;
 
-  epg_manager_new (TRUE, fixture->key, fixture->tmp_dir,
+  epg_manager_new (TRUE, fixture->key_file, fixture->tmp_dir,
                    NULL, async_cb, &result);
 
   while (result == NULL)
@@ -166,6 +177,66 @@ save_state (EpgManager *manager)
   ret = epg_manager_save_state_finish (manager, result, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
+}
+
+static void
+test_manager_disabled (Fixture *fixture,
+                       gconstpointer data)
+{
+  gboolean key_missing = GPOINTER_TO_INT (data);
+  gboolean ret;
+
+  if (key_missing)
+    remove_path (fixture->key_path);
+
+  g_autoptr(EpgManager) manager = NULL;
+  g_autoptr(GAsyncResult) result = NULL;
+  g_autoptr(GError) error = NULL;
+
+  epg_manager_new (FALSE, fixture->key_file, fixture->tmp_dir,
+                   NULL, async_cb, &result);
+
+  while (result == NULL)
+    g_main_context_iteration (NULL, TRUE);
+
+  manager = epg_manager_new_finish (result, &error);
+  g_assert_no_error (error);
+  g_assert_nonnull (manager);
+
+  g_assert_false (epg_manager_get_enabled (manager));
+  g_assert_cmpuint (0, ==, epg_manager_get_expiry_time (manager));
+  g_assert_cmpuint (0, ==, epg_manager_get_rate_limit_end_time (manager));
+
+  ret = epg_manager_add_code (manager, "00000000", 0, &error);
+  g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_DISABLED);
+  g_assert_false (ret);
+  g_clear_error (&error);
+
+  ret = epg_manager_clear_code (manager, &error);
+  g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_DISABLED);
+  g_assert_false (ret);
+  g_clear_error (&error);
+}
+
+static void
+test_manager_key_missing (Fixture       *fixture,
+                          gconstpointer  data)
+{
+  remove_path (fixture->key_path);
+
+  g_autoptr(EpgManager) manager = NULL;
+  g_autoptr(GAsyncResult) result = NULL;
+  g_autoptr(GError) error = NULL;
+
+  epg_manager_new (TRUE, fixture->key_file, fixture->tmp_dir,
+                   NULL, async_cb, &result);
+
+  while (result == NULL)
+    g_main_context_iteration (NULL, TRUE);
+
+  manager = epg_manager_new_finish (result, &error);
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
+  g_assert_null (manager);
 }
 
 static void
@@ -262,6 +333,7 @@ test_manager_save_error (Fixture *fixture,
   gboolean ret;
 
   /* Sabotage any future attempts to save state. */
+  remove_path (fixture->key_path);
   remove_path (fixture->tmp_path);
 
   if (apply_code)
@@ -452,6 +524,9 @@ main (int    argc,
 
 #define T(path, func, data) \
   g_test_add (path, Fixture, data, setup, func, teardown)
+  T ("/manager/disabled/key-present", test_manager_disabled, GINT_TO_POINTER (FALSE));
+  T ("/manager/disabled/key-missing", test_manager_disabled, GINT_TO_POINTER (TRUE));
+  T ("/manager/key-missing", test_manager_key_missing, NULL);
   T ("/manager/load-empty", test_manager_load_empty, NULL);
   T ("/manager/load-error/malformed/expiry-time", test_manager_load_error_malformed, expiry_time_offset);
   T ("/manager/load-error/malformed/used-codes", test_manager_load_error_malformed, used_codes_offset);

@@ -128,10 +128,6 @@ static void manager_new_cb (GObject      *source_object,
                             GAsyncResult *result,
                             gpointer      user_data);
 
-static void load_key_cb   (GObject      *source_object,
-                           GAsyncResult *result,
-                           gpointer      user_data);
-
 static void
 epg_service_startup_async (GssService          *service,
                            GCancellable        *cancellable,
@@ -175,56 +171,10 @@ epg_service_startup_async (GssService          *service,
       return;
     }
 
-  /* If we are enabled, load the shared key. Otherwise, skip it, since there
-   * might not be one installed on this image. */
-  if (enabled)
-    {
-      g_autoptr(GFile) key_file = g_file_new_for_path (PREFIX "/local/share/eos-payg/key");
-
-      g_file_load_contents_async (key_file, cancellable,
-                                  load_key_cb, g_steal_pointer (&task));
-    }
-  else
-    {
-      load_key_cb (NULL, NULL, g_steal_pointer (&task));
-    }
-}
-
-static void
-load_key_cb (GObject      *source_object,
-             GAsyncResult *result,
-             gpointer      user_data)
-{
-  GFile *key_file = G_FILE (source_object);
-  g_autoptr(GTask) task = G_TASK (user_data);
-  GCancellable *cancellable = g_task_get_cancellable (task);
-  g_autoptr(GError) local_error = NULL;
-
-  g_autofree gchar *data = NULL;  /* would be guint8* if it weren’t for strict aliasing */
-  gsize data_len = 0;
-
-  gboolean enabled = (result != NULL);
-
-  if (enabled &&
-      !g_file_load_contents_finish (key_file, result, &data, &data_len, NULL, &local_error))
-    {
-      g_task_return_error (task, g_steal_pointer (&local_error));
-      return;
-    }
-  else if (!enabled)
-    {
-      /* Use a key of all zeros, just to avoid having to propagate the special
-       * case of (¬enabled ⇒ key_bytes == NULL) throughout the code. */
-      data_len = EPC_KEY_MINIMUM_LENGTH_BYTES;
-      data = g_malloc0 (data_len);
-    }
-
-  g_autoptr(GBytes) key_bytes = g_bytes_new_take (g_steal_pointer (&data), data_len);
-  data_len = 0;
-
+  g_autoptr(GFile) key_file = g_file_new_for_path (PREFIX "/local/share/eos-payg/key");
   g_autoptr(GFile) state_directory = g_file_new_for_path (LOCALSTATEDIR "/lib/eos-payg");
 
-  epg_manager_new (enabled, key_bytes, state_directory,
+  epg_manager_new (enabled, key_file, state_directory,
                    cancellable,
                    manager_new_cb, g_steal_pointer (&task));
 }

@@ -28,7 +28,7 @@ G_BEGIN_DECLS
 G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
 
 void        epg_manager_new        (gboolean             enabled,
-                                    GBytes              *key_bytes,
+                                    GFile               *key_file,
                                     GFile               *state_directory,
                                     GCancellable        *cancellable,
                                     GAsyncReadyCallback  callback,
@@ -53,7 +53,7 @@ gboolean    epg_manager_save_state_finish (EpgManager           *self,
 
 guint64     epg_manager_get_expiry_time     (EpgManager *self);
 gboolean    epg_manager_get_enabled         (EpgManager *self);
-GBytes     *epg_manager_get_key_bytes       (EpgManager *self);
+GFile      *epg_manager_get_key_file        (EpgManager *self);
 GFile      *epg_manager_get_state_directory (EpgManager *self);
 guint64     epg_manager_get_rate_limit_end_time (EpgManager *self);
 

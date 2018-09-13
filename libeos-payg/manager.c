@@ -102,6 +102,7 @@ struct _EpgManager
   GArray *used_codes;  /* (element-type UsedCode) (owned) */
   guint64 expiry_time_secs;  /* UNIX timestamp in seconds */
   gboolean enabled;
+  GFile *key_file;  /* (owned) */
   GBytes *key_bytes;  /* (owned) */
 
   GFile *state_directory;  /* (owned) */
@@ -119,7 +120,7 @@ typedef enum
 {
   PROP_EXPIRY_TIME = 1,
   PROP_ENABLED,
-  PROP_KEY_BYTES,
+  PROP_KEY_FILE,
   PROP_STATE_DIRECTORY,
   PROP_RATE_LIMIT_END_TIME,
 } EpgManagerProperty;
@@ -176,22 +177,22 @@ epg_manager_class_init (EpgManagerClass *klass)
                             G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
 
   /**
-   * EpgManager:key-bytes:
+   * EpgManager:key-file:
    *
-   * Shared key to verify codes with. These must be the bytes of the key, with
+   * File containing shared key to verify codes with, with
    * no surrounding whitespace or padding. This must be the same key used to
    * generate the codes being verified.
    *
    * Keys must be at least %EPC_KEY_MINIMUM_LENGTH_BYTES bytes in length, or
    * they will be rejected.
    *
-   * Since: 0.1.0
+   * Since: 0.2.0
    */
-  props[PROP_KEY_BYTES] =
-      g_param_spec_boxed ("key-bytes", "Key Bytes",
-                          "Shared key to verify codes with.",
-                          G_TYPE_BYTES,
-                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
+  props[PROP_KEY_FILE] =
+      g_param_spec_object ("key-file", "Key File",
+                           "File containing shared key to verify codes with.",
+                           G_TYPE_FILE,
+                           G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
 
   /**
    * EpgManager:state-directory:
@@ -285,7 +286,7 @@ epg_manager_constructed (GObject *object)
   G_OBJECT_CLASS (epg_manager_parent_class)->constructed (object);
 
   /* Ensure all our construct-time properties have been set. */
-  g_assert (self->key_bytes != NULL);
+  g_assert (self->key_file != NULL);
   g_assert (self->state_directory != NULL);
 }
 
@@ -304,6 +305,7 @@ epg_manager_dispose (GObject *object)
 
   g_clear_pointer (&self->used_codes, g_array_unref);
   g_clear_pointer (&self->key_bytes, g_bytes_unref);
+  g_clear_object (&self->key_file);
   g_clear_object (&self->state_directory);
   g_clear_pointer (&self->context, g_main_context_unref);
 
@@ -327,8 +329,8 @@ epg_manager_get_property (GObject    *object,
     case PROP_ENABLED:
       g_value_set_boolean (value, epg_manager_get_enabled (self));
       break;
-    case PROP_KEY_BYTES:
-      g_value_set_boxed (value, epg_manager_get_key_bytes (self));
+    case PROP_KEY_FILE:
+      g_value_set_object (value, epg_manager_get_key_file (self));
       break;
     case PROP_STATE_DIRECTORY:
       g_value_set_object (value, epg_manager_get_state_directory (self));
@@ -360,10 +362,10 @@ epg_manager_set_property (GObject      *object,
       /* Construct only. */
       self->enabled = g_value_get_boolean (value);
       break;
-    case PROP_KEY_BYTES:
+    case PROP_KEY_FILE:
       /* Construct only. */
-      g_assert (self->key_bytes == NULL);
-      self->key_bytes = g_value_dup_boxed (value);
+      g_assert (self->key_file == NULL);
+      self->key_file = g_value_dup_object (value);
       break;
     case PROP_STATE_DIRECTORY:
       /* Construct only. */
@@ -379,7 +381,8 @@ epg_manager_set_property (GObject      *object,
  * epg_manager_new:
  * @enabled: whether PAYG is enabled; if not, the #EpgManager will return
  *    %EPG_MANAGER_ERROR_DISABLED for all operations
- * @key_bytes: shared key to verify codes with; see #EpgManager:key-bytes
+ * @key_file: (transfer none): file containing shared key to verify codes with;
+ *    see #EpgManager:key-file
  * @state_directory: (transfer none): directory to load/store state in; see
  *    #EpgManager:state-directory
  * @cancellable: (nullable): a #GCancellable or %NULL
@@ -397,13 +400,13 @@ epg_manager_set_property (GObject      *object,
  */
 void
 epg_manager_new (gboolean             enabled,
-                 GBytes              *key_bytes,
+                 GFile               *key_file,
                  GFile               *state_directory,
                  GCancellable        *cancellable,
                  GAsyncReadyCallback  callback,
                  gpointer             user_data)
 {
-  g_return_if_fail (key_bytes != NULL);
+  g_return_if_fail (G_IS_FILE (key_file));
   g_return_if_fail (G_IS_FILE (state_directory));
   g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
 
@@ -413,7 +416,7 @@ epg_manager_new (gboolean             enabled,
                               callback,
                               user_data,
                               "enabled", enabled,
-                              "key-bytes", key_bytes,
+                              "key-file", key_file,
                               "state-directory", state_directory,
                               NULL);
 }
@@ -909,7 +912,7 @@ epg_manager_init_async (GAsyncInitable      *initable,
   g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
   g_task_set_source_tag (task, epg_manager_init_async);
   g_task_set_priority (task, priority);
-  epg_multi_task_attach (task, 3);
+  epg_multi_task_attach (task, 4);
 
   /* Load the expiry time. */
   g_autoptr(GFile) expiry_time_file = get_expiry_time_file (self);
@@ -921,6 +924,10 @@ epg_manager_init_async (GAsyncInitable      *initable,
   g_autoptr(GFile) used_codes_file = get_used_codes_file (self);
 
   g_file_load_contents_async (used_codes_file, cancellable,
+                              file_load_cb, g_object_ref (task));
+
+  /* And the key. */
+  g_file_load_contents_async (self->key_file, cancellable,
                               file_load_cb, g_object_ref (task));
 
   /* Decrement the pending operation count. */
@@ -1036,6 +1043,25 @@ file_load_cb (GObject      *source_object,
                                data, data_len / sizeof (UsedCode));
           g_array_sort (self->used_codes, used_codes_sort_cb);
         }
+    }
+  else if (g_file_equal (file, self->key_file))
+    {
+      if (data == NULL && self->enabled)
+        {
+          /* We're meant to be enabled, but the key is missing. */
+          epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
+          return;
+        }
+      else if (data == NULL)
+        {
+          /* Use a key of all zeros, just to avoid having to propagate the special
+           * case of (key_bytes != NULL ∨ ¬enabled) throughout the code. */
+          data_len = EPC_KEY_MINIMUM_LENGTH_BYTES;
+          data = g_malloc0 (data_len);
+        }
+
+      self->key_bytes = g_bytes_new_take (g_steal_pointer (&data), data_len);
+      data_len = 0;
     }
   else
     {
@@ -1266,20 +1292,20 @@ epg_manager_get_enabled (EpgManager *self)
 }
 
 /**
- * epg_manager_get_key_bytes:
+ * epg_manager_get_key_file:
  * @self: a #EpgManager
  *
- * Get the value of #EpgManager:key-bytes.
+ * Get the value of #EpgManager:key-file.
  *
- * Returns: (transfer none): bytes of the shared key
+ * Returns: (transfer none): file holding the shared key
  * Since: 0.1.0
  */
-GBytes *
-epg_manager_get_key_bytes (EpgManager *self)
+GFile *
+epg_manager_get_key_file (EpgManager *self)
 {
   g_return_val_if_fail (EPG_IS_MANAGER (self), NULL);
 
-  return self->key_bytes;
+  return self->key_file;
 }
 
 /**
