@@ -21,40 +21,23 @@
 
 #include <glib.h>
 #include <glib-object.h>
+#include <libeos-payg/provider.h>
 
 G_BEGIN_DECLS
 
 #define EPG_TYPE_MANAGER epg_manager_get_type ()
 G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
 
-void        epg_manager_new        (gboolean             enabled,
-                                    GFile               *key_file,
-                                    GFile               *state_directory,
-                                    GCancellable        *cancellable,
-                                    GAsyncReadyCallback  callback,
-                                    gpointer             user_data);
-EpgManager *epg_manager_new_finish (GAsyncResult  *result,
-                                    GError       **error);
+void         epg_manager_new        (gboolean             enabled,
+                                     GFile               *key_file,
+                                     GFile               *state_directory,
+                                     GCancellable        *cancellable,
+                                     GAsyncReadyCallback  callback,
+                                     gpointer             user_data);
+EpgProvider *epg_manager_new_finish (GAsyncResult  *result,
+                                     GError       **error);
 
-gboolean    epg_manager_add_code   (EpgManager   *self,
-                                    const gchar  *code_str,
-                                    guint64       now_secs,
-                                    GError      **error);
-gboolean    epg_manager_clear_code (EpgManager   *self,
-                                    GError      **error);
-
-void        epg_manager_save_state_async  (EpgManager           *self,
-                                           GCancellable         *cancellable,
-                                           GAsyncReadyCallback   callback,
-                                           gpointer              user_data);
-gboolean    epg_manager_save_state_finish (EpgManager           *self,
-                                           GAsyncResult         *result,
-                                           GError              **error);
-
-guint64     epg_manager_get_expiry_time     (EpgManager *self);
-gboolean    epg_manager_get_enabled         (EpgManager *self);
 GFile      *epg_manager_get_key_file        (EpgManager *self);
 GFile      *epg_manager_get_state_directory (EpgManager *self);
-guint64     epg_manager_get_rate_limit_end_time (EpgManager *self);
 
 G_END_DECLS

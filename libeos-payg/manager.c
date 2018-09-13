@@ -31,6 +31,8 @@
 
 static void epg_manager_async_initable_iface_init (gpointer g_iface,
                                                    gpointer iface_data);
+static void epg_manager_provider_iface_init (gpointer g_iface,
+                                             gpointer iface_data);
 
 static void epg_manager_constructed  (GObject *object);
 static void epg_manager_dispose      (GObject *object);
@@ -52,6 +54,25 @@ static void epg_manager_init_async  (GAsyncInitable      *initable,
 static gboolean epg_manager_init_finish (GAsyncInitable  *initable,
                                          GAsyncResult    *result,
                                          GError         **error);
+
+static gboolean    epg_manager_add_code   (EpgProvider  *provider,
+                                           const gchar  *code_str,
+                                           guint64       now_secs,
+                                           GError      **error);
+static gboolean    epg_manager_clear_code (EpgProvider  *provider,
+                                           GError      **error);
+
+static void        epg_manager_save_state_async  (EpgProvider          *provider,
+                                                  GCancellable         *cancellable,
+                                                  GAsyncReadyCallback   callback,
+                                                  gpointer              user_data);
+static gboolean    epg_manager_save_state_finish (EpgProvider          *provider,
+                                                  GAsyncResult         *result,
+                                                  GError              **error);
+
+static guint64     epg_manager_get_expiry_time     (EpgProvider *provider);
+static gboolean    epg_manager_get_enabled         (EpgProvider *provider);
+static guint64     epg_manager_get_rate_limit_end_time (EpgProvider *provider);
 
 /* Struct for storing the values in a used-codes file. The alignment and
  * size of this struct are file format ABI, and must be kept the same. */
@@ -118,63 +139,37 @@ struct _EpgManager
 
 typedef enum
 {
-  PROP_EXPIRY_TIME = 1,
-  PROP_ENABLED,
-  PROP_KEY_FILE,
+  /* Local properties */
+  PROP_KEY_FILE = 1,
   PROP_STATE_DIRECTORY,
+
+  /* Properties inherited from EpgProvider */
+  PROP_EXPIRY_TIME,
+  PROP_ENABLED,
   PROP_RATE_LIMIT_END_TIME,
 } EpgManagerProperty;
 
 G_DEFINE_TYPE_WITH_CODE (EpgManager, epg_manager, G_TYPE_OBJECT,
                          G_IMPLEMENT_INTERFACE (G_TYPE_ASYNC_INITABLE,
                                                 epg_manager_async_initable_iface_init);
+                         G_IMPLEMENT_INTERFACE (EPG_TYPE_PROVIDER,
+                                                epg_manager_provider_iface_init);
                          )
 
 static void
 epg_manager_class_init (EpgManagerClass *klass)
 {
   GObjectClass *object_class = (GObjectClass *) klass;
-  GParamSpec *props[PROP_RATE_LIMIT_END_TIME + 1] = { NULL, };
+  GParamSpec *props[PROP_STATE_DIRECTORY + 1] = { NULL, };
 
   object_class->constructed = epg_manager_constructed;
   object_class->dispose = epg_manager_dispose;
   object_class->get_property = epg_manager_get_property;
   object_class->set_property = epg_manager_set_property;
 
-  /**
-   * EpgManager:expiry-time:
-   *
-   * UNIX timestamp when the current pay as you go code will expire, in seconds
-   * since the epoch. At this point, it is expected that clients of this service
-   * will lock the computer until a new code is entered. Use
-   * epg_manager_add_code() to add a new code and extend the expiry time.
-   *
-   * If #EpgManager:enabled is %FALSE, this will always be zero.
-   *
-   * Since: 0.1.0
-   */
-  props[PROP_EXPIRY_TIME] =
-      g_param_spec_uint64 ("expiry-time", "Expiry Time",
-                           "UNIX timestamp when the current pay as you go code "
-                           "will expire, in seconds since the epoch.",
-                           0, G_MAXUINT64, 0,
-                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-
-  /**
-   * EpgManager:enabled:
-   *
-   * Whether pay as you go support is enabled on the system. If this is %FALSE,
-   * the #EpgManager:expiry-time can be ignored, and #EpgManager::expired will
-   * never be emitted. It is expected that this will be constant for a
-   * particular system, only being modified at image configuration time.
-   *
-   * Since: 0.1.0
-   */
-  props[PROP_ENABLED] =
-      g_param_spec_boolean ("enabled", "Enabled",
-                            "Whether pay as you go support is enabled on the system.",
-                            FALSE,
-                            G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
+  g_object_class_override_property (object_class, PROP_EXPIRY_TIME, "expiry-time");
+  g_object_class_override_property (object_class, PROP_ENABLED, "enabled");
+  g_object_class_override_property (object_class, PROP_RATE_LIMIT_END_TIME, "rate-limit-end-time");
 
   /**
    * EpgManager:key-file:
@@ -209,41 +204,7 @@ epg_manager_class_init (EpgManagerClass *klass)
                            G_TYPE_FILE,
                            G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
 
-  /**
-   * EpgManager:rate-limit-end-time:
-   *
-   * UNIX timestamp when the rate limit on adding codes will end, in seconds
-   * since the epoch. At this point, a new call to epg_manager_add_code() will
-   * not immediately result in an %EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS error.
-   *
-   * If #EpgManager:enabled is %FALSE, this will always be zero.
-   *
-   * Since: 0.1.0
-   */
-  props[PROP_RATE_LIMIT_END_TIME] =
-      g_param_spec_uint64 ("rate-limit-end-time", "Rate Limit End Time",
-                           "UNIX timestamp when the rate limit on adding codes "
-                           "will end, in seconds since the epoch.",
-                           0, G_MAXUINT64, 0,
-                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-
   g_object_class_install_properties (object_class, G_N_ELEMENTS (props), props);
-
-  /**
-   * EpgManager::expired:
-   * @self: a #EpgManager
-   *
-   * Emitted when the #EpgManager:expiry-time is reached, and the current pay as
-   * you go code expires. It is expected that when this is emitted, clients of
-   * this service will lock the computer until a new code is entered.
-   *
-   * This will never be emitted when #EpgManager:enabled is %FALSE.
-   *
-   * Since: 0.1.0
-   */
-  g_signal_new ("expired", G_TYPE_FROM_CLASS (klass),
-                G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
-                G_TYPE_NONE, 0);
 }
 
 static void
@@ -254,6 +215,21 @@ epg_manager_async_initable_iface_init (gpointer g_iface,
 
   iface->init_async = epg_manager_init_async;
   iface->init_finish = epg_manager_init_finish;
+}
+
+static void
+epg_manager_provider_iface_init (gpointer g_iface,
+                                 gpointer iface_data)
+{
+  EpgProviderInterface *iface = g_iface;
+
+  iface->add_code = epg_manager_add_code;
+  iface->clear_code = epg_manager_clear_code;
+  iface->save_state_async = epg_manager_save_state_async;
+  iface->save_state_finish = epg_manager_save_state_finish;
+  iface->get_expiry_time = epg_manager_get_expiry_time;
+  iface->get_enabled = epg_manager_get_enabled;
+  iface->get_rate_limit_end_time = epg_manager_get_rate_limit_end_time;
 }
 
 static void
@@ -320,14 +296,15 @@ epg_manager_get_property (GObject    *object,
                           GParamSpec *pspec)
 {
   EpgManager *self = EPG_MANAGER (object);
+  EpgProvider *provider = EPG_PROVIDER (self);
 
   switch ((EpgManagerProperty) property_id)
     {
     case PROP_EXPIRY_TIME:
-      g_value_set_uint64 (value, epg_manager_get_expiry_time (self));
+      g_value_set_uint64 (value, epg_provider_get_expiry_time (provider));
       break;
     case PROP_ENABLED:
-      g_value_set_boolean (value, epg_manager_get_enabled (self));
+      g_value_set_boolean (value, epg_provider_get_enabled (provider));
       break;
     case PROP_KEY_FILE:
       g_value_set_object (value, epg_manager_get_key_file (self));
@@ -336,7 +313,7 @@ epg_manager_get_property (GObject    *object,
       g_value_set_object (value, epg_manager_get_state_directory (self));
       break;
     case PROP_RATE_LIMIT_END_TIME:
-      g_value_set_uint64 (value, epg_manager_get_rate_limit_end_time (self));
+      g_value_set_uint64 (value, epg_provider_get_rate_limit_end_time (provider));
       break;
     default:
       g_assert_not_reached ();
@@ -431,7 +408,7 @@ epg_manager_new (gboolean             enabled,
  *
  * Since: 0.2.0
  */
-EpgManager *
+EpgProvider *
 epg_manager_new_finish (GAsyncResult  *result,
                         GError       **error)
 {
@@ -440,9 +417,9 @@ epg_manager_new_finish (GAsyncResult  *result,
   source_object = g_async_result_get_source_object (result);
   g_assert (source_object != NULL);
 
-  return EPG_MANAGER (g_async_initable_new_finish (G_ASYNC_INITABLE (source_object),
-                                                   result,
-                                                   error));
+  return EPG_PROVIDER (g_async_initable_new_finish (G_ASYNC_INITABLE (source_object),
+                                                    result,
+                                                    error));
 }
 
 /* Check whether PAYG is enabled. If not, set an error. */
@@ -743,39 +720,16 @@ used_codes_sort_cb (gconstpointer a,
   return 0;
 }
 
-/**
- * epg_manager_add_code:
- * @self: an #EpgManager
- * @code_str: code to verify and add, in a form suitable for parsing with
- *    epc_parse_code()
- * @now_secs: the current time, in seconds since the UNIX epoch, as returned by
- *    (g_get_real_time() / G_USEC_PER_SEC); this is parameterised to allow for
- *    easy testing
- * @error: return location for a #GError
- *
- * Verify and add the given @code_str. This checks that @code_str is valid, and
- * has not been used already. If so, it will add the time period given in the
- * @code_str to #EpgManager:expiry-time (or to @now_secs if
- * #EpgManager:expiry-time is in the past). If @code_str fails verification or
- * cannot be added, an error will be returned.
- *
- * Calls to this function are rate limited: if too many attempts are made within
- * a given time period, %EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS will be returned
- * until that period expires. The rate limiting history is reset on a successful
- * verification of a code.
- *
- * Returns: %TRUE on success, %FALSE otherwise
- * Since: 0.1.0
- */
-gboolean
-epg_manager_add_code (EpgManager   *self,
+static gboolean
+epg_manager_add_code (EpgProvider   *provider,
                       const gchar  *code_str,
                       guint64       now_secs,
                       GError      **error)
 {
+  EpgManager *self = EPG_MANAGER (provider);
   g_autoptr(GError) local_error = NULL;
 
-  g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
+  g_return_val_if_fail (EPG_IS_MANAGER (provider), FALSE);
   g_return_val_if_fail (code_str != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
@@ -824,29 +778,17 @@ epg_manager_add_code (EpgManager   *self,
   clear_rate_limiting (self);
 
   /* Kick off an asynchronous save. */
-  epg_manager_save_state_async (self, self->cancellable, NULL, NULL);
+  epg_manager_save_state_async (provider, self->cancellable, NULL, NULL);
 
   return TRUE;
 }
 
-/**
- * epg_manager_clear_code:
- * @self: an #EpgManager
- * @error: return location for a #GError
- *
- * Clear the current pay as you go code, reset #EpgManager:expiry-time to zero,
- * and cause #EpgManager::expired to be emitted instantly. This is typically
- * intended to be used for testing.
- *
- * If pay as you go is disabled, %EPG_MANAGER_ERROR_DISABLED will be returned.
- *
- * Returns: %TRUE on success, %FALSE otherwise
- * Since: 0.1.0
- */
 gboolean
-epg_manager_clear_code (EpgManager  *self,
+epg_manager_clear_code (EpgProvider  *provider,
                         GError     **error)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
@@ -862,7 +804,7 @@ epg_manager_clear_code (EpgManager  *self,
   clear_expiry_timer (self);
 
   /* Kick off an asynchronous save. */
-  epg_manager_save_state_async (self, self->cancellable, NULL, NULL);
+  epg_manager_save_state_async (provider, self->cancellable, NULL, NULL);
 
   return TRUE;
 }
@@ -1127,23 +1069,14 @@ static void file_save_delete_cb (GObject      *source_object,
                                  GAsyncResult *result,
                                  gpointer      user_data);
 
-/**
- * epg_manager_save_state_async:
- * @self: an #EpgManager
- * @cancellable: a #GCancellable, or %NULL
- * @callback: function to call once the async operation is complete
- * @user_data: data to pass to @callback
- *
- * Save the state for the #EpgManager to the #EpgManager:state-directory.
- *
- * Since: 0.1.0
- */
-void
-epg_manager_save_state_async (EpgManager          *self,
+static void
+epg_manager_save_state_async (EpgProvider         *provider,
                               GCancellable        *cancellable,
                               GAsyncReadyCallback  callback,
                               gpointer             user_data)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_if_fail (EPG_IS_MANAGER (self));
   g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
 
@@ -1231,23 +1164,13 @@ file_save_delete_cb (GObject      *source_object,
     epg_multi_task_return_boolean (task, TRUE);
 }
 
-/**
- * epg_manager_save_state_finish:
- * @self: an #EpgManager
- * @result: asynchronous operation result
- * @error: return location for an error, or %NULL
- *
- * Finish an asynchronous save operation started with
- * epg_manager_save_state_async().
- *
- * Returns: %TRUE on success, %FALSE otherwise
- * Since: 0.1.0
- */
-gboolean
-epg_manager_save_state_finish (EpgManager    *self,
+static gboolean
+epg_manager_save_state_finish (EpgProvider   *provider,
                                GAsyncResult  *result,
                                GError       **error)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
   g_return_val_if_fail (g_task_is_valid (result, self), FALSE);
   g_return_val_if_fail (g_async_result_is_tagged (result, epg_manager_save_state_async), FALSE);
@@ -1256,36 +1179,21 @@ epg_manager_save_state_finish (EpgManager    *self,
   return g_task_propagate_boolean (G_TASK (result), error);
 }
 
-/**
- * epg_manager_get_expiry_time:
- * @self: a #EpgManager
- *
- * Get the value of #EpgManager:expiry-time.
- *
- * Returns: the UNIX timestamp when the current pay as you go top up will
- *    expire, in seconds since the UNIX epoch
- * Since: 0.1.0
- */
-guint64
-epg_manager_get_expiry_time (EpgManager *self)
+static guint64
+epg_manager_get_expiry_time (EpgProvider *provider)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), 0);
 
   return self->enabled ? self->expiry_time_secs : 0;
 }
 
-/**
- * epg_manager_get_enabled:
- * @self: a #EpgManager
- *
- * Get the value of #EpgManager:enabled.
- *
- * Returns: (transfer none): %TRUE if pay as you go is enabled, %FALSE otherwise
- * Since: 0.1.0
- */
-gboolean
-epg_manager_get_enabled (EpgManager *self)
+static gboolean
+epg_manager_get_enabled (EpgProvider *provider)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
 
   return self->enabled;
@@ -1325,19 +1233,11 @@ epg_manager_get_state_directory (EpgManager *self)
   return self->state_directory;
 }
 
-/**
- * epg_manager_get_rate_limit_end_time:
- * @self: a #EpgManager
- *
- * Get the value of #EpgManager:rate-limit-end-time.
- *
- * Returns: the UNIX timestamp when the current rate limit on calling
- *    epg_manager_add_code() will reset, in seconds since the UNIX epoch
- * Since: 0.1.0
- */
-guint64
-epg_manager_get_rate_limit_end_time (EpgManager *self)
+static guint64
+epg_manager_get_rate_limit_end_time (EpgProvider *provider)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), 0);
 
   return self->enabled ? self->rate_limit_end_time_secs : 0;

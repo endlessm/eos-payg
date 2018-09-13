@@ -110,7 +110,7 @@ teardown (Fixture *fixture,
 
   if (fixture->tmp_path != NULL)
     {
-      /* The manager internally performs asynchronous saves in a GTask thread.
+      /* The provider internally performs asynchronous saves in a GTask thread.
        * There's currently no way to wait for them to finish. If it happens that
        * one of the files gets recreated after being removed above but before
        * we get here, removing the directory will fail. Ignore the error.
@@ -134,13 +134,14 @@ async_cb (GObject      *source,
   *result_out = g_object_ref (result);
 }
 
-static EpgManager *
+static EpgProvider *
 manager_new_failable (Fixture *fixture,
+                      gboolean enabled,
                       GError **error)
 {
   g_autoptr(GAsyncResult) result = NULL;
 
-  epg_manager_new (TRUE, fixture->key_file, fixture->tmp_dir,
+  epg_manager_new (enabled, fixture->key_file, fixture->tmp_dir,
                    NULL, async_cb, &result);
 
   while (result == NULL)
@@ -149,32 +150,32 @@ manager_new_failable (Fixture *fixture,
   return epg_manager_new_finish (result, error);
 }
 
-static EpgManager *
+static EpgProvider *
 manager_new (Fixture *fixture)
 {
-  g_autoptr(EpgManager) manager = NULL;
+  g_autoptr(EpgProvider) provider = NULL;
   g_autoptr(GError) error = NULL;
 
-  manager = manager_new_failable (fixture, &error);
+  provider = manager_new_failable (fixture, TRUE, &error);
   g_assert_no_error (error);
-  g_assert_nonnull (manager);
+  g_assert_nonnull (provider);
 
-  return g_steal_pointer (&manager);
+  return g_steal_pointer (&provider);
 }
 
 static void
-save_state (EpgManager *manager)
+save_state (EpgProvider *provider)
 {
   g_autoptr(GAsyncResult) result = NULL;
   g_autoptr(GError) error = NULL;
   gboolean ret;
 
-  epg_manager_save_state_async (manager, NULL, async_cb, &result);
+  epg_provider_save_state_async (provider, NULL, async_cb, &result);
 
   while (result == NULL)
     g_main_context_iteration (NULL, TRUE);
 
-  ret = epg_manager_save_state_finish (manager, result, &error);
+  ret = epg_provider_save_state_finish (provider, result, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 }
@@ -189,30 +190,23 @@ test_manager_disabled (Fixture *fixture,
   if (key_missing)
     remove_path (fixture->key_path);
 
-  g_autoptr(EpgManager) manager = NULL;
-  g_autoptr(GAsyncResult) result = NULL;
+  g_autoptr(EpgProvider) provider = NULL;
   g_autoptr(GError) error = NULL;
 
-  epg_manager_new (FALSE, fixture->key_file, fixture->tmp_dir,
-                   NULL, async_cb, &result);
-
-  while (result == NULL)
-    g_main_context_iteration (NULL, TRUE);
-
-  manager = epg_manager_new_finish (result, &error);
+  provider = manager_new_failable (fixture, FALSE, &error);
   g_assert_no_error (error);
-  g_assert_nonnull (manager);
+  g_assert_nonnull (provider);
 
-  g_assert_false (epg_manager_get_enabled (manager));
-  g_assert_cmpuint (0, ==, epg_manager_get_expiry_time (manager));
-  g_assert_cmpuint (0, ==, epg_manager_get_rate_limit_end_time (manager));
+  g_assert_false (epg_provider_get_enabled (provider));
+  g_assert_cmpuint (0, ==, epg_provider_get_expiry_time (provider));
+  g_assert_cmpuint (0, ==, epg_provider_get_rate_limit_end_time (provider));
 
-  ret = epg_manager_add_code (manager, "00000000", 0, &error);
+  ret = epg_provider_add_code (provider, "00000000", 0, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_DISABLED);
   g_assert_false (ret);
   g_clear_error (&error);
 
-  ret = epg_manager_clear_code (manager, &error);
+  ret = epg_provider_clear_code (provider, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_DISABLED);
   g_assert_false (ret);
   g_clear_error (&error);
@@ -224,19 +218,12 @@ test_manager_key_missing (Fixture       *fixture,
 {
   remove_path (fixture->key_path);
 
-  g_autoptr(EpgManager) manager = NULL;
-  g_autoptr(GAsyncResult) result = NULL;
+  g_autoptr(EpgProvider) provider = NULL;
   g_autoptr(GError) error = NULL;
 
-  epg_manager_new (TRUE, fixture->key_file, fixture->tmp_dir,
-                   NULL, async_cb, &result);
-
-  while (result == NULL)
-    g_main_context_iteration (NULL, TRUE);
-
-  manager = epg_manager_new_finish (result, &error);
+  provider = manager_new_failable (fixture, TRUE, &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
-  g_assert_null (manager);
+  g_assert_null (provider);
 }
 
 static void
@@ -246,11 +233,11 @@ test_manager_load_empty (Fixture *fixture,
   guint64 start, expiry, end;
 
   start = g_get_real_time () / G_USEC_PER_SEC;
-  g_autoptr(EpgManager) manager = manager_new (fixture);
+  g_autoptr(EpgProvider) provider = manager_new (fixture);
   end = g_get_real_time () / G_USEC_PER_SEC;
 
   /* Default expiry time is "now". */
-  expiry = epg_manager_get_expiry_time (manager);
+  expiry = epg_provider_get_expiry_time (provider);
   g_assert_cmpuint (start, <=, expiry);
   g_assert_cmpuint (expiry, <=, end);
 }
@@ -262,7 +249,7 @@ test_manager_load_error_malformed (Fixture *fixture,
   gsize path_offset = GPOINTER_TO_SIZE (data);
   const char *path_p = G_STRUCT_MEMBER (const char *, fixture, path_offset);
   gboolean ret;
-  g_autoptr(EpgManager) manager = NULL;
+  g_autoptr(EpgProvider) provider = NULL;
   g_autoptr(GError) error = NULL;
 
   /* Set contents of state file to something illegal. It happens that a single
@@ -272,20 +259,20 @@ test_manager_load_error_malformed (Fixture *fixture,
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  manager = manager_new_failable (fixture, &error);
+  provider = manager_new_failable (fixture, TRUE, &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA);
   if (g_strstr_len (error->message, -1, path_p) == NULL)
     g_error ("Error message '%s' does not contain state file path '%s'",
              error->message, path_p);
-  g_assert_null (manager);
+  g_assert_null (provider);
   g_clear_error (&error);
 
   /* The offending state file should have been cleaned up so subsequent
    * attempts work:
    */
-  manager = manager_new_failable (fixture, &error);
+  provider = manager_new_failable (fixture, TRUE, &error);
   g_assert_no_error (error);
-  g_assert_nonnull (manager);
+  g_assert_nonnull (provider);
 }
 
 static void
@@ -294,7 +281,7 @@ test_manager_load_error_unreadable (Fixture *fixture,
 {
   gsize path_offset = GPOINTER_TO_SIZE (data);
   const char *path_p = G_STRUCT_MEMBER (const char *, fixture, path_offset);
-  g_autoptr(EpgManager) manager = NULL;
+  g_autoptr(EpgProvider) provider = NULL;
   g_autoptr(GError) error = NULL;
 
   /* Create a directory where the state file should be. On sensible platforms
@@ -304,21 +291,21 @@ test_manager_load_error_unreadable (Fixture *fixture,
     g_error ("Couldn't create directory at '%s': %s",
              path_p, g_strerror (errno));
 
-  manager = manager_new_failable (fixture, &error);
+  provider = manager_new_failable (fixture, TRUE, &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_IS_DIRECTORY);
   if (g_strstr_len (error->message, -1, path_p) == NULL)
     g_error ("Error message '%s' does not contain state file path '%s'",
              error->message, path_p);
-  g_assert_null (manager);
+  g_assert_null (provider);
   g_clear_error (&error);
 
   /* Ideally, we would attempt to clean away the offending illegible 'file',
    * but that is not currently the case.
    */
 #if 0
-  manager = manager_new_failable (fixture, &error);
+  provider = manager_new_failable (fixture, TRUE, &error);
   g_assert_no_error (error);
-  g_assert_nonnull (manager);
+  g_assert_nonnull (provider);
   test_manager_load_empty (fixture, NULL);
 #endif
 }
@@ -328,7 +315,7 @@ test_manager_save_error (Fixture *fixture,
                          gconstpointer data)
 {
   gboolean apply_code = GPOINTER_TO_INT (data);
-  g_autoptr(EpgManager) manager = manager_new (fixture);
+  g_autoptr(EpgProvider) provider = manager_new (fixture);
   g_autoptr(GError) error = NULL;
   gboolean ret;
 
@@ -338,26 +325,26 @@ test_manager_save_error (Fixture *fixture,
 
   if (apply_code)
     {
-      guint64 now = epg_manager_get_expiry_time (manager);
+      guint64 now = epg_provider_get_expiry_time (provider);
       g_autofree gchar *code_str = get_next_code (fixture);
 
       /* There's an internal call to epg_manager_save_state_async() here which
        * will later fail. Arguably this should make applying the code fail as
        * well.
        */
-      ret = epg_manager_add_code (manager, code_str, now, &error);
+      ret = epg_provider_add_code (provider, code_str, now, &error);
       g_assert_no_error (error);
       g_assert_true (ret);
     }
 
   g_autoptr(GAsyncResult) result = NULL;
 
-  epg_manager_save_state_async (manager, NULL, async_cb, &result);
+  epg_provider_save_state_async (provider, NULL, async_cb, &result);
 
   while (result == NULL)
     g_main_context_iteration (NULL, TRUE);
 
-  ret = epg_manager_save_state_finish (manager, result, &error);
+  ret = epg_provider_save_state_finish (provider, result, &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
   g_assert_false (ret);
 }
@@ -366,22 +353,22 @@ static void
 test_manager_add_save_reload (Fixture *fixture,
                               gconstpointer data)
 {
-  g_autoptr(EpgManager) manager = manager_new (fixture);
+  g_autoptr(EpgProvider) provider = manager_new (fixture);
   g_autofree gchar *code_str = NULL;
   g_autoptr(GError) error = NULL;
   guint64 expiry_before_code, now, expiry_after_code, expiry_after_reload;
   gboolean ret;
 
-  expiry_before_code = epg_manager_get_expiry_time (manager);
+  expiry_before_code = epg_provider_get_expiry_time (provider);
 
   code_str = get_next_code (fixture);
 
   now = expiry_before_code + 5;
-  ret = epg_manager_add_code (manager, code_str, now, &error);
+  ret = epg_provider_add_code (provider, code_str, now, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  expiry_after_code = epg_manager_get_expiry_time (manager);
+  expiry_after_code = epg_provider_get_expiry_time (provider);
   g_assert_cmpint (now + 5, ==, expiry_after_code);
 
   /* Adding the code kicks off an async save, but we can't be sure it will have
@@ -389,11 +376,11 @@ test_manager_add_save_reload (Fixture *fixture,
    * there's actually no guarantee that this call will finish after the internal
    * save, but it doesn't matter because the content written will be the same.
    */
-  save_state (manager);
+  save_state (provider);
 
-  g_clear_object (&manager);
-  manager = manager_new (fixture);
-  expiry_after_reload = epg_manager_get_expiry_time (manager);
+  g_clear_object (&provider);
+  provider = manager_new (fixture);
+  expiry_after_reload = epg_provider_get_expiry_time (provider);
   g_assert_cmpuint (now + 5, ==, expiry_after_reload);
 }
 
@@ -401,20 +388,20 @@ static void
 test_manager_error_malformed (Fixture *fixture,
                               gconstpointer data)
 {
-  g_autoptr(EpgManager) manager = manager_new (fixture);
+  g_autoptr(EpgProvider) provider = manager_new (fixture);
   g_autoptr(GError) error = NULL;
   guint64 expiry, now, expiry_after_code;
   gboolean ret;
 
-  expiry = epg_manager_get_expiry_time (manager);
+  expiry = epg_provider_get_expiry_time (provider);
   now = expiry + 5;
 
   /* Just use an obviously-wrong code. The nuances are tested in libeos-payg-codes. */
-  ret = epg_manager_add_code (manager, "abcdefgh", now, &error);
+  ret = epg_provider_add_code (provider, "abcdefgh", now, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_INVALID_CODE);
   g_assert_false (ret);
 
-  expiry_after_code = epg_manager_get_expiry_time (manager);
+  expiry_after_code = epg_provider_get_expiry_time (provider);
   g_assert_cmpint (expiry, ==, expiry_after_code);
 }
 
@@ -422,34 +409,34 @@ static void
 test_manager_error_reused (Fixture *fixture,
                            gconstpointer data)
 {
-  g_autoptr(EpgManager) manager = manager_new (fixture);
+  g_autoptr(EpgProvider) provider = manager_new (fixture);
   g_autofree gchar *code_str = get_next_code (fixture);
   g_autoptr(GError) error = NULL;
   guint64 expiry_before_code, now, expiry_after_code;
   gboolean ret;
 
-  expiry_before_code = epg_manager_get_expiry_time (manager);
+  expiry_before_code = epg_provider_get_expiry_time (provider);
 
   now = expiry_before_code + 5;
-  ret = epg_manager_add_code (manager, code_str, now, &error);
+  ret = epg_provider_add_code (provider, code_str, now, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  expiry_after_code = epg_manager_get_expiry_time (manager);
+  expiry_after_code = epg_provider_get_expiry_time (provider);
   g_assert_cmpint (now + 5, ==, expiry_after_code);
 
-  ret = epg_manager_add_code (manager, code_str, now + 10, &error);
+  ret = epg_provider_add_code (provider, code_str, now + 10, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_CODE_ALREADY_USED);
   g_assert_false (ret);
 
-  g_assert_cmpint (expiry_after_code, ==, epg_manager_get_expiry_time (manager));
+  g_assert_cmpint (expiry_after_code, ==, epg_provider_get_expiry_time (provider));
 }
 
 static void
 test_manager_error_rate_limit (Fixture *fixture,
                                gconstpointer data)
 {
-  g_autoptr(EpgManager) manager = manager_new (fixture);
+  g_autoptr(EpgProvider) provider = manager_new (fixture);
   g_autoptr(GError) error = NULL;
   g_autofree gchar *code_str = NULL;
   /* Avoid hardcoding the actual limit, but surely it should be less than this */
@@ -457,7 +444,7 @@ test_manager_error_rate_limit (Fixture *fixture,
   guint64 expiry, now, expiry_after_code, rate_limit_end_time;
   gboolean ret;
 
-  expiry = epg_manager_get_expiry_time (manager);
+  expiry = epg_provider_get_expiry_time (provider);
   now = expiry + 5;
 
   /* Should be able to add many new, valid codes in quick succession */
@@ -465,19 +452,19 @@ test_manager_error_rate_limit (Fixture *fixture,
     {
       g_clear_pointer (&code_str, g_free);
       code_str = get_next_code (fixture);
-      ret = epg_manager_add_code (manager, code_str, now, &error);
+      ret = epg_provider_add_code (provider, code_str, now, &error);
       g_assert_no_error (error);
       g_assert_true (ret);
     }
 
-  expiry_after_code = epg_manager_get_expiry_time (manager);
+  expiry_after_code = epg_provider_get_expiry_time (provider);
   g_assert_cmpuint (now + (64 * 5), ==, expiry_after_code);
 
   /* Trying to reuse a code should fail for a while with EPG_MANAGER_ERROR_CODE_ALREADY_USED ... */
   do
     {
       g_clear_error (&error);
-      ret = epg_manager_add_code (manager, code_str, now, &error);
+      ret = epg_provider_add_code (provider, code_str, now, &error);
       g_assert_false (ret);
   }
   while (g_error_matches (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_CODE_ALREADY_USED) &&
@@ -491,11 +478,11 @@ test_manager_error_rate_limit (Fixture *fixture,
 
   /* The code is valid, but trying to use it should still fail because we're now rate-limited */
   g_clear_error (&error);
-  ret = epg_manager_add_code (manager, code_str, now, &error);
+  ret = epg_provider_add_code (provider, code_str, now, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS);
   g_assert_false (ret);
 
-  rate_limit_end_time = epg_manager_get_rate_limit_end_time (manager);
+  rate_limit_end_time = epg_provider_get_rate_limit_end_time (provider);
   /* Some time in the future */
   g_assert_cmpuint (rate_limit_end_time, >, now);
   /* And certainly longer than the n lots of 5-second codes we added */
@@ -503,11 +490,11 @@ test_manager_error_rate_limit (Fixture *fixture,
 
   now = rate_limit_end_time + 1;
   g_clear_error (&error);
-  ret = epg_manager_add_code (manager, code_str, now, &error);
+  ret = epg_provider_add_code (provider, code_str, now, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
-  g_assert_cmpuint (now + 5, ==, epg_manager_get_expiry_time (manager));
+  g_assert_cmpuint (now + 5, ==, epg_provider_get_expiry_time (provider));
 }
 
 int

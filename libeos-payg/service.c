@@ -24,6 +24,7 @@
 #include <glib-unix.h>
 #include <glib/gi18n-lib.h>
 #include <gio/gio.h>
+#include <libeos-payg/manager.h>
 #include <libeos-payg/manager-service.h>
 #include <libeos-payg/resources.h>
 #include <libeos-payg/service.h>
@@ -63,7 +64,7 @@ struct _EpgService
 {
   GssService parent;
 
-  EpgManager *manager;  /* (owned) */
+  EpgProvider *provider;  /* (owned) */
   EpgManagerService *manager_service;  /* (owned) */
 
   /* This is normally %NULL, and is only non-%NULL when overridden from the
@@ -99,7 +100,7 @@ epg_service_dispose (GObject *object)
   EpgService *self = EPG_SERVICE (object);
 
   g_clear_object (&self->manager_service);
-  g_clear_object (&self->manager);
+  g_clear_object (&self->provider);
   g_clear_pointer (&self->config_file_path, g_free);
 
   /* Chain up to the parent class */
@@ -188,8 +189,8 @@ manager_new_cb (GObject      *source_object,
   EpgService *self = EPG_SERVICE (g_task_get_source_object (task));
   g_autoptr(GError) local_error = NULL;
 
-  self->manager = epg_manager_new_finish (result, &local_error);
-  if (self->manager == NULL)
+  self->provider = epg_manager_new_finish (result, &local_error);
+  if (self->provider == NULL)
     {
       g_task_return_error (task, g_steal_pointer (&local_error));
       return;
@@ -200,7 +201,7 @@ manager_new_cb (GObject      *source_object,
 
   self->manager_service = epg_manager_service_new (connection,
                                                    "/com/endlessm/Payg1",
-                                                   self->manager);
+                                                   self->provider);
 
   if (!epg_manager_service_register (self->manager_service, &local_error))
     g_task_return_error (task, g_steal_pointer (&local_error));
@@ -231,14 +232,14 @@ epg_service_shutdown (GssService *service)
   EpgService *self = EPG_SERVICE (service);
   g_autoptr(GError) local_error = NULL;
 
-  /* Save the manager’s state. */
+  /* Save the provider’s state. */
   g_autoptr(GAsyncResult) result = NULL;
-  epg_manager_save_state_async (self->manager, NULL, async_result_cb, &result);
+  epg_provider_save_state_async (self->provider, NULL, async_result_cb, &result);
 
   while (result == NULL)
     g_main_context_iteration (NULL, TRUE);
 
-  if (!epg_manager_save_state_finish (self->manager, result, &local_error))
+  if (!epg_provider_save_state_finish (self->provider, result, &local_error))
     {
       g_warning ("Error saving state: %s", local_error->message);
       g_clear_error (&local_error);

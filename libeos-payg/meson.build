@@ -4,6 +4,7 @@ libeos_payg_sources = [
   'manager.c',
   'manager-service.c',
   'multi-task.c',
+  'provider.c',
   'service.c',
 ]
 libeos_payg_headers = [
@@ -12,6 +13,7 @@ libeos_payg_headers = [
   'manager-interface.h',
   'manager-service.h',
   'multi-task.h',
+  'provider.h',
   'service.h',
 ]
 
