@@ -123,11 +123,10 @@ async_cb (GObject      *source,
 }
 
 static EpgManager *
-manager_new (Fixture *fixture)
+manager_new_failable (Fixture *fixture,
+                      GError **error)
 {
-  g_autoptr(EpgManager) manager = NULL;
   g_autoptr(GAsyncResult) result = NULL;
-  g_autoptr(GError) error = NULL;
 
   epg_manager_new (TRUE, fixture->key, fixture->tmp_dir,
                    NULL, async_cb, &result);
@@ -135,7 +134,16 @@ manager_new (Fixture *fixture)
   while (result == NULL)
     g_main_context_iteration (NULL, TRUE);
 
-  manager = epg_manager_new_finish (result, &error);
+  return epg_manager_new_finish (result, error);
+}
+
+static EpgManager *
+manager_new (Fixture *fixture)
+{
+  g_autoptr(EpgManager) manager = NULL;
+  g_autoptr(GError) error = NULL;
+
+  manager = manager_new_failable (fixture, &error);
   g_assert_no_error (error);
   g_assert_nonnull (manager);
 
@@ -173,6 +181,112 @@ test_manager_load_empty (Fixture *fixture,
   expiry = epg_manager_get_expiry_time (manager);
   g_assert_cmpuint (start, <=, expiry);
   g_assert_cmpuint (expiry, <=, end);
+}
+
+static void
+test_manager_load_error_malformed (Fixture *fixture,
+                                   gconstpointer data)
+{
+  gsize path_offset = GPOINTER_TO_SIZE (data);
+  const char *path_p = G_STRUCT_MEMBER (const char *, fixture, path_offset);
+  gboolean ret;
+  g_autoptr(EpgManager) manager = NULL;
+  g_autoptr(GError) error = NULL;
+
+  /* Set contents of state file to something illegal. It happens that a single
+   * byte is illegal for all state files.
+   */
+  ret = g_file_set_contents (path_p, "X", 1, &error);
+  g_assert_no_error (error);
+  g_assert_true (ret);
+
+  manager = manager_new_failable (fixture, &error);
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA);
+  if (g_strstr_len (error->message, -1, path_p) == NULL)
+    g_error ("Error message '%s' does not contain state file path '%s'",
+             error->message, path_p);
+  g_assert_null (manager);
+  g_clear_error (&error);
+
+  /* The offending state file should have been cleaned up so subsequent
+   * attempts work:
+   */
+  manager = manager_new_failable (fixture, &error);
+  g_assert_no_error (error);
+  g_assert_nonnull (manager);
+}
+
+static void
+test_manager_load_error_unreadable (Fixture *fixture,
+                                    gconstpointer data)
+{
+  gsize path_offset = GPOINTER_TO_SIZE (data);
+  const char *path_p = G_STRUCT_MEMBER (const char *, fixture, path_offset);
+  g_autoptr(EpgManager) manager = NULL;
+  g_autoptr(GError) error = NULL;
+
+  /* Create a directory where the state file should be. On sensible platforms
+   * like Linux, you can't open() and read() a directory.
+   */
+  if (g_mkdir (path_p, 0755) != 0)
+    g_error ("Couldn't create directory at '%s': %s",
+             path_p, g_strerror (errno));
+
+  manager = manager_new_failable (fixture, &error);
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_IS_DIRECTORY);
+  if (g_strstr_len (error->message, -1, path_p) == NULL)
+    g_error ("Error message '%s' does not contain state file path '%s'",
+             error->message, path_p);
+  g_assert_null (manager);
+  g_clear_error (&error);
+
+  /* Ideally, we would attempt to clean away the offending illegible 'file',
+   * but that is not currently the case.
+   */
+#if 0
+  manager = manager_new_failable (fixture, &error);
+  g_assert_no_error (error);
+  g_assert_nonnull (manager);
+  test_manager_load_empty (fixture, NULL);
+#endif
+}
+
+static void
+test_manager_save_error (Fixture *fixture,
+                         gconstpointer data)
+{
+  gboolean apply_code = GPOINTER_TO_INT (data);
+  g_autoptr(EpgManager) manager = manager_new (fixture);
+  g_autoptr(GError) error = NULL;
+  gboolean ret;
+
+  /* Sabotage any future attempts to save state. */
+  remove_path (fixture->tmp_path);
+
+  if (apply_code)
+    {
+      guint64 now = epg_manager_get_expiry_time (manager);
+      g_autofree gchar *code_str = get_next_code (fixture);
+
+      /* There's an internal call to epg_manager_save_state_async() here which
+       * will later fail. Arguably this should make applying the code fail as
+       * well.
+       */
+      ret = epg_manager_add_code (manager, code_str, now, &error);
+      g_assert_no_error (error);
+      g_assert_true (ret);
+    }
+
+  g_autoptr(GAsyncResult) result = NULL;
+
+  epg_manager_save_state_async (manager, NULL, async_cb, &result);
+
+  while (result == NULL)
+    g_main_context_iteration (NULL, TRUE);
+
+  ret = epg_manager_save_state_finish (manager, result, &error);
+  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
+  g_assert_false (ret);
 }
 
 static void
@@ -330,9 +444,20 @@ main (int    argc,
   setlocale (LC_ALL, "");
   g_test_init (&argc, &argv, NULL);
 
+  const gpointer expiry_time_offset =
+     GSIZE_TO_POINTER (G_STRUCT_OFFSET (Fixture, expiry_time_path));
+  const gpointer used_codes_offset =
+     GSIZE_TO_POINTER (G_STRUCT_OFFSET (Fixture, used_codes_path));
+
 #define T(path, func, data) \
   g_test_add (path, Fixture, data, setup, func, teardown)
   T ("/manager/load-empty", test_manager_load_empty, NULL);
+  T ("/manager/load-error/malformed/expiry-time", test_manager_load_error_malformed, expiry_time_offset);
+  T ("/manager/load-error/malformed/used-codes", test_manager_load_error_malformed, used_codes_offset);
+  T ("/manager/load-error/unreadable/expiry-time", test_manager_load_error_unreadable, expiry_time_offset);
+  T ("/manager/load-error/unreadable/used-codes", test_manager_load_error_unreadable, used_codes_offset);
+  T ("/manager/save-error/no-codes-applied", test_manager_save_error, GINT_TO_POINTER (FALSE));
+  T ("/manager/save-error/codes-applied", test_manager_save_error, GINT_TO_POINTER (TRUE));
   T ("/manager/add-save-reload", test_manager_add_save_reload, NULL);
   T ("/manager/error/malformed", test_manager_error_malformed, NULL);
   T ("/manager/error/reused", test_manager_error_reused, NULL);

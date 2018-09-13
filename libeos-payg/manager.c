@@ -24,6 +24,7 @@
 #include <glib/gi18n-lib.h>
 #include <gio/gio.h>
 #include <libeos-payg/manager.h>
+#include <libeos-payg/multi-task.h>
 #include <libeos-payg-codes/codes.h>
 
 
@@ -910,7 +911,7 @@ epg_manager_init_async (GAsyncInitable      *initable,
   g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
   g_task_set_source_tag (task, epg_manager_init_async);
   g_task_set_priority (task, priority);
-  g_task_set_task_data (task, GUINT_TO_POINTER (3), NULL);
+  epg_multi_task_attach (task, 3);
 
   /* Load the expiry time. */
   g_autoptr(GFile) expiry_time_file = get_expiry_time_file (self);
@@ -925,8 +926,7 @@ epg_manager_init_async (GAsyncInitable      *initable,
                               file_load_cb, g_object_ref (task));
 
   /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
+  epg_multi_task_return_boolean (task, TRUE);
 }
 
 static void
@@ -942,14 +942,7 @@ file_load_cb (GObject      *source_object,
 
   guint64 now_secs = g_get_real_time () / G_USEC_PER_SEC;
 
-  /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
-
-  /* Handle any error. The first error returned from an operation is propagated;
-   * subsequent errors are logged and ignored.
-   *
-   * If the file is not found, we continue below, but with @data set to %NULL
+  /* If the file is not found, we continue below, but with @data set to %NULL
    * and @data_len set to zero. */
   g_autofree gchar *data = NULL;  /* actually guint8 if it weren’t for strict aliasing */
   gsize data_len = 0;
@@ -957,10 +950,7 @@ file_load_cb (GObject      *source_object,
   if (!g_file_load_contents_finish (file, result, &data, &data_len, NULL, &local_error) &&
       !g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
     {
-      if (g_task_had_error (task))
-        g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
-      else
-        g_task_return_error (task, g_steal_pointer (&local_error));
+      epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
       return;
     }
 
@@ -988,9 +978,6 @@ file_load_cb (GObject      *source_object,
            * don’t error next time we start. */
           if (data_len != sizeof (expiry_time_secs.u8))
             {
-              /* Increment the pending operation count. */
-              g_task_set_task_data (task, GUINT_TO_POINTER (++operation_count), NULL);
-
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -1016,9 +1003,6 @@ file_load_cb (GObject      *source_object,
            * don’t error next time we start. */
           if ((data_len % sizeof (UsedCode)) != 0)
             {
-              /* Increment the pending operation count. */
-              g_task_set_task_data (task, GUINT_TO_POINTER (++operation_count), NULL);
-
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -1043,9 +1027,6 @@ file_load_cb (GObject      *source_object,
 
               if (!epc_period_validate (used_code->period, &local_error))
                 {
-                  /* Increment the pending operation count. */
-                  g_task_set_task_data (task, GUINT_TO_POINTER (++operation_count), NULL);
-
                   g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                        file_load_delete_cb, g_object_ref (task));
                   return;
@@ -1063,8 +1044,7 @@ file_load_cb (GObject      *source_object,
       g_assert_not_reached ();
     }
 
-  if (operation_count == 0)
-    g_task_return_boolean (task, TRUE);
+  epg_multi_task_return_boolean (task, TRUE);
 }
 
 static void
@@ -1076,26 +1056,19 @@ file_load_delete_cb (GObject      *source_object,
   g_autoptr(GTask) task = G_TASK (user_data);
   g_autoptr(GError) local_error = NULL;
 
-  /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
-
   /* Log any error, but don’t propagate it since we’re already returning an
    * error due to the file being the wrong length. */
   if (!g_file_delete_finish (file, result, &local_error) &&
       !g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
     g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
 
-  /* Another operation may have finished and returned an error while we were
-   * deleting. */
   g_autofree gchar *file_path = g_file_get_path (file);
 
-  if (g_task_had_error (task))
-    g_warning (_("State file ‘%s’ was the wrong length."), file_path);
-  else
-    g_task_return_new_error (task, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+  g_clear_error (&local_error);
+  local_error = g_error_new (G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
                              _("State file ‘%s’ was the wrong length."),
                              file_path);
+  epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
 }
 
 /*
@@ -1152,7 +1125,7 @@ epg_manager_save_state_async (EpgManager          *self,
 
   g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
   g_task_set_source_tag (task, epg_manager_save_state_async);
-  g_task_set_task_data (task, GUINT_TO_POINTER (3), NULL);
+  epg_multi_task_attach (task, 3);
 
   /* Save the expiry time. */
   g_autoptr(GFile) expiry_time_file = get_expiry_time_file (self);
@@ -1200,12 +1173,9 @@ epg_manager_save_state_async (EpgManager          *self,
                            cancellable, file_save_delete_cb, g_object_ref (task));
     }
 
-  /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
+  epg_multi_task_return_boolean (task, TRUE);
 }
 
-/* FIXME: Factor out the handling of parallel operations and add to GLib. */
 static void
 file_replace_cb (GObject      *source_object,
                  GAsyncResult *result,
@@ -1215,23 +1185,10 @@ file_replace_cb (GObject      *source_object,
   g_autoptr(GTask) task = G_TASK (user_data);
   g_autoptr(GError) local_error = NULL;
 
-  /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
-
-  /* Handle any error. The first error returned from an operation is propagated;
-   * subsequent errors are logged and ignored. */
   if (!g_file_replace_contents_finish (file, result, NULL, &local_error))
-    {
-      if (g_task_had_error (task))
-        g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
-      else
-        g_task_return_error (task, g_steal_pointer (&local_error));
-      return;
-    }
-
-  if (operation_count == 0)
-    g_task_return_boolean (task, TRUE);
+    epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
+  else
+    epg_multi_task_return_boolean (task, TRUE);
 }
 
 static void
@@ -1243,24 +1200,11 @@ file_save_delete_cb (GObject      *source_object,
   g_autoptr(GTask) task = G_TASK (user_data);
   g_autoptr(GError) local_error = NULL;
 
-  /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
-
-  /* Handle any error. The first error returned from an operation is propagated;
-   * subsequent errors are logged and ignored. */
   if (!g_file_delete_finish (file, result, &local_error) &&
       !g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
-    {
-      if (g_task_had_error (task))
-        g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
-      else
-        g_task_return_error (task, g_steal_pointer (&local_error));
-      return;
-    }
-
-  if (operation_count == 0)
-    g_task_return_boolean (task, TRUE);
+    epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
+  else
+    epg_multi_task_return_boolean (task, TRUE);
 }
 
 /**

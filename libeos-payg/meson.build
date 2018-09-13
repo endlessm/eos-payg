@@ -2,12 +2,14 @@ libeos_payg_api_version = '1'
 libeos_payg_sources = [
   'manager.c',
   'manager-service.c',
+  'multi-task.c',
   'service.c',
 ]
 libeos_payg_headers = [
   'manager.h',
   'manager-interface.h',
   'manager-service.h',
+  'multi-task.h',
   'service.h',
 ]
 
