@@ -56,9 +56,8 @@ epg_provider_default_init (EpgProviderInterface *iface)
    * EpgProvider:enabled:
    *
    * Whether pay as you go support is enabled on the system. If this is %FALSE,
-   * the #EpgProvider:expiry-time can be ignored, and #EpgProvider::expired will
-   * never be emitted. It is expected that this will be constant for a
-   * particular system, only being modified at image configuration time.
+   * the #EpgProvider:expiry-time can be ignored, #EpgProvider::expired will
+   * never be emitted, and all methods will return %EPG_MANAGER_ERROR_DISABLED.
    *
    * Since: 0.2.0
    */

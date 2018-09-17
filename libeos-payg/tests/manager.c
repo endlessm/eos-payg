@@ -180,20 +180,26 @@ save_state (EpgProvider *provider)
   g_assert_true (ret);
 }
 
+typedef enum {
+    TEST_MANAGER_DISABLED_REMOVE_KEY = 1 << 0,
+    TEST_MANAGER_DISABLED_SET_ENABLED_PROPERTY = 1 << 1,
+} TestManagerDisabledFlags;
+
 static void
 test_manager_disabled (Fixture *fixture,
                        gconstpointer data)
 {
-  gboolean key_missing = GPOINTER_TO_INT (data);
+  guint test_flags = GPOINTER_TO_UINT (data);
+  gboolean initially_enabled = !!(test_flags & TEST_MANAGER_DISABLED_SET_ENABLED_PROPERTY);
   gboolean ret;
 
-  if (key_missing)
+  if (test_flags & TEST_MANAGER_DISABLED_REMOVE_KEY)
     remove_path (fixture->key_path);
 
   g_autoptr(EpgProvider) provider = NULL;
   g_autoptr(GError) error = NULL;
 
-  provider = manager_new_failable (fixture, FALSE, &error);
+  provider = manager_new_failable (fixture, initially_enabled, &error);
   g_assert_no_error (error);
   g_assert_nonnull (provider);
 
@@ -210,20 +216,6 @@ test_manager_disabled (Fixture *fixture,
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_DISABLED);
   g_assert_false (ret);
   g_clear_error (&error);
-}
-
-static void
-test_manager_key_missing (Fixture       *fixture,
-                          gconstpointer  data)
-{
-  remove_path (fixture->key_path);
-
-  g_autoptr(EpgProvider) provider = NULL;
-  g_autoptr(GError) error = NULL;
-
-  provider = manager_new_failable (fixture, TRUE, &error);
-  g_assert_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND);
-  g_assert_null (provider);
 }
 
 static void
@@ -511,9 +503,13 @@ main (int    argc,
 
 #define T(path, func, data) \
   g_test_add (path, Fixture, data, setup, func, teardown)
-  T ("/manager/disabled/key-present", test_manager_disabled, GINT_TO_POINTER (FALSE));
-  T ("/manager/disabled/key-missing", test_manager_disabled, GINT_TO_POINTER (TRUE));
-  T ("/manager/key-missing", test_manager_key_missing, NULL);
+  T ("/manager/disabled/key-present", test_manager_disabled,
+     GUINT_TO_POINTER (0));
+  T ("/manager/disabled/key-missing", test_manager_disabled,
+     GUINT_TO_POINTER (TEST_MANAGER_DISABLED_REMOVE_KEY));
+  T ("/manager/enabled/key-missing", test_manager_disabled,
+     GUINT_TO_POINTER (TEST_MANAGER_DISABLED_REMOVE_KEY |
+                       TEST_MANAGER_DISABLED_SET_ENABLED_PROPERTY));
   T ("/manager/load-empty", test_manager_load_empty, NULL);
   T ("/manager/load-error/malformed/expiry-time", test_manager_load_error_malformed, expiry_time_offset);
   T ("/manager/load-error/malformed/used-codes", test_manager_load_error_malformed, used_codes_offset);

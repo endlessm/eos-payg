@@ -996,14 +996,12 @@ file_load_cb (GObject      *source_object,
     }
   else if (g_file_equal (file, self->key_file))
     {
-      if (data == NULL && self->enabled)
+      if (data == NULL)
         {
-          /* We're meant to be enabled, but the key is missing. */
-          epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
-          return;
-        }
-      else if (data == NULL)
-        {
+          /* The key is missing, so (this flavour of) PAYG is not enabled. */
+          self->enabled = FALSE;
+          g_object_notify (G_OBJECT (self), "enabled");
+
           /* Use a key of all zeros, just to avoid having to propagate the special
            * case of (key_bytes != NULL ∨ ¬enabled) throughout the code. */
           data_len = EPC_KEY_MINIMUM_LENGTH_BYTES;
