@@ -172,10 +172,7 @@ epg_service_startup_async (GssService          *service,
       return;
     }
 
-  g_autoptr(GFile) key_file = g_file_new_for_path (PREFIX "/local/share/eos-payg/key");
-  g_autoptr(GFile) state_directory = g_file_new_for_path (LOCALSTATEDIR "/lib/eos-payg");
-
-  epg_manager_new (enabled, key_file, state_directory,
+  epg_manager_new (enabled, NULL, NULL,
                    cancellable,
                    manager_new_cb, g_steal_pointer (&task));
 }

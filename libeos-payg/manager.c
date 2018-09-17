@@ -181,6 +181,9 @@ epg_manager_class_init (EpgManagerClass *klass)
    * Keys must be at least %EPC_KEY_MINIMUM_LENGTH_BYTES bytes in length, or
    * they will be rejected.
    *
+   * A system-wide path is used if this property is not specified or is %NULL.
+   * Only unit tests should need to override this path.
+   *
    * Since: 0.2.0
    */
   props[PROP_KEY_FILE] =
@@ -192,9 +195,11 @@ epg_manager_class_init (EpgManagerClass *klass)
   /**
    * EpgManager:state-directory:
    *
-   * Directory to store and load state from. This will typically be something
-   * like `/var/lib/eos-payg`, apart from in unit tests. It is used by
+   * Directory to store and load state from. It is used by
    * epg_manager_new() and epg_manager_save_state_async().
+   *
+   * A system-wide path is used if this property is not specified or is %NULL.
+   * Only unit tests should need to override this path.
    *
    * Since: 0.1.0
    */
@@ -261,9 +266,12 @@ epg_manager_constructed (GObject *object)
   /* Chain up to the parent class */
   G_OBJECT_CLASS (epg_manager_parent_class)->constructed (object);
 
-  /* Ensure all our construct-time properties have been set. */
-  g_assert (self->key_file != NULL);
-  g_assert (self->state_directory != NULL);
+  /* Set defaults for construct-time properties. */
+  if (self->key_file == NULL)
+    self->key_file = g_file_new_for_path (PREFIX "/local/share/eos-payg/key");
+
+  if (self->state_directory == NULL)
+    self->state_directory = g_file_new_for_path (LOCALSTATEDIR "/lib/eos-payg");
 }
 
 static void
@@ -358,10 +366,10 @@ epg_manager_set_property (GObject      *object,
  * epg_manager_new:
  * @enabled: whether PAYG is enabled; if not, the #EpgManager will return
  *    %EPG_MANAGER_ERROR_DISABLED for all operations
- * @key_file: (transfer none): file containing shared key to verify codes with;
+ * @key_file: (transfer none) (optional): file containing shared key to verify codes with;
  *    see #EpgManager:key-file
- * @state_directory: (transfer none): directory to load/store state in; see
- *    #EpgManager:state-directory
+ * @state_directory: (transfer none) (optional): directory to load/store state
+ *    in, or %NULL to use the default directory; see #EpgManager:state-directory
  * @cancellable: (nullable): a #GCancellable or %NULL
  * @callback: callback function to invoke when the #EpgManager is ready
  * @user_data: user data to pass to @callback
@@ -383,8 +391,8 @@ epg_manager_new (gboolean             enabled,
                  GAsyncReadyCallback  callback,
                  gpointer             user_data)
 {
-  g_return_if_fail (G_IS_FILE (key_file));
-  g_return_if_fail (G_IS_FILE (state_directory));
+  g_return_if_fail (key_file == NULL || G_IS_FILE (key_file));
+  g_return_if_fail (state_directory == NULL || G_IS_FILE (state_directory));
   g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
 
   g_async_initable_new_async (EPG_TYPE_MANAGER,
