@@ -26,6 +26,7 @@
 #include <gio/gio.h>
 #include <libeos-payg/manager.h>
 #include <libeos-payg/manager-service.h>
+#include <libeos-payg/provider-loader.h>
 #include <libeos-payg/resources.h>
 #include <libeos-payg/service.h>
 #include <libeos-payg-codes/codes.h>
@@ -125,9 +126,15 @@ epg_service_get_main_option_entries (GssService *service)
   return g_steal_pointer (&entries);
 }
 
+static void provider_get_first_enabled_cb (GObject      *source_object,
+                                           GAsyncResult *result,
+                                           gpointer      user_data);
 static void manager_new_cb (GObject      *source_object,
                             GAsyncResult *result,
                             gpointer      user_data);
+static void epg_service_startup_complete (EpgService  *self,
+                                          GTask       *task,
+                                          EpgProvider *provider);
 
 static void
 epg_service_startup_async (GssService          *service,
@@ -135,11 +142,41 @@ epg_service_startup_async (GssService          *service,
                            GAsyncReadyCallback  callback,
                            gpointer             user_data)
 {
-  EpgService *self = EPG_SERVICE (service);
-  g_autoptr(GError) local_error = NULL;
-
   g_autoptr(GTask) task = g_task_new (service, cancellable, callback, user_data);
   g_task_set_source_tag (task, epg_service_startup_async);
+
+  g_autoptr(EpgProviderLoader) loader = epg_provider_loader_new (NULL);
+  epg_provider_loader_get_first_enabled_async (loader, cancellable,
+                                               provider_get_first_enabled_cb,
+                                               g_steal_pointer (&task));
+}
+
+static void
+provider_get_first_enabled_cb (GObject      *source_object,
+                               GAsyncResult *result,
+                               gpointer      user_data)
+{
+  g_autoptr(GTask) task = G_TASK (user_data);
+  EpgService *self = EPG_SERVICE (g_task_get_source_object (task));
+  EpgProviderLoader *loader = EPG_PROVIDER_LOADER (source_object);
+  g_autoptr(EpgProvider) provider = NULL;
+  g_autoptr(GError) local_error = NULL;
+
+  provider = epg_provider_loader_get_first_enabled_finish (loader, result, &local_error);
+  if (provider != NULL)
+    {
+      epg_service_startup_complete (self, task, g_steal_pointer (&provider));
+      return;
+    }
+  else if (local_error != NULL)
+    {
+      g_warning ("%s: Failed to load external providers: %s",
+                 G_STRFUNC, local_error->message);
+      g_clear_error (&local_error);
+    }
+
+  /* No enabled provider plugin; fall back to #EpgManager. */
+  g_debug ("%s: No enabled external providers", G_STRFUNC);
 
   /* Load the configuration file. */
   const gchar * const default_paths[] =
@@ -172,8 +209,8 @@ epg_service_startup_async (GssService          *service,
       return;
     }
 
-  epg_manager_new (enabled, NULL, NULL,
-                   cancellable,
+  GCancellable *cancellable = g_task_get_cancellable (task);
+  epg_manager_new (enabled, NULL, NULL, cancellable,
                    manager_new_cb, g_steal_pointer (&task));
 }
 
@@ -184,14 +221,37 @@ manager_new_cb (GObject      *source_object,
 {
   g_autoptr(GTask) task = G_TASK (user_data);
   EpgService *self = EPG_SERVICE (g_task_get_source_object (task));
+  g_autoptr(EpgProvider) provider = NULL;
   g_autoptr(GError) local_error = NULL;
 
-  self->provider = epg_manager_new_finish (result, &local_error);
-  if (self->provider == NULL)
+  provider = epg_manager_new_finish (result, &local_error);
+  if (provider == NULL)
     {
       g_task_return_error (task, g_steal_pointer (&local_error));
       return;
     }
+
+  epg_service_startup_complete (self, task, g_steal_pointer (&provider));
+}
+
+/**
+ * epg_service_startup_complete:
+ * @self: an #EpgService
+ * @task: (transfer none): an epg_service_startup_async() task
+ * @provider: (transfer full): a non-%NULL provider
+ *
+ * Completes the startup process, registering @provider on the bus and
+ * making @task return.
+ */
+static void
+epg_service_startup_complete (EpgService  *self,
+                              GTask       *task,
+                              EpgProvider *provider)
+{
+  g_autoptr(GError) local_error = NULL;
+
+  g_assert (provider != NULL);
+  self->provider = g_steal_pointer (&provider);
 
   /* Create our D-Bus service. */
   GDBusConnection *connection = gss_service_get_dbus_connection (GSS_SERVICE (self));
