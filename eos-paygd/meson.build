@@ -17,6 +17,7 @@ executable('eos-paygd' + eos_paygd_api_version,
   include_directories: root_inc,
   install: true,
   install_dir: get_option('libexecdir'),
+  install_rpath: pkglibdir,
 )
 
 # systemd, polkit and D-Bus files

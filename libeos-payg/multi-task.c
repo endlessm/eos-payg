@@ -112,6 +112,41 @@ epg_multi_task_return_boolean (GTask   *task,
 }
 
 /**
+ * epg_multi_task_return_pointer:
+ * @task: (transfer none): the task
+ * @result: (transfer full): the result
+ * @result_destroy: (optional): a #GDestroyNotify function for @result
+ *
+ * Decrements the number of pending operations for @task by 1, causing it to
+ * return @result if no further operations are pending and no error has been
+ * encountered. If an error has been encountered, or further operations are
+ * pending, @result is immediately destroyed with @result_destroy.
+ *
+ * One way to use this function is to use a #GPtrArray as @task's task_data.
+ * Each time a subtask completes, add its output to the array, and call
+ * `epg_multi_task_return_pointer (task, g_ptr_array_ref (array),
+ * g_ptr_array_unref);`.
+ *
+ * Since: 0.2.0
+ */
+void
+epg_multi_task_return_pointer (GTask         *task,
+                               gpointer       result,
+                               GDestroyNotify result_destroy)
+{
+  g_return_if_fail (G_IS_TASK (task));
+
+  guint operation_count = epg_multi_task_get (task);
+  g_return_if_fail (operation_count > 0);
+
+  epg_multi_task_set (task, --operation_count);
+  if (operation_count == 0 && !g_task_had_error (task))
+    g_task_return_pointer (task, result, result_destroy);
+  else if (result_destroy != NULL)
+    result_destroy (result);
+}
+
+/**
  * epg_multi_task_return_error:
  * @task: (transfer none): the task
  * @tag: a string tag to include in the log message if @task has already

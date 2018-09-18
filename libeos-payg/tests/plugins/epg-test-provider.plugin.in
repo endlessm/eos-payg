@@ -1,0 +1,7 @@
+[Plugin]
+Module=epg-test-provider-@suffix@
+Name=libeos-payg test provider plugin @suffix@
+Description=libeos-payg test provider plugin @suffix@
+Authors=Will Thompson <wjt@endlessm.com>
+Copyright=Copyright © 2018 Endless Mobile, Inc
+Website=https://github.com/endlessm/eos-payg

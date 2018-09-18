@@ -1,3 +1,4 @@
+
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*-
  *
  * Copyright © 2018 Endless Mobile, Inc.
@@ -15,26 +16,36 @@
  * above and replace them with the notice and other provisions required by the
  * LGPL. If you do not delete the provisions above, a recipient may use your
  * version of this file under the terms of either the MPL or the LGPL.
+ * All rights reserved.
  */
 
-#pragma once
+#include <libpeas/peas.h>
+#include <libeos-payg/tests/plugins/test-provider.h>
 
-#include <gio/gio.h>
+void peas_register_types (PeasObjectModule *module);
 
-G_BEGIN_DECLS
+struct _EpgTestProviderOne {
+  EpgTestProvider parent;
+};
 
-/* https://www.youtube.com/watch?v=NVPLqbWXdDA */
+#define EPG_TYPE_TEST_PROVIDER_ONE epg_test_provider_one_get_type ()
+G_DECLARE_FINAL_TYPE (EpgTestProviderOne, epg_test_provider_one, EPG, TEST_PROVIDER_ONE, EpgTestProvider)
+G_DEFINE_TYPE (EpgTestProviderOne, epg_test_provider_one, EPG_TYPE_TEST_PROVIDER);
 
-void epg_multi_task_attach         (GTask         *task,
-                                    guint          pending);
-void epg_multi_task_increment      (GTask         *task);
-void epg_multi_task_return_boolean (GTask         *task,
-                                    gboolean       result);
-void epg_multi_task_return_pointer (GTask         *task,
-                                    gpointer       result,
-                                    GDestroyNotify result_destroy);
-void epg_multi_task_return_error   (GTask         *task,
-                                    const gchar   *tag,
-                                    GError        *error);
+static void
+epg_test_provider_one_class_init (EpgTestProviderOneClass *klass)
+{
+}
 
-G_END_DECLS
+static void
+epg_test_provider_one_init (EpgTestProviderOne *self)
+{
+}
+
+G_MODULE_EXPORT void
+peas_register_types (PeasObjectModule *module)
+{
+  peas_object_module_register_extension_type (module,
+                                              EPG_TYPE_PROVIDER,
+                                              EPG_TYPE_TEST_PROVIDER_ONE);
+}

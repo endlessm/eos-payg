@@ -1,3 +1,5 @@
+subdir('plugins')
+
 deps = [
   dependency('gio-2.0', version: '>= 2.44'),
   dependency('glib-2.0', version: '>= 2.44'),
@@ -14,12 +16,13 @@ envs = test_env + [
 test_programs = [
   ['manager', [], deps],
   ['service', [], deps],
+  ['provider-loader', [], deps],
 ]
 
 installed_tests_metadir = join_paths(datadir, 'installed-tests',
-                                     'libeos-payg-' + libeos_payg_api_version)
+                                     'libeos-payg-' + eos_payg_api_version)
 installed_tests_execdir = join_paths(libexecdir, 'installed-tests',
-                                     'libeos-payg-' + libeos_payg_api_version)
+                                     'libeos-payg-' + eos_payg_api_version)
 
 foreach program: test_programs
   test_conf = configuration_data()
@@ -41,6 +44,7 @@ foreach program: test_programs
     include_directories: root_inc,
     install: enable_installed_tests,
     install_dir: installed_tests_execdir,
+    install_rpath: pkglibdir,
   )
 
   test(

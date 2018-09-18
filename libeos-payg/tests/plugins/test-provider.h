@@ -19,22 +19,15 @@
 
 #pragma once
 
-#include <gio/gio.h>
+#include <libeos-payg/provider.h>
 
 G_BEGIN_DECLS
 
-/* https://www.youtube.com/watch?v=NVPLqbWXdDA */
+#define EPG_TYPE_TEST_PROVIDER epg_test_provider_get_type ()
+G_DECLARE_DERIVABLE_TYPE (EpgTestProvider, epg_test_provider, EPG, TEST_PROVIDER, GObject)
 
-void epg_multi_task_attach         (GTask         *task,
-                                    guint          pending);
-void epg_multi_task_increment      (GTask         *task);
-void epg_multi_task_return_boolean (GTask         *task,
-                                    gboolean       result);
-void epg_multi_task_return_pointer (GTask         *task,
-                                    gpointer       result,
-                                    GDestroyNotify result_destroy);
-void epg_multi_task_return_error   (GTask         *task,
-                                    const gchar   *tag,
-                                    GError        *error);
+struct _EpgTestProviderClass {
+  GObjectClass parent_class;
+};
 
 G_END_DECLS
