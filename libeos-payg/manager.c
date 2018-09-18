@@ -70,6 +70,21 @@ static gboolean    epg_manager_save_state_finish (EpgProvider          *provider
                                                   GAsyncResult         *result,
                                                   GError              **error);
 
+static void        epg_manager_shutdown_async  (EpgProvider          *provider,
+                                                GCancellable         *cancellable,
+                                                GAsyncReadyCallback   callback,
+                                                gpointer              user_data);
+static gboolean    epg_manager_shutdown_finish (EpgProvider          *provider,
+                                                GAsyncResult         *result,
+                                                GError              **error);
+
+static void        internal_save_state_cb (GObject      *source_object,
+                                           GAsyncResult *result,
+                                           gpointer      user_data);
+static void        shutdown_save_state_cb (GObject      *source_object,
+                                           GAsyncResult *result,
+                                           gpointer      user_data);
+
 static guint64     epg_manager_get_expiry_time     (EpgProvider *provider);
 static gboolean    epg_manager_get_enabled         (EpgProvider *provider);
 static guint64     epg_manager_get_rate_limit_end_time (EpgProvider *provider);
@@ -135,6 +150,14 @@ struct _EpgManager
    * of recent epg_manager_add_code() attempts. See check_rate_limiting(). */
   guint64 rate_limiting_history[RATE_LIMITING_N_ATTEMPTS];
   guint64 rate_limit_end_time_secs;
+
+  /* Number of internal calls to epg_manager_save_state_async() in flight */
+  guint64 pending_internal_save_state_calls;
+
+  /* (owned) (nullable): epg_provider_shutdown_async() task to resume once
+   * pending_internal_save_state_calls reaches 0
+   */
+  GTask *pending_shutdown;
 };
 
 typedef enum
@@ -230,8 +253,8 @@ epg_manager_provider_iface_init (gpointer g_iface,
 
   iface->add_code = epg_manager_add_code;
   iface->clear_code = epg_manager_clear_code;
-  iface->save_state_async = epg_manager_save_state_async;
-  iface->save_state_finish = epg_manager_save_state_finish;
+  iface->shutdown_async = epg_manager_shutdown_async;
+  iface->shutdown_finish = epg_manager_shutdown_finish;
   iface->get_expiry_time = epg_manager_get_expiry_time;
   iface->get_enabled = epg_manager_get_enabled;
   iface->get_rate_limit_end_time = epg_manager_get_rate_limit_end_time;
@@ -747,6 +770,9 @@ epg_manager_add_code (EpgProvider   *provider,
   if (!check_rate_limiting (self, now_secs, error))
     return FALSE;
 
+  if (g_cancellable_set_error_if_cancelled (self->cancellable, error))
+    return FALSE;
+
   /* Convert from a string to #EpcCode. */
   EpcCode code;
   if (!epc_parse_code (code_str, &code, &local_error))
@@ -785,8 +811,15 @@ epg_manager_add_code (EpgProvider   *provider,
   /* Reset the rate limiting history, since the code was successful. */
   clear_rate_limiting (self);
 
-  /* Kick off an asynchronous save. */
-  epg_manager_save_state_async (provider, self->cancellable, NULL, NULL);
+  /* Kick off an asynchronous save.
+   *
+   * FIXME: pass self->cancellable; see comment in
+   * epg_manager_shutdown_async().
+   */
+  g_assert (self->pending_internal_save_state_calls < G_MAXUINT64);
+  self->pending_internal_save_state_calls++;
+  epg_manager_save_state_async (provider, NULL,
+                                internal_save_state_cb, NULL);
 
   return TRUE;
 }
@@ -803,6 +836,9 @@ epg_manager_clear_code (EpgProvider  *provider,
   if (!check_enabled (self, error))
     return FALSE;
 
+  if (g_cancellable_set_error_if_cancelled (self->cancellable, error))
+    return FALSE;
+
   if (self->expiry_time_secs != 0)
     {
       self->expiry_time_secs = 0;
@@ -811,10 +847,44 @@ epg_manager_clear_code (EpgProvider  *provider,
 
   clear_expiry_timer (self);
 
-  /* Kick off an asynchronous save. */
-  epg_manager_save_state_async (provider, self->cancellable, NULL, NULL);
+  /* Kick off an asynchronous save.
+   *
+   * FIXME: pass self->cancellable; see comment in
+   * epg_manager_shutdown_async().
+   */
+  g_assert (self->pending_internal_save_state_calls < G_MAXUINT64);
+  self->pending_internal_save_state_calls++;
+  epg_manager_save_state_async (provider, NULL,
+                                internal_save_state_cb, NULL);
 
   return TRUE;
+}
+
+static void
+internal_save_state_cb (GObject      *source_object,
+                        GAsyncResult *result,
+                        gpointer      user_data)
+{
+  EpgManager *self = EPG_MANAGER (source_object);
+  EpgProvider *provider = EPG_PROVIDER (self);
+  g_autoptr(GError) local_error = NULL;
+
+  if (!epg_manager_save_state_finish (provider, result, &local_error))
+    g_warning ("save_state failed: %s", local_error->message);
+
+  g_return_if_fail (self->pending_internal_save_state_calls > 0);
+  self->pending_internal_save_state_calls--;
+
+  if (self->pending_internal_save_state_calls == 0 &&
+      self->pending_shutdown != NULL)
+    {
+      if (local_error != NULL)
+        g_task_return_error (self->pending_shutdown, g_steal_pointer (&local_error));
+      else
+        g_task_return_boolean (self->pending_shutdown, TRUE);
+
+      g_clear_object (&self->pending_shutdown);
+    }
 }
 
 /* Get the path of the state file containing the expiry time. */
@@ -1180,6 +1250,77 @@ epg_manager_save_state_finish (EpgProvider   *provider,
   g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
   g_return_val_if_fail (g_task_is_valid (result, self), FALSE);
   g_return_val_if_fail (g_async_result_is_tagged (result, epg_manager_save_state_async), FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
+  return g_task_propagate_boolean (G_TASK (result), error);
+}
+
+static void
+epg_manager_shutdown_async (EpgProvider         *provider,
+                            GCancellable        *cancellable,
+                            GAsyncReadyCallback  callback,
+                            gpointer             user_data)
+{
+  EpgManager *self = EPG_MANAGER (provider);
+
+  g_return_if_fail (EPG_IS_MANAGER (self));
+  g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
+
+  g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
+  g_task_set_source_tag (task, epg_manager_shutdown_async);
+
+  g_autoptr(GError) local_error = NULL;
+
+  /* It's only legal to call this method once */
+  if (g_cancellable_set_error_if_cancelled (self->cancellable, &local_error))
+    {
+      g_task_return_error (task, g_steal_pointer (&local_error));
+      return;
+    }
+
+  /* Prevent any further state modifications.
+   *
+   * FIXME: we would like to also pass this to all internal calls to
+   * epg_manager_save_state_async() but but this is currently unsafe due to
+   * bugs in in g_file_replace_contents_bytes_async() triggered by cancelling
+   * it. https://gitlab.gnome.org/GNOME/glib/issues/1561
+   */
+  g_cancellable_cancel (self->cancellable);
+
+  /* If any saves are in flight, wait for those to finish and return the last
+   * result. If none are in flight, perform one final save. */
+  if (self->pending_internal_save_state_calls == 0)
+    epg_manager_save_state_async (provider, cancellable, shutdown_save_state_cb,
+                                  g_steal_pointer (&task));
+  else
+    self->pending_shutdown = g_steal_pointer (&task);
+}
+
+static void
+shutdown_save_state_cb (GObject      *source_object,
+                        GAsyncResult *result,
+                        gpointer      user_data)
+{
+  EpgProvider *provider = EPG_PROVIDER (source_object);
+  g_autoptr(GTask) task = G_TASK (user_data);
+  g_autoptr(GError) local_error = NULL;
+
+  if (!epg_manager_save_state_finish (provider, result, &local_error))
+    g_task_return_error (task, g_steal_pointer (&local_error));
+  else
+    g_task_return_boolean (task, TRUE);
+}
+
+static gboolean
+epg_manager_shutdown_finish (EpgProvider   *provider,
+                             GAsyncResult  *result,
+                             GError       **error)
+{
+  EpgManager *self = EPG_MANAGER (provider);
+
+  g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
+  g_return_val_if_fail (g_task_is_valid (result, self), FALSE);
+  g_return_val_if_fail (g_async_result_is_tagged (result, epg_manager_shutdown_async), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   return g_task_propagate_boolean (G_TASK (result), error);

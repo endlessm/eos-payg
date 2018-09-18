@@ -39,13 +39,13 @@ struct _EpgProviderInterface
   gboolean        (*clear_code) (EpgProvider  *self,
                                  GError      **error);
 
-  void            (*save_state_async)  (EpgProvider         *self,
-                                        GCancellable        *cancellable,
-                                        GAsyncReadyCallback  callback,
-                                        gpointer             user_data);
-  gboolean        (*save_state_finish) (EpgProvider   *self,
-                                        GAsyncResult  *result,
-                                        GError       **error);
+  void            (*shutdown_async)  (EpgProvider         *self,
+                                      GCancellable        *cancellable,
+                                      GAsyncReadyCallback  callback,
+                                      gpointer             user_data);
+  gboolean        (*shutdown_finish) (EpgProvider   *self,
+                                      GAsyncResult  *result,
+                                      GError       **error);
 
   guint64         (*get_expiry_time)         (EpgProvider *self);
   gboolean        (*get_enabled)             (EpgProvider *self);
@@ -59,13 +59,13 @@ gboolean        epg_provider_add_code   (EpgProvider  *self,
 gboolean        epg_provider_clear_code (EpgProvider  *self,
                                          GError      **error);
 
-void            epg_provider_save_state_async  (EpgProvider         *self,
-                                                GCancellable        *cancellable,
-                                                GAsyncReadyCallback  callback,
-                                                gpointer             user_data);
-gboolean        epg_provider_save_state_finish (EpgProvider   *self,
-                                                GAsyncResult  *result,
-                                                GError       **error);
+void            epg_provider_shutdown_async  (EpgProvider         *self,
+                                              GCancellable        *cancellable,
+                                              GAsyncReadyCallback  callback,
+                                              gpointer             user_data);
+gboolean        epg_provider_shutdown_finish (EpgProvider   *self,
+                                              GAsyncResult  *result,
+                                              GError       **error);
 
 guint64         epg_provider_get_expiry_time         (EpgProvider *self);
 gboolean        epg_provider_get_enabled             (EpgProvider *self);

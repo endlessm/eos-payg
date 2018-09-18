@@ -231,14 +231,14 @@ epg_service_shutdown (GssService *service)
 
   /* Save the provider’s state. */
   g_autoptr(GAsyncResult) result = NULL;
-  epg_provider_save_state_async (self->provider, NULL, async_result_cb, &result);
+  epg_provider_shutdown_async (self->provider, NULL, async_result_cb, &result);
 
   while (result == NULL)
     g_main_context_iteration (NULL, TRUE);
 
-  if (!epg_provider_save_state_finish (self->provider, result, &local_error))
+  if (!epg_provider_shutdown_finish (self->provider, result, &local_error))
     {
-      g_warning ("Error saving state: %s", local_error->message);
+      g_warning ("Error shutting down provider: %s", local_error->message);
       g_clear_error (&local_error);
     }
 

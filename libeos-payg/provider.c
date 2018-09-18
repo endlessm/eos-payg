@@ -170,55 +170,61 @@ epg_provider_clear_code (EpgProvider  *self,
 }
 
 /**
- * epg_provider_save_state_async:
+ * epg_provider_shutdown_async:
  * @self: an #EpgProvider
  * @cancellable: a #GCancellable, or %NULL
  * @callback: function to call once the async operation is complete
  * @user_data: data to pass to @callback
  *
- * Save the state for the #EpgProvider.
+ * Instructs the #EpgProvider to shut down, saving its state and closing any
+ * global resources. The result of calling any method except
+ * epg_provider_shutdown_finish() on @self after calling this method is
+ * undefined.
+ *
+ * It is recommended that #EpgProvider implementations periodically save their
+ * own state as needed, in case of an unclean shutdown.
  *
  * Since: 0.2.0
  */
 void
-epg_provider_save_state_async  (EpgProvider         *self,
-                                GCancellable        *cancellable,
-                                GAsyncReadyCallback  callback,
-                                gpointer             user_data)
+epg_provider_shutdown_async  (EpgProvider         *self,
+                              GCancellable        *cancellable,
+                              GAsyncReadyCallback  callback,
+                              gpointer             user_data)
 {
   g_return_if_fail (EPG_IS_PROVIDER (self));
 
   EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
 
-  g_assert (iface->save_state_async != NULL);
+  g_assert (iface->shutdown_async != NULL);
 
-  return iface->save_state_async (self, cancellable, callback, user_data);
+  return iface->shutdown_async (self, cancellable, callback, user_data);
 }
 
 /**
- * epg_provider_save_state_finish:
+ * epg_provider_shutdown_finish:
  * @self: an #EpgProvider
  * @result: asynchronous operation result
  * @error: return location for an error, or %NULL
  *
- * Finish an asynchronous save operation started with
- * epg_provider_save_state_async().
+ * Finish an asynchronous shutdown operation started with
+ * epg_provider_shutdown_async().
  *
  * Returns: %TRUE on success, %FALSE otherwise
  * Since: 0.2.0
  */
 gboolean
-epg_provider_save_state_finish (EpgProvider   *self,
-                                GAsyncResult  *result,
-                                GError       **error)
+epg_provider_shutdown_finish (EpgProvider   *self,
+                              GAsyncResult  *result,
+                              GError       **error)
 {
   g_return_val_if_fail (EPG_IS_PROVIDER (self), FALSE);
 
   EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
 
-  g_assert (iface->save_state_finish != NULL);
+  g_assert (iface->shutdown_finish != NULL);
 
-  return iface->save_state_finish (self, result, error);
+  return iface->shutdown_finish (self, result, error);
 }
 
 /**
