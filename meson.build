@@ -3,6 +3,9 @@ project('eos-payg','c',
   meson_version: '>= 0.40.0',
   license: 'MPL-2.0 or LGPLv2.1+',
   default_options: [
+    # We want all internal libraries, including libgsystemservice, to be
+    # static.
+    'default_library=static',
     'c_std=gnu11',
     'warning_level=2',
   ],
