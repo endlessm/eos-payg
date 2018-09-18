@@ -10,3 +10,11 @@ option(
   value: false,
   description: 'enable installed tests'
 )
+option('systemdsystemunitdir',
+  description: 'the directory to install systemd system units to (default: looked up with pkgconfig)',
+  type: 'string'
+)
+option('sysusersdir',
+  description: 'the directory to install sysusers files to (default: looked up with pkgconfig)',
+  type: 'string',
+)
