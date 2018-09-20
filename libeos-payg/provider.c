@@ -88,6 +88,34 @@ epg_provider_default_init (EpgProviderInterface *iface)
   g_object_interface_install_property (iface, pspec);
 
   /**
+   * EpgProvider:code-format:
+   *
+   * A description of the format of codes expected by epg_provider_add_code().
+   * The digit `0` is a placeholder for "any digit, 0-9"; `*` and `#` are
+   * literal; any other character is currently not supported.
+   *
+   * Some examples:
+   *
+   * - `"00000000"`: codes are eight arbitrary digits
+   * - `"*00000000000000#"`: codes begin with `*`, followed by 14 digits,
+   *   followed by `#`
+   *
+   * Passing a code which does not match this property to
+   * epg_provider_add_code() will cause it to fail with
+   * %EPG_MANAGER_ERROR_INVALID_CODE.
+   *
+   * This property is constant once the provider is initialized.
+   *
+   * Since: 0.2.0
+   */
+  pspec =
+      g_param_spec_string ("code-format", "Code Format",
+                           "The format of codes expected by this provider",
+                           "",
+                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+  g_object_interface_install_property (iface, pspec);
+
+  /**
    * EpgProvider::expired:
    * @self: a #EpgProvider
    *
@@ -290,4 +318,25 @@ epg_provider_get_rate_limit_end_time (EpgProvider *self)
   g_assert (iface->get_rate_limit_end_time != NULL);
 
   return iface->get_rate_limit_end_time (self);
+}
+
+/**
+ * epg_provider_get_code_format:
+ * @self: a #EpgProvider
+ *
+ * Get the value of #EpgProvider:code-format
+ *
+ * Returns: the format of codes expected by this provider
+ * Since: 0.2.0
+ */
+const gchar *
+epg_provider_get_code_format (EpgProvider *self)
+{
+  g_return_val_if_fail (EPG_IS_PROVIDER (self), NULL);
+
+  EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
+
+  g_assert (iface->code_format != NULL);
+
+  return iface->code_format;
 }

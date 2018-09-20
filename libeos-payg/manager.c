@@ -170,6 +170,7 @@ typedef enum
   PROP_EXPIRY_TIME,
   PROP_ENABLED,
   PROP_RATE_LIMIT_END_TIME,
+  PROP_CODE_FORMAT,
 } EpgManagerProperty;
 
 G_DEFINE_TYPE_WITH_CODE (EpgManager, epg_manager, G_TYPE_OBJECT,
@@ -193,6 +194,7 @@ epg_manager_class_init (EpgManagerClass *klass)
   g_object_class_override_property (object_class, PROP_EXPIRY_TIME, "expiry-time");
   g_object_class_override_property (object_class, PROP_ENABLED, "enabled");
   g_object_class_override_property (object_class, PROP_RATE_LIMIT_END_TIME, "rate-limit-end-time");
+  g_object_class_override_property (object_class, PROP_CODE_FORMAT, "code-format");
 
   /**
    * EpgManager:key-file:
@@ -258,6 +260,8 @@ epg_manager_provider_iface_init (gpointer g_iface,
   iface->get_expiry_time = epg_manager_get_expiry_time;
   iface->get_enabled = epg_manager_get_enabled;
   iface->get_rate_limit_end_time = epg_manager_get_rate_limit_end_time;
+
+  iface->code_format = "00000000";
 }
 
 static void
@@ -346,6 +350,9 @@ epg_manager_get_property (GObject    *object,
     case PROP_RATE_LIMIT_END_TIME:
       g_value_set_uint64 (value, epg_provider_get_rate_limit_end_time (provider));
       break;
+    case PROP_CODE_FORMAT:
+      g_value_set_static_string (value, epg_provider_get_code_format (provider));
+      break;
     default:
       g_assert_not_reached ();
     }
@@ -363,6 +370,7 @@ epg_manager_set_property (GObject      *object,
     {
     case PROP_EXPIRY_TIME:
     case PROP_RATE_LIMIT_END_TIME:
+    case PROP_CODE_FORMAT:
       /* Read only. */
       g_assert_not_reached ();
       break;

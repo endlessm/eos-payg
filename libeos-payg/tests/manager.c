@@ -232,6 +232,8 @@ test_manager_load_empty (Fixture *fixture,
   expiry = epg_provider_get_expiry_time (fixture->provider);
   g_assert_cmpuint (start, <=, expiry);
   g_assert_cmpuint (expiry, <=, end);
+
+  g_assert_cmpstr ("00000000", ==, epg_provider_get_code_format (provider));
 }
 
 static void

@@ -108,6 +108,12 @@ static GVariant *epg_manager_service_manager_get_rate_limit_end_time (EpgManager
                                                                       const gchar           *interface_name,
                                                                       const gchar           *property_name,
                                                                       GDBusMethodInvocation *invocation);
+static GVariant *epg_manager_service_manager_get_code_format (EpgManagerService     *self,
+                                                              GDBusConnection       *connection,
+                                                              const gchar           *sender,
+                                                              const gchar           *interface_name,
+                                                              const gchar           *property_name,
+                                                              GDBusMethodInvocation *invocation);
 
 static void expired_cb (EpgProvider *provider,
                         gpointer     user_data);
@@ -588,6 +594,8 @@ manager_properties[] =
       epg_manager_service_manager_get_enabled, NULL  /* read-only */ },
     { "com.endlessm.Payg1", "RateLimitEndTime", "rate-limit-end-time",
       epg_manager_service_manager_get_rate_limit_end_time, NULL  /* read-only */ },
+    { "com.endlessm.Payg1", "CodeFormat", "code-format",
+      epg_manager_service_manager_get_code_format, NULL  /* read-only */ },
   };
 
 G_STATIC_ASSERT (G_N_ELEMENTS (manager_properties) ==
@@ -806,6 +814,17 @@ epg_manager_service_manager_get_rate_limit_end_time (EpgManagerService     *self
                                                      GDBusMethodInvocation *invocation)
 {
   return g_variant_new_uint64 (epg_provider_get_rate_limit_end_time (self->provider));
+}
+
+static GVariant *
+epg_manager_service_manager_get_code_format (EpgManagerService     *self,
+                                             GDBusConnection       *connection,
+                                             const gchar           *sender,
+                                             const gchar           *interface_name,
+                                             const gchar           *property_name,
+                                             GDBusMethodInvocation *invocation)
+{
+  return g_variant_new_string (epg_provider_get_code_format (self->provider));
 }
 
 static void
