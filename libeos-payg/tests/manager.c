@@ -186,6 +186,12 @@ typedef enum {
     TEST_MANAGER_DISABLED_SET_ENABLED_PROPERTY = 1 << 1,
 } TestManagerDisabledFlags;
 
+/* test_manager_disabled:
+ * @data: GUINT_TO_POINTER(TestManagerDisabledFlags)
+ *
+ * Tests the behaviour of EpgManager when the key is missing or the enabled
+ * construct-time property is set to FALSE.
+ */
 static void
 test_manager_disabled (Fixture *fixture,
                        gconstpointer data)
@@ -218,6 +224,11 @@ test_manager_disabled (Fixture *fixture,
   g_clear_error (&error);
 }
 
+/* test_manager_load_empty:
+ *
+ * Tests the default behaviour when the key is present but the state directory
+ * is empty.
+ */
 static void
 test_manager_load_empty (Fixture *fixture,
                          gconstpointer data)
@@ -236,6 +247,13 @@ test_manager_load_empty (Fixture *fixture,
   g_assert_cmpstr ("00000000", ==, epg_provider_get_code_format (provider));
 }
 
+/* test_manager_load_error_malformed:
+ * @data: offset within Fixture of the path to a state file, which will be
+ * initialized to an invalid value
+ *
+ * Tests the behaviour when a state file contains invalid data, by populating
+ * one with invalid data before constructing the EpgManager.
+ */
 static void
 test_manager_load_error_malformed (Fixture *fixture,
                                    gconstpointer data)
@@ -268,6 +286,12 @@ test_manager_load_error_malformed (Fixture *fixture,
   g_assert_nonnull (fixture->provider);
 }
 
+/* test_manager_load_error_unreadable:
+ * @data: offset within Fixture of the path to a state file, which will be
+ * populated with something which cannot be read (namely a directory)
+ *
+ * Tests the behaviour when a state file cannot be read.
+ */
 static void
 test_manager_load_error_unreadable (Fixture *fixture,
                                     gconstpointer data)
@@ -291,9 +315,7 @@ test_manager_load_error_unreadable (Fixture *fixture,
   g_assert_null (fixture->provider);
   g_clear_error (&error);
 
-  /* Ideally, we would attempt to clean away the offending illegible 'file',
-   * but that is not currently the case.
-   */
+  /* FIXME: clean away the offending illegible 'file'. */
 #if 0
   provider = manager_new_failable (fixture, TRUE, &error);
   g_assert_no_error (error);
@@ -302,6 +324,14 @@ test_manager_load_error_unreadable (Fixture *fixture,
 #endif
 }
 
+/* test_manager_save_error:
+ * @data: if non-zero, try to apply a code
+ *
+ * Tests what happens when the manager can't write back its state to disk.
+ * This is made to happen by removing the state directory behind its back.
+ * We test both the case where writing state on shutdown fails, and when
+ * writing state after applying a code.
+ */
 static void
 test_manager_save_error (Fixture *fixture,
                          gconstpointer data)
@@ -339,6 +369,11 @@ test_manager_save_error (Fixture *fixture,
   g_test_assert_expected_messages ();
 }
 
+/* test_manager_add_save_reload:
+ *
+ * Tests that applying a code (to extend the expiry time), tearing down the
+ * EpgManager, and loading it up again restores the same expiry time.
+ */
 static void
 test_manager_add_save_reload (Fixture *fixture,
                               gconstpointer data)
@@ -373,6 +408,11 @@ test_manager_add_save_reload (Fixture *fixture,
   g_assert_cmpuint (now + 5, ==, expiry_after_reload);
 }
 
+/* test_manager_error_malformed:
+ *
+ * Tests that entering a totally malformed code does not extend the expiry
+ * time.
+ */
 static void
 test_manager_error_malformed (Fixture *fixture,
                               gconstpointer data)
@@ -394,6 +434,11 @@ test_manager_error_malformed (Fixture *fixture,
   g_assert_cmpint (expiry, ==, expiry_after_code);
 }
 
+/* test_manager_error_malformed:
+ *
+ * Tests that entering a code twice causes it to be rejected the second time,
+ * without extending the expiry time.
+ */
 static void
 test_manager_error_reused (Fixture *fixture,
                            gconstpointer data)
@@ -421,6 +466,13 @@ test_manager_error_reused (Fixture *fixture,
   g_assert_cmpint (expiry_after_code, ==, epg_provider_get_expiry_time (fixture->provider));
 }
 
+/* test_manager_error_rate_limit:
+ *
+ * Tests that entering a large number of valid codes in quick succession is
+ * accepted, but entering a large number of invalid codes in quick succession
+ * causes entering any code (valid or invalid) to be rate-limited for a period
+ * of time.
+ */
 static void
 test_manager_error_rate_limit (Fixture *fixture,
                                gconstpointer data)
