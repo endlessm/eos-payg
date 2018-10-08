@@ -408,6 +408,62 @@ test_manager_add_save_reload (Fixture *fixture,
   g_assert_cmpuint (now + 5, ==, expiry_after_reload);
 }
 
+/* test_manager_add_infinite_code:
+ *
+ * Tests that applying an infinite code sets the expiry time to infinitely far
+ * in the future, and that this survives both a restart and adding a
+ * non-infinite code afterwards.
+ */
+static void
+test_manager_add_infinite_code (Fixture      *fixture,
+                                gconstpointer data)
+{
+  manager_new (fixture);
+  EpcCode code;
+  g_autofree gchar *code_str = NULL;
+  g_autoptr(GError) error = NULL;
+  guint64 expiry_before_code, now, expiry_after_code, expiry_after_reload;
+  gboolean ret;
+
+  expiry_before_code = epg_provider_get_expiry_time (fixture->provider);
+
+  /* Apply an infinite code. The expiry time should be updated to be infinitely
+   * far away. (TODO: or, set Enabled=False in this case?)
+   */
+  code = epc_calculate_code (EPC_PERIOD_INFINITE, EPC_MINCOUNTER, fixture->key, &error);
+  g_assert_no_error (error);
+  code_str = epc_format_code (code);
+
+  now = expiry_before_code + 5;
+  ret = epg_provider_add_code (fixture->provider, code_str, now, &error);
+  g_assert_no_error (error);
+  g_assert_true (ret);
+
+  expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
+  g_assert_cmpint (G_MAXUINT64, ==, expiry_after_code);
+
+  /* Apply a 5-second code. It should have no effect: the expiry time should be
+   * clamped to infinitely far away.
+   */
+  g_clear_pointer (&code_str, g_free);
+  code_str = get_next_code (fixture);
+  ret = epg_provider_add_code (fixture->provider, code_str, now, &error);
+  g_assert_no_error (error);
+  g_assert_true (ret);
+
+  expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
+  g_assert_cmpint (G_MAXUINT64, ==, expiry_after_code);
+
+  /* Tear down and restart. */
+  ret = shutdown (fixture, &error);
+  g_assert_no_error (error);
+  g_assert_true (ret);
+
+  manager_new (fixture);
+  expiry_after_reload = epg_provider_get_expiry_time (fixture->provider);
+  g_assert_cmpuint (G_MAXUINT64, ==, expiry_after_reload);
+}
+
 /* test_manager_error_malformed:
  *
  * Tests that entering a totally malformed code does not extend the expiry
@@ -568,6 +624,7 @@ main (int    argc,
   T ("/manager/save-error/no-codes-applied", test_manager_save_error, GINT_TO_POINTER (FALSE));
   T ("/manager/save-error/codes-applied", test_manager_save_error, GINT_TO_POINTER (TRUE));
   T ("/manager/add-save-reload", test_manager_add_save_reload, NULL);
+  T ("/manager/add-infinite", test_manager_add_infinite_code, NULL);
   T ("/manager/error/malformed", test_manager_error_malformed, NULL);
   T ("/manager/error/reused", test_manager_error_reused, NULL);
   T ("/manager/error/rate-limit", test_manager_error_rate_limit, NULL);
