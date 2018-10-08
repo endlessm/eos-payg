@@ -1003,7 +1003,7 @@ file_load_cb (GObject      *source_object,
           union
             {
               guint64 u64;
-              const gchar u8[8];
+              gchar u8[8];
             } expiry_time_secs;
           G_STATIC_ASSERT (sizeof (expiry_time_secs.u8) == sizeof (self->expiry_time_secs));
 

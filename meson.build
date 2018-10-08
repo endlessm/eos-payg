@@ -79,7 +79,7 @@ test_args = [
   '-Wmissing-prototypes',
   '-Wnested-externs',
   '-Wno-error=cpp',
-  '-Wno-discarded-qualifiers',
+  '-Wdiscarded-qualifiers',
   '-Wno-missing-field-initializers',
   '-Wno-suggest-attribute=format',
   '-Wno-unused-parameter',
