@@ -15,6 +15,7 @@ envs = test_env + [
 
 test_programs = [
   ['manager', [], deps],
+  ['multi-task', [], deps],
   ['service', [], deps],
   ['provider-loader', [], deps],
 ]
