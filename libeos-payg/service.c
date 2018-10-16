@@ -71,6 +71,16 @@ struct _EpgService
   /* This is normally %NULL, and is only non-%NULL when overridden from the
    * command line: */
   gchar *config_file_path;  /* (type filename) (owned) (nullable) */
+
+  /* If @provider is non-%NULL, a non-zero ID for a handler of
+   * provider::notify::enabled.
+   */
+  gulong notify_enabled_id;
+
+  /* If %TRUE, there is an outstanding call to gss_service_hold() without a
+   * matching call to gss_service_release().
+   */
+  gboolean holding;
 };
 
 G_DEFINE_TYPE (EpgService, epg_service, GSS_TYPE_SERVICE)
@@ -99,6 +109,13 @@ static void
 epg_service_dispose (GObject *object)
 {
   EpgService *self = EPG_SERVICE (object);
+
+  if (self->notify_enabled_id != 0)
+    {
+      g_assert (self->provider != NULL);
+      g_signal_handler_disconnect (self->provider, self->notify_enabled_id);
+      self->notify_enabled_id = 0;
+    }
 
   g_clear_object (&self->manager_service);
   g_clear_object (&self->provider);
@@ -135,6 +152,9 @@ static void manager_new_cb (GObject      *source_object,
 static void epg_service_startup_complete (EpgService  *self,
                                           GTask       *task,
                                           EpgProvider *provider);
+static void provider_notify_enabled_cb (GObject    *object,
+                                        GParamSpec *param_spec,
+                                        gpointer    user_data);
 
 static void
 epg_service_startup_async (GssService          *service,
@@ -264,6 +284,12 @@ epg_service_startup_complete (EpgService  *self,
     g_task_return_error (task, g_steal_pointer (&local_error));
   else
     g_task_return_boolean (task, TRUE);
+
+  self->notify_enabled_id = g_signal_connect (self->provider,
+                                              "notify::enabled",
+                                              G_CALLBACK (provider_notify_enabled_cb),
+                                              self);
+  provider_notify_enabled_cb (G_OBJECT (self->provider), NULL, self);
 }
 
 static void
@@ -272,6 +298,23 @@ epg_service_startup_finish (GssService    *service,
                             GError       **error)
 {
   g_task_propagate_boolean (G_TASK (result), error);
+}
+
+static void
+provider_notify_enabled_cb (GObject    *object,
+                            GParamSpec *param_spec,
+                            gpointer    user_data)
+{
+  EpgService *self = EPG_SERVICE (user_data);
+  EpgProvider *provider = EPG_PROVIDER (object);
+  gboolean enabled = epg_provider_get_enabled (provider);
+
+  if (enabled && !self->holding)
+    gss_service_hold (GSS_SERVICE (self));
+  else if (!enabled && self->holding)
+    gss_service_release (GSS_SERVICE (self));
+
+  self->holding = enabled;
 }
 
 static void
@@ -319,7 +362,7 @@ epg_service_new (void)
   return g_object_new (EPG_TYPE_SERVICE,
                        "bus-type", G_BUS_TYPE_SYSTEM,
                        "service-id", "com.endlessm.Payg1",
-                       "inactivity-timeout", 0  /* no timeout */,
+                       "inactivity-timeout", 30000  /* ms */,
                        "translation-domain", GETTEXT_PACKAGE,
                        "parameter-string", _("— verify top-up codes and monitor time remaining"),
                        "summary", _("Verify inputted top-up codes and "
