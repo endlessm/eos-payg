@@ -90,19 +90,24 @@ epg_provider_default_init (EpgProviderInterface *iface)
   /**
    * EpgProvider:code-format:
    *
-   * A description of the format of codes expected by epg_provider_add_code().
-   * The digit `0` is a placeholder for "any digit, 0-9"; `*` and `#` are
-   * literal; any other character is currently not supported.
-   *
+   * A regular expression which matches the format of codes expected by
+   * epg_provider_add_code() on this provider, in the dialect understood by
+   * GRegex. The expression should be anchored at each end with `^` and `$`.
    * Some examples:
    *
-   * - `"00000000"`: codes are eight arbitrary digits
-   * - `"*00000000000000#"`: codes begin with `*`, followed by 14 digits,
-   *   followed by `#`
+   * - `^\d{8}$`: codes are 8 arbitrary digits, such as `"12345678"` or
+   *   `"१२३४५६७८"` (use `[0-9]` if you mean ASCII digits)
+   * - `^\*((\d\d-?\d\d)|(\d-?\d))#$`: codes start with `*`, end with `#`, and
+   *   contain either 4 or 2 digits with an optional `-` in the middle
    *
-   * Passing a code which does not match this property to
+   * Passing a code which does not match this expression to
    * epg_provider_add_code() will cause it to fail with
    * %EPG_MANAGER_ERROR_INVALID_CODE.
+   *
+   * User interfaces may choose to incrementally validate codes against this
+   * expression as they are typed using the %G_REGEX_MATCH_PARTIAL flag. (Note
+   * that the empty string is never a partial match of any regular expression;
+   * see `pcrepartial(3)` for more details.)
    *
    * This property is constant once the provider is initialized.
    *

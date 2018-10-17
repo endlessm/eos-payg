@@ -243,8 +243,78 @@ test_manager_load_empty (Fixture *fixture,
   expiry = epg_provider_get_expiry_time (fixture->provider);
   g_assert_cmpuint (start, <=, expiry);
   g_assert_cmpuint (expiry, <=, end);
+}
 
-  g_assert_cmpstr ("00000000", ==, epg_provider_get_code_format (provider));
+static GRegex *
+get_code_format (Fixture *fixture)
+{
+  manager_new (fixture);
+
+  const gchar *code_format = epg_provider_get_code_format (fixture->provider);
+  g_autoptr(GRegex) regex = NULL;
+  g_autoptr(GError) local_error = NULL;
+
+  regex = g_regex_new (code_format,
+                       G_REGEX_DOLLAR_ENDONLY,
+                       G_REGEX_MATCH_PARTIAL,
+                       &local_error);
+  g_assert_no_error (local_error);
+  g_assert_nonnull (regex);
+
+  return g_steal_pointer (&regex);
+}
+
+/* test_manager_code_format_matches:
+ * @data: const gchar *
+ *
+ * Tests that the :code-format regexp matches @data in its entirety.
+ */
+static void
+test_manager_code_format_matches (Fixture *fixture,
+                                  gconstpointer data)
+{
+  /* Hi LISP enthusiasts */
+  const gchar *code = data;
+  g_autoptr(GRegex) regex = get_code_format (fixture);
+  g_assert_true (g_regex_match (regex, code, 0, NULL));
+}
+
+/* test_manager_code_format_matches_partial:
+ * @data: const gchar *
+ *
+ * Tests that the :code-format regexp partially matches @data.
+ */
+static void
+test_manager_code_format_matches_partial (Fixture *fixture,
+                                          gconstpointer data)
+{
+  const gchar *code = data;
+  g_autoptr(GRegex) regex = get_code_format (fixture);
+  gboolean ret;
+  g_autoptr(GMatchInfo) match_info = NULL;
+
+  ret = g_regex_match (regex, code, 0, &match_info);
+  g_assert_false (ret);
+  g_assert_true (g_match_info_is_partial_match (match_info));
+}
+
+/* test_manager_code_format_rejects:
+ * @data: const gchar *
+ *
+ * Tests that the :code-format regexp doesn't match @data, fully or partially.
+ */
+static void
+test_manager_code_format_rejects (Fixture *fixture,
+                                  gconstpointer data)
+{
+  const gchar *code = data;
+  g_autoptr(GRegex) regex = get_code_format (fixture);
+  gboolean ret;
+  g_autoptr(GMatchInfo) match_info = NULL;
+
+  ret = g_regex_match (regex, code, 0, &match_info);
+  g_assert_false (ret);
+  g_assert_false (g_match_info_is_partial_match (match_info));
 }
 
 /* test_manager_load_error_malformed:
@@ -595,6 +665,24 @@ test_manager_error_rate_limit (Fixture *fixture,
   g_assert_cmpuint (now + 5, ==, epg_provider_get_expiry_time (fixture->provider));
 }
 
+static void
+add_many (const char  *path_base,
+          void       (*func) (Fixture *, gconstpointer),
+          const char **data)
+{
+  const char **datum;
+
+  for (datum = data; *datum != NULL; datum++)
+    {
+      g_autofree char *escaped = g_uri_escape_string (*datum, NULL, TRUE);
+      g_autofree char *path = g_strconcat (path_base,
+                                           "/",
+                                           escaped[0] != 0 ? escaped : "empty",
+                                           NULL);
+      g_test_add (path, Fixture, *datum, setup, func, teardown);
+    }
+}
+
 int
 main (int    argc,
       char **argv)
@@ -617,6 +705,30 @@ main (int    argc,
      GUINT_TO_POINTER (TEST_MANAGER_DISABLED_REMOVE_KEY |
                        TEST_MANAGER_DISABLED_SET_ENABLED_PROPERTY));
   T ("/manager/load-empty", test_manager_load_empty, NULL);
+
+  const char *full_matches[] = { "00000000", "12345678", NULL };
+  add_many ("/manager/code-format/matches",
+            test_manager_code_format_matches,
+            full_matches);
+
+  const char *partial_matches[] = { "1", "12", "1234567", NULL };
+  add_many ("/manager/code-format/partial",
+            test_manager_code_format_matches_partial,
+            partial_matches);
+
+  const char *non_matches[] = {
+      "\n", "a", "1a", "123\n", "a123",
+      /* '6' in various non-ASCII forms */
+      "६", "೬", "𝟨", "六",
+      /* Sadly, the empty string is never a partial match for any regular
+       * expression.
+       */
+      "",
+      NULL
+  };
+  add_many ("/manager/code-format/rejects",
+            test_manager_code_format_rejects,
+            non_matches);
   T ("/manager/load-error/malformed/expiry-time", test_manager_load_error_malformed, expiry_time_offset);
   T ("/manager/load-error/malformed/used-codes", test_manager_load_error_malformed, used_codes_offset);
   T ("/manager/load-error/unreadable/expiry-time", test_manager_load_error_unreadable, expiry_time_offset);
