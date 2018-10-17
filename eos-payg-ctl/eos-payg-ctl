@@ -1,0 +1,136 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2018 Endless Mobile, Inc.
+#
+# This Source Code Form is subject to the terms of the Mozilla Public License,
+# v. 2.0. If a copy of the MPL was not distributed with this file, You can
+# obtain one at https://mozilla.org/MPL/2.0/.
+#
+# Alternatively, the contents of this file may be used under the terms of the
+# GNU Lesser General Public License Version 2.1 or later (the "LGPL"), in
+# which case the provisions of the LGPL are applicable instead of those above.
+# If you wish to allow use of your version of this file only under the terms
+# of the LGPL, and not to allow others to use your version of this file under
+# the terms of the MPL, indicate your decision by deleting the provisions
+# above and replace them with the notice and other provisions required by the
+# LGPL. If you do not delete the provisions above, a recipient may use your
+# version of this file under the terms of either the MPL or the LGPL.
+
+import argparse
+import contextlib
+import datetime as dt
+import sys
+from dateutil import tz
+from gi.repository import GLib, Gio
+
+BUS_NAME = 'com.endlessm.Payg1'
+OBJECT_PATH = '/com/endlessm/Payg1'
+INTERFACE = 'com.endlessm.Payg1'
+ERROR_DOMAIN = 'com.endlessm.Payg1.Error'
+
+DBUS_PROPERTIES_INTERFACE = 'org.freedesktop.DBus.Properties'
+
+
+def __format_utc_timestamp(timestamp):
+    expiry_utc = dt.datetime.fromtimestamp(timestamp, tz=tz.tzutc())
+    expiry_local = expiry_utc.astimezone(tz.tzlocal())
+    return str(expiry_local)
+
+
+def __get_proxy():
+    return Gio.DBusProxy.new_for_bus_sync(
+        Gio.BusType.SYSTEM,
+        Gio.DBusProxyFlags.NONE,
+        None,
+        BUS_NAME,
+        OBJECT_PATH,
+        INTERFACE,
+        None,  # cancellable
+    )
+
+
+def command_status(proxy):
+    '''Show the current PAYG status of this device.'''
+    props = {
+        name: proxy.get_cached_property(name).unpack()
+        for name in proxy.get_cached_property_names()
+    }
+
+    width = max(map(len, props), default=0)
+    formatters = {
+        'ExpiryTime': __format_utc_timestamp,
+        'RateLimitEndTime': __format_utc_timestamp,
+    }
+
+    for key, value in sorted(props.items()):
+        formatted = formatters.get(key, lambda x: x)(value)
+        print('{:>{}}: {}'.format(key, width, formatted))
+
+
+@contextlib.contextmanager
+def __exit_on_payg_error():
+    try:
+        yield
+    except GLib.GError as e:
+        # FIXME: The Right Thing To Do would be to make libeos-payg
+        # introspectable, so we can load it and get its error domain & codes
+        # registered with GDBus. This seems like a lot of work for minimal
+        # gain, and hard-coding them here just guarantees they will drift out
+        # of sync.
+        remote_error = Gio.dbus_error_get_remote_error(e)
+        if not remote_error or not remote_error.startswith(ERROR_DOMAIN):
+            raise
+
+        # Gio.dbus_error_get_remote_error(e) does not modify e.message,
+        # presumably because the Python-side GLib.GError is marshalled back to
+        # a new temporary C-side GError.
+        message = e.message[e.message.index(remote_error):]
+        print(message, file=sys.stderr, flush=True)
+        raise SystemExit(1)
+
+
+def command_add_code(proxy, code):
+    '''Verify and add the given code, assuming it has not already been used,
+    and extend the expiry time as appropriate.'''
+    with __exit_on_payg_error():
+        proxy.AddCode('(s)', code)
+
+
+def command_clear_code(proxy):
+    '''Clear the current code(s), causing any remaining credit to expire
+    immediately. This is typically intended to be used for testing.'''
+    with __exit_on_payg_error():
+        proxy.ClearCode()
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.set_defaults(function=command_status)
+    subparsers = parser.add_subparsers(title='subcommands')
+
+    def add_parser(name, function):
+        p = subparsers.add_parser(name,
+                                  help=function.__doc__,
+                                  description=function.__doc__)
+        p.set_defaults(function=function)
+        return p
+
+    add_parser('status', command_status)
+
+    add_code = add_parser('add-code', command_add_code)
+    add_code.add_argument('code',
+                          help='a new PAYG code')
+
+    add_parser('clear-code', command_clear_code)
+
+    args = parser.parse_args()
+    function = args.function
+    del args.function
+
+    proxy = __get_proxy()
+    function(proxy, **vars(args))
+
+
+if __name__ == '__main__':
+    main()
