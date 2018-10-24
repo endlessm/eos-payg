@@ -94,6 +94,14 @@ Package: eos-payg-data
 Section: misc
 Architecture: all
 Depends:
+ eos-paygd (= ${binary:Version}),
+ gir1.2-gio-2.0,
+ python3-gi,
+ ${misc:Depends},
+ ${python3:Depends},
  ${misc:Depends},
 Description: Pay As You Go Daemon - architecture independent files
- This package contains the architecture-independent data files.
+ This package contains a pay as you go daemon for tracking computer usage and
+ verification of pay as you go codes.
+ .
+ This package contains the architecture-independent data files and tools.
