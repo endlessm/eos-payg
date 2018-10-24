@@ -19,25 +19,22 @@
 
 #pragma once
 
-#include <glib.h>
-#include <glib-object.h>
-#include <libeos-payg/provider.h>
+#include <gio/gio.h>
 
 G_BEGIN_DECLS
 
-#define EPG_TYPE_MANAGER epg_manager_get_type ()
-G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
+/* https://www.youtube.com/watch?v=NVPLqbWXdDA */
 
-void         epg_manager_new        (gboolean             enabled,
-                                     GFile               *key_file,
-                                     GFile               *state_directory,
-                                     GCancellable        *cancellable,
-                                     GAsyncReadyCallback  callback,
-                                     gpointer             user_data);
-EpgProvider *epg_manager_new_finish (GAsyncResult  *result,
-                                     GError       **error);
-
-GFile      *epg_manager_get_key_file        (EpgManager *self);
-GFile      *epg_manager_get_state_directory (EpgManager *self);
+void epg_multi_task_attach         (GTask         *task,
+                                    guint          pending);
+void epg_multi_task_increment      (GTask         *task);
+void epg_multi_task_return_boolean (GTask         *task,
+                                    gboolean       result);
+void epg_multi_task_return_pointer (GTask         *task,
+                                    gpointer       result,
+                                    GDestroyNotify result_destroy);
+void epg_multi_task_return_error   (GTask         *task,
+                                    const gchar   *tag,
+                                    GError        *error);
 
 G_END_DECLS

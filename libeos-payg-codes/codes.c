@@ -143,10 +143,12 @@ static gboolean
 validate_key (GBytes  *key,
               GError **error)
 {
-  if (g_bytes_get_size (key) < KEY_LENGTH_BYTES_MINIMUM)
+  gsize key_size = g_bytes_get_size (key);
+  if (key_size < KEY_LENGTH_BYTES_MINIMUM)
     {
       g_set_error (error, EPC_CODE_ERROR, EPC_CODE_ERROR_INVALID_KEY,
-                   _("Key is too short; minimum length %u bytes."),
+                   _("Key is too short (%" G_GSIZE_FORMAT " bytes); minimum length %u bytes."),
+                   key_size,
                    (guint) KEY_LENGTH_BYTES_MINIMUM);
       return FALSE;
     }

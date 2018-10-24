@@ -22,7 +22,7 @@
 #include <glib.h>
 #include <glib-object.h>
 #include <gio/gio.h>
-#include <libeos-payg/manager.h>
+#include <libeos-payg/provider.h>
 
 G_BEGIN_DECLS
 
@@ -32,7 +32,7 @@ G_DECLARE_FINAL_TYPE (EpgManagerService, epg_manager_service, EPG,
 
 EpgManagerService *epg_manager_service_new (GDBusConnection *connection,
                                             const gchar     *object_path,
-                                            EpgManager      *manager);
+                                            EpgProvider     *manager);
 
 gboolean epg_manager_service_register   (EpgManagerService  *self,
                                          GError            **error);

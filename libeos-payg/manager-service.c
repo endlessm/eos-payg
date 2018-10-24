@@ -23,6 +23,7 @@
 #include <glib-unix.h>
 #include <glib/gi18n-lib.h>
 #include <gio/gio.h>
+#include <libeos-payg/errors.h>
 #include <libeos-payg/manager-interface.h>
 #include <libeos-payg/manager-service.h>
 
@@ -107,9 +108,15 @@ static GVariant *epg_manager_service_manager_get_rate_limit_end_time (EpgManager
                                                                       const gchar           *interface_name,
                                                                       const gchar           *property_name,
                                                                       GDBusMethodInvocation *invocation);
+static GVariant *epg_manager_service_manager_get_code_format (EpgManagerService     *self,
+                                                              GDBusConnection       *connection,
+                                                              const gchar           *sender,
+                                                              const gchar           *interface_name,
+                                                              const gchar           *property_name,
+                                                              GDBusMethodInvocation *invocation);
 
-static void expired_cb (EpgManager *manager,
-                        gpointer    user_data);
+static void expired_cb (EpgProvider *provider,
+                        gpointer     user_data);
 static void notify_cb  (GObject    *obj,
                         GParamSpec *pspec,
                         gpointer    user_data);
@@ -131,10 +138,10 @@ G_STATIC_ASSERT (G_N_ELEMENTS (manager_error_map) == G_N_ELEMENTS (manager_error
 /**
  * EpgManagerService:
  *
- * An implementation of a D-Bus interface to expose the pay as you go manager
+ * An implementation of a D-Bus interface to expose the pay as you go provider
  * on the bus. This will expose all the necessary objects on the bus for peers
  * to interact with them, and hooks them up to internal state management using
- * #EpgManagerService:manager.
+ * #EpgManagerService:provider.
  *
  * Since: 0.1.0
  */
@@ -149,15 +156,15 @@ struct _EpgManagerService
   /* Used to cancel any pending operations when the object is unregistered. */
   GCancellable *cancellable;  /* (owned) */
 
-  /* Actual implementation of the manager. */
-  EpgManager *manager;  /* (owned) */
+  /* Actual implementation of the provider. */
+  EpgProvider *provider;  /* (owned) */
 };
 
 typedef enum
 {
   PROP_CONNECTION = 1,
   PROP_OBJECT_PATH,
-  PROP_MANAGER,
+  PROP_PROVIDER,
 } EpgManagerServiceProperty;
 
 G_DEFINE_TYPE (EpgManagerService, epg_manager_service, G_TYPE_OBJECT)
@@ -166,7 +173,7 @@ static void
 epg_manager_service_class_init (EpgManagerServiceClass *klass)
 {
   GObjectClass *object_class = (GObjectClass *) klass;
-  GParamSpec *props[PROP_MANAGER + 1] = { NULL, };
+  GParamSpec *props[PROP_PROVIDER + 1] = { NULL, };
 
   object_class->dispose = epg_manager_service_dispose;
   object_class->get_property = epg_manager_service_get_property;
@@ -204,17 +211,17 @@ epg_manager_service_class_init (EpgManagerServiceClass *klass)
                            G_PARAM_STATIC_STRINGS);
 
   /**
-   * EpgManagerService:manager:
+   * EpgManagerService:provider:
    *
-   * Code verification manager which implements the core of these D-Bus APIs.
+   * Code verification provider which implements the core of these D-Bus APIs.
    *
-   * Since: 0.1.0
+   * Since: 0.2.0
    */
-  props[PROP_MANAGER] =
-      g_param_spec_object ("manager", "Manager",
-                           "Code verification manager which implements the "
+  props[PROP_PROVIDER] =
+      g_param_spec_object ("provider", "Provider",
+                           "Code verification provider which implements the "
                            "core of these D-Bus APIs.",
-                           EPG_TYPE_MANAGER,
+                           EPG_TYPE_PROVIDER,
                            G_PARAM_READWRITE |
                            G_PARAM_CONSTRUCT_ONLY |
                            G_PARAM_STATIC_STRINGS);
@@ -247,13 +254,13 @@ epg_manager_service_dispose (GObject *object)
   g_clear_pointer (&self->object_path, g_free);
   g_clear_object (&self->cancellable);
 
-  if (self->manager != NULL)
+  if (self->provider != NULL)
     {
-      g_signal_handlers_disconnect_by_func (self->manager, notify_cb, self);
-      g_signal_handlers_disconnect_by_func (self->manager, expired_cb, self);
+      g_signal_handlers_disconnect_by_func (self->provider, notify_cb, self);
+      g_signal_handlers_disconnect_by_func (self->provider, expired_cb, self);
     }
 
-  g_clear_object (&self->manager);
+  g_clear_object (&self->provider);
 
   /* Chain up to the parent class */
   G_OBJECT_CLASS (epg_manager_service_parent_class)->dispose (object);
@@ -275,8 +282,8 @@ epg_manager_service_get_property (GObject    *object,
     case PROP_OBJECT_PATH:
       g_value_set_string (value, self->object_path);
       break;
-    case PROP_MANAGER:
-      g_value_set_object (value, self->manager);
+    case PROP_PROVIDER:
+      g_value_set_object (value, self->provider);
       break;
     default:
       g_assert_not_reached ();
@@ -304,12 +311,12 @@ epg_manager_service_set_property (GObject      *object,
       g_assert (g_variant_is_object_path (g_value_get_string (value)));
       self->object_path = g_value_dup_string (value);
       break;
-    case PROP_MANAGER:
+    case PROP_PROVIDER:
       /* Construct only. */
-      g_assert (self->manager == NULL);
-      self->manager = g_value_dup_object (value);
-      g_signal_connect (self->manager, "expired", (GCallback) expired_cb, self);
-      g_signal_connect (self->manager, "notify", (GCallback) notify_cb, self);
+      g_assert (self->provider == NULL);
+      self->provider = g_value_dup_object (value);
+      g_signal_connect (self->provider, "expired", (GCallback) expired_cb, self);
+      g_signal_connect (self->provider, "notify", (GCallback) notify_cb, self);
       break;
     default:
       g_assert_not_reached ();
@@ -317,8 +324,8 @@ epg_manager_service_set_property (GObject      *object,
 }
 
 static void
-expired_cb (EpgManager *manager,
-            gpointer    user_data)
+expired_cb (EpgProvider *provider,
+            gpointer     user_data)
 {
   EpgManagerService *self = EPG_MANAGER_SERVICE (user_data);
   g_autoptr(GError) local_error = NULL;
@@ -587,6 +594,8 @@ manager_properties[] =
       epg_manager_service_manager_get_enabled, NULL  /* read-only */ },
     { "com.endlessm.Payg1", "RateLimitEndTime", "rate-limit-end-time",
       epg_manager_service_manager_get_rate_limit_end_time, NULL  /* read-only */ },
+    { "com.endlessm.Payg1", "CodeFormat", "code-format",
+      epg_manager_service_manager_get_code_format, NULL  /* read-only */ },
   };
 
 G_STATIC_ASSERT (G_N_ELEMENTS (manager_properties) ==
@@ -782,7 +791,7 @@ epg_manager_service_manager_get_expiry_time (EpgManagerService     *self,
                                              const gchar           *property_name,
                                              GDBusMethodInvocation *invocation)
 {
-  return g_variant_new_uint64 (epg_manager_get_expiry_time (self->manager));
+  return g_variant_new_uint64 (epg_provider_get_expiry_time (self->provider));
 }
 
 static GVariant *
@@ -793,7 +802,7 @@ epg_manager_service_manager_get_enabled (EpgManagerService     *self,
                                          const gchar           *property_name,
                                          GDBusMethodInvocation *invocation)
 {
-  return g_variant_new_boolean (epg_manager_get_enabled (self->manager));
+  return g_variant_new_boolean (epg_provider_get_enabled (self->provider));
 }
 
 static GVariant *
@@ -804,7 +813,18 @@ epg_manager_service_manager_get_rate_limit_end_time (EpgManagerService     *self
                                                      const gchar           *property_name,
                                                      GDBusMethodInvocation *invocation)
 {
-  return g_variant_new_uint64 (epg_manager_get_rate_limit_end_time (self->manager));
+  return g_variant_new_uint64 (epg_provider_get_rate_limit_end_time (self->provider));
+}
+
+static GVariant *
+epg_manager_service_manager_get_code_format (EpgManagerService     *self,
+                                             GDBusConnection       *connection,
+                                             const gchar           *sender,
+                                             const gchar           *interface_name,
+                                             const gchar           *property_name,
+                                             GDBusMethodInvocation *invocation)
+{
+  return g_variant_new_string (epg_provider_get_code_format (self->provider));
 }
 
 static void
@@ -820,7 +840,7 @@ epg_manager_service_manager_add_code (EpgManagerService     *self,
   g_variant_get (parameters, "(&s)", &code_str);
 
   guint64 now_secs = g_get_real_time () / G_USEC_PER_SEC;
-  epg_manager_add_code (self->manager, code_str, now_secs, &local_error);
+  epg_provider_add_code (self->provider, code_str, now_secs, &local_error);
 
   if (local_error != NULL)
     g_dbus_method_invocation_return_gerror (invocation, local_error);
@@ -837,7 +857,7 @@ epg_manager_service_manager_clear_code (EpgManagerService     *self,
 {
   g_autoptr(GError) local_error = NULL;
 
-  epg_manager_clear_code (self->manager, &local_error);
+  epg_provider_clear_code (self->provider, &local_error);
 
   if (local_error != NULL)
     g_dbus_method_invocation_return_gerror (invocation, local_error);
@@ -861,15 +881,15 @@ epg_manager_service_manager_clear_code (EpgManagerService     *self,
 EpgManagerService *
 epg_manager_service_new (GDBusConnection *connection,
                          const gchar     *object_path,
-                         EpgManager      *manager)
+                         EpgProvider     *provider)
 {
   g_return_val_if_fail (G_IS_DBUS_CONNECTION (connection), NULL);
   g_return_val_if_fail (g_variant_is_object_path (object_path), NULL);
-  g_return_val_if_fail (EPG_IS_MANAGER (manager), NULL);
+  g_return_val_if_fail (EPG_IS_PROVIDER (provider), NULL);
 
   return g_object_new (EPG_TYPE_MANAGER_SERVICE,
                        "connection", connection,
                        "object-path", object_path,
-                       "manager", manager,
+                       "provider", provider,
                        NULL);
 }

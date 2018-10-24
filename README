@@ -7,7 +7,8 @@ the user next needs to top up its lease.
 
 It provides a daemon to monitor the expiry time for the current code and to
 verify new codes, a command line utility for generating new codes, and various
-helper libraries.
+helper libraries. It also supports loading out-of-tree plugins, which implement
+alternative code management backends.
 
 All the library APIs are currently unstable and are likely to change wildly.
 
@@ -17,6 +18,7 @@ Dependencies
  • gio-2.0 ≥ 2.54
  • glib-2.0 ≥ 2.54
  • gobject-2.0 ≥ 2.54
+ • peas
  • systemd
 
 Licensing

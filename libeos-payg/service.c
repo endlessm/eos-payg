@@ -24,7 +24,9 @@
 #include <glib-unix.h>
 #include <glib/gi18n-lib.h>
 #include <gio/gio.h>
+#include <libeos-payg/manager.h>
 #include <libeos-payg/manager-service.h>
+#include <libeos-payg/provider-loader.h>
 #include <libeos-payg/resources.h>
 #include <libeos-payg/service.h>
 #include <libeos-payg-codes/codes.h>
@@ -63,12 +65,22 @@ struct _EpgService
 {
   GssService parent;
 
-  EpgManager *manager;  /* (owned) */
+  EpgProvider *provider;  /* (owned) */
   EpgManagerService *manager_service;  /* (owned) */
 
   /* This is normally %NULL, and is only non-%NULL when overridden from the
    * command line: */
   gchar *config_file_path;  /* (type filename) (owned) (nullable) */
+
+  /* If @provider is non-%NULL, a non-zero ID for a handler of
+   * provider::notify::enabled.
+   */
+  gulong notify_enabled_id;
+
+  /* If %TRUE, there is an outstanding call to gss_service_hold() without a
+   * matching call to gss_service_release().
+   */
+  gboolean holding;
 };
 
 G_DEFINE_TYPE (EpgService, epg_service, GSS_TYPE_SERVICE)
@@ -98,8 +110,15 @@ epg_service_dispose (GObject *object)
 {
   EpgService *self = EPG_SERVICE (object);
 
+  if (self->notify_enabled_id != 0)
+    {
+      g_assert (self->provider != NULL);
+      g_signal_handler_disconnect (self->provider, self->notify_enabled_id);
+      self->notify_enabled_id = 0;
+    }
+
   g_clear_object (&self->manager_service);
-  g_clear_object (&self->manager);
+  g_clear_object (&self->provider);
   g_clear_pointer (&self->config_file_path, g_free);
 
   /* Chain up to the parent class */
@@ -124,13 +143,18 @@ epg_service_get_main_option_entries (GssService *service)
   return g_steal_pointer (&entries);
 }
 
-static void load_state_cb (GObject      *source_object,
-                           GAsyncResult *result,
-                           gpointer      user_data);
-
-static void load_key_cb   (GObject      *source_object,
-                           GAsyncResult *result,
-                           gpointer      user_data);
+static void provider_get_first_enabled_cb (GObject      *source_object,
+                                           GAsyncResult *result,
+                                           gpointer      user_data);
+static void manager_new_cb (GObject      *source_object,
+                            GAsyncResult *result,
+                            gpointer      user_data);
+static void epg_service_startup_complete (EpgService  *self,
+                                          GTask       *task,
+                                          EpgProvider *provider);
+static void provider_notify_enabled_cb (GObject    *object,
+                                        GParamSpec *param_spec,
+                                        gpointer    user_data);
 
 static void
 epg_service_startup_async (GssService          *service,
@@ -138,11 +162,41 @@ epg_service_startup_async (GssService          *service,
                            GAsyncReadyCallback  callback,
                            gpointer             user_data)
 {
-  EpgService *self = EPG_SERVICE (service);
-  g_autoptr(GError) local_error = NULL;
-
   g_autoptr(GTask) task = g_task_new (service, cancellable, callback, user_data);
   g_task_set_source_tag (task, epg_service_startup_async);
+
+  g_autoptr(EpgProviderLoader) loader = epg_provider_loader_new (NULL);
+  epg_provider_loader_get_first_enabled_async (loader, cancellable,
+                                               provider_get_first_enabled_cb,
+                                               g_steal_pointer (&task));
+}
+
+static void
+provider_get_first_enabled_cb (GObject      *source_object,
+                               GAsyncResult *result,
+                               gpointer      user_data)
+{
+  g_autoptr(GTask) task = G_TASK (user_data);
+  EpgService *self = EPG_SERVICE (g_task_get_source_object (task));
+  EpgProviderLoader *loader = EPG_PROVIDER_LOADER (source_object);
+  g_autoptr(EpgProvider) provider = NULL;
+  g_autoptr(GError) local_error = NULL;
+
+  provider = epg_provider_loader_get_first_enabled_finish (loader, result, &local_error);
+  if (provider != NULL)
+    {
+      epg_service_startup_complete (self, task, g_steal_pointer (&provider));
+      return;
+    }
+  else if (local_error != NULL)
+    {
+      g_warning ("%s: Failed to load external providers: %s",
+                 G_STRFUNC, local_error->message);
+      g_clear_error (&local_error);
+    }
+
+  /* No enabled provider plugin; fall back to #EpgManager. */
+  g_debug ("%s: No enabled external providers", G_STRFUNC);
 
   /* Load the configuration file. */
   const gchar * const default_paths[] =
@@ -175,91 +229,67 @@ epg_service_startup_async (GssService          *service,
       return;
     }
 
-  /* If we are enabled, load the shared key. Otherwise, skip it, since there
-   * might not be one installed on this image. */
-  if (enabled)
-    {
-      g_autoptr(GFile) key_file = g_file_new_for_path (PREFIX "/local/share/eos-payg/key");
-
-      g_file_load_contents_async (key_file, cancellable,
-                                  load_key_cb, g_steal_pointer (&task));
-    }
-  else
-    {
-      load_key_cb (NULL, NULL, g_steal_pointer (&task));
-    }
-}
-
-static void
-load_key_cb (GObject      *source_object,
-             GAsyncResult *result,
-             gpointer      user_data)
-{
-  GFile *key_file = G_FILE (source_object);
-  g_autoptr(GTask) task = G_TASK (user_data);
   GCancellable *cancellable = g_task_get_cancellable (task);
-  EpgService *self = EPG_SERVICE (g_task_get_source_object (task));
-  g_autoptr(GError) local_error = NULL;
-
-  g_autofree gchar *data = NULL;  /* would be guint8* if it weren’t for strict aliasing */
-  gsize data_len = 0;
-
-  gboolean enabled = (result != NULL);
-
-  if (enabled &&
-      !g_file_load_contents_finish (key_file, result, &data, &data_len, NULL, &local_error))
-    {
-      g_task_return_error (task, g_steal_pointer (&local_error));
-      return;
-    }
-  else if (!enabled)
-    {
-      /* Use a key of all zeros, just to avoid having to propagate the special
-       * case of (¬enabled ⇒ key_bytes == NULL) throughout the code. */
-      data_len = EPC_KEY_MINIMUM_LENGTH_BYTES;
-      data = g_malloc0 (data_len);
-    }
-
-  g_autoptr(GBytes) key_bytes = g_bytes_new_take (g_steal_pointer (&data), data_len);
-  data_len = 0;
-
-  g_autoptr(GFile) state_directory = g_file_new_for_path (LOCALSTATEDIR "/lib/eos-payg");
-
-  self->manager = epg_manager_new (enabled,
-                                   key_bytes,
-                                   state_directory);
-
-  epg_manager_load_state_async (self->manager, cancellable,
-                                load_state_cb, g_steal_pointer (&task));
+  epg_manager_new (enabled, NULL, NULL, cancellable,
+                   manager_new_cb, g_steal_pointer (&task));
 }
 
 static void
-load_state_cb (GObject      *source_object,
-               GAsyncResult *result,
-               gpointer      user_data)
+manager_new_cb (GObject      *source_object,
+                GAsyncResult *result,
+                gpointer      user_data)
 {
-  EpgManager *manager = EPG_MANAGER (source_object);
   g_autoptr(GTask) task = G_TASK (user_data);
   EpgService *self = EPG_SERVICE (g_task_get_source_object (task));
+  g_autoptr(EpgProvider) provider = NULL;
   g_autoptr(GError) local_error = NULL;
 
-  if (!epg_manager_load_state_finish (manager, result, &local_error))
+  provider = epg_manager_new_finish (result, &local_error);
+  if (provider == NULL)
     {
       g_task_return_error (task, g_steal_pointer (&local_error));
       return;
     }
+
+  epg_service_startup_complete (self, task, g_steal_pointer (&provider));
+}
+
+/**
+ * epg_service_startup_complete:
+ * @self: an #EpgService
+ * @task: (transfer none): an epg_service_startup_async() task
+ * @provider: (transfer full): a non-%NULL provider
+ *
+ * Completes the startup process, registering @provider on the bus and
+ * making @task return.
+ */
+static void
+epg_service_startup_complete (EpgService  *self,
+                              GTask       *task,
+                              EpgProvider *provider)
+{
+  g_autoptr(GError) local_error = NULL;
+
+  g_assert (provider != NULL);
+  self->provider = g_steal_pointer (&provider);
 
   /* Create our D-Bus service. */
   GDBusConnection *connection = gss_service_get_dbus_connection (GSS_SERVICE (self));
 
   self->manager_service = epg_manager_service_new (connection,
                                                    "/com/endlessm/Payg1",
-                                                   manager);
+                                                   self->provider);
 
   if (!epg_manager_service_register (self->manager_service, &local_error))
     g_task_return_error (task, g_steal_pointer (&local_error));
   else
     g_task_return_boolean (task, TRUE);
+
+  self->notify_enabled_id = g_signal_connect (self->provider,
+                                              "notify::enabled",
+                                              G_CALLBACK (provider_notify_enabled_cb),
+                                              self);
+  provider_notify_enabled_cb (G_OBJECT (self->provider), NULL, self);
 }
 
 static void
@@ -268,6 +298,23 @@ epg_service_startup_finish (GssService    *service,
                             GError       **error)
 {
   g_task_propagate_boolean (G_TASK (result), error);
+}
+
+static void
+provider_notify_enabled_cb (GObject    *object,
+                            GParamSpec *param_spec,
+                            gpointer    user_data)
+{
+  EpgService *self = EPG_SERVICE (user_data);
+  EpgProvider *provider = EPG_PROVIDER (object);
+  gboolean enabled = epg_provider_get_enabled (provider);
+
+  if (enabled && !self->holding)
+    gss_service_hold (GSS_SERVICE (self));
+  else if (!enabled && self->holding)
+    gss_service_release (GSS_SERVICE (self));
+
+  self->holding = enabled;
 }
 
 static void
@@ -285,16 +332,16 @@ epg_service_shutdown (GssService *service)
   EpgService *self = EPG_SERVICE (service);
   g_autoptr(GError) local_error = NULL;
 
-  /* Save the manager’s state. */
+  /* Save the provider’s state. */
   g_autoptr(GAsyncResult) result = NULL;
-  epg_manager_save_state_async (self->manager, NULL, async_result_cb, &result);
+  epg_provider_shutdown_async (self->provider, NULL, async_result_cb, &result);
 
   while (result == NULL)
     g_main_context_iteration (NULL, TRUE);
 
-  if (!epg_manager_save_state_finish (self->manager, result, &local_error))
+  if (!epg_provider_shutdown_finish (self->provider, result, &local_error))
     {
-      g_warning ("Error saving state: %s", local_error->message);
+      g_warning ("Error shutting down provider: %s", local_error->message);
       g_clear_error (&local_error);
     }
 
@@ -315,7 +362,7 @@ epg_service_new (void)
   return g_object_new (EPG_TYPE_SERVICE,
                        "bus-type", G_BUS_TYPE_SYSTEM,
                        "service-id", "com.endlessm.Payg1",
-                       "inactivity-timeout", 0  /* no timeout */,
+                       "inactivity-timeout", 30000  /* ms */,
                        "translation-domain", GETTEXT_PACKAGE,
                        "parameter-string", _("— verify top-up codes and monitor time remaining"),
                        "summary", _("Verify inputted top-up codes and "

@@ -7,8 +7,8 @@ Build-Depends:
  debhelper (>= 10),
  dh-python,
  dh-systemd,
- gtk-doc-tools,
  libglib2.0-dev (>= 2.54.2),
+ libpeas-dev,
  libsystemd-dev,
  meson,
  python3-dbusmock,
@@ -63,6 +63,19 @@ Description: Pay As You Go Code Generator - tests
  This package contains a utility to generate pay as you go codes.
  .
  This package contains unit tests for the utility.
+
+Package: libeos-payg-1-dev
+Section: misc
+Architecture: any
+Depends:
+ libglib2.0-dev,
+ eos-paygd (= ${binary:Version}),
+ ${misc:Depends},
+Description: Pay As You Go Daemon - provider plugin development
+ This package contains a pay as you go daemon for tracking computer usage and
+ verification of pay as you go codes.
+ .
+ This package contains development files for provider plugins.
 
 Package: libeos-payg-1-tests
 Section: misc

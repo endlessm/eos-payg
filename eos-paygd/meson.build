@@ -17,6 +17,7 @@ executable('eos-paygd' + eos_paygd_api_version,
   include_directories: root_inc,
   install: true,
   install_dir: get_option('libexecdir'),
+  install_rpath: pkglibdir,
 )
 
 # systemd, polkit and D-Bus files
@@ -36,16 +37,25 @@ configure_file(
   install_dir: join_paths(get_option('datadir'), 'dbus-1', 'system-services'),
   configuration: config,
 )
+systemd = dependency('systemd')
+sysusersdir = get_option('sysusersdir')
+if sysusersdir == ''
+  sysusersdir = systemd.get_pkgconfig_variable('sysusersdir')
+endif
 configure_file(
   input: 'eos-paygd.conf.in',
   output: 'eos-paygd.conf',
-  install_dir: dependency('systemd').get_pkgconfig_variable('sysusersdir'),
+  install_dir: sysusersdir,
   configuration: config,
 )
+systemdsystemunitdir = get_option('systemdsystemunitdir')
+if systemdsystemunitdir == ''
+  systemdsystemunitdir = systemd.get_pkgconfig_variable('systemdsystemunitdir')
+endif
 configure_file(
   input: 'eos-paygd.service.in',
   output: 'eos-paygd.service',
-  install_dir: dependency('systemd').get_pkgconfig_variable('systemdsystemunitdir'),
+  install_dir: systemdsystemunitdir,
   configuration: config,
 )
 

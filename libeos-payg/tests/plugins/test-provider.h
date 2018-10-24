@@ -19,25 +19,15 @@
 
 #pragma once
 
-#include <glib.h>
-#include <glib-object.h>
 #include <libeos-payg/provider.h>
 
 G_BEGIN_DECLS
 
-#define EPG_TYPE_MANAGER epg_manager_get_type ()
-G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
+#define EPG_TYPE_TEST_PROVIDER epg_test_provider_get_type ()
+G_DECLARE_DERIVABLE_TYPE (EpgTestProvider, epg_test_provider, EPG, TEST_PROVIDER, GObject)
 
-void         epg_manager_new        (gboolean             enabled,
-                                     GFile               *key_file,
-                                     GFile               *state_directory,
-                                     GCancellable        *cancellable,
-                                     GAsyncReadyCallback  callback,
-                                     gpointer             user_data);
-EpgProvider *epg_manager_new_finish (GAsyncResult  *result,
-                                     GError       **error);
-
-GFile      *epg_manager_get_key_file        (EpgManager *self);
-GFile      *epg_manager_get_state_directory (EpgManager *self);
+struct _EpgTestProviderClass {
+  GObjectClass parent_class;
+};
 
 G_END_DECLS

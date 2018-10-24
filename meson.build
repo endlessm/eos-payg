@@ -1,8 +1,11 @@
 project('eos-payg','c',
-  version: '0.1.0',
-  meson_version: '>= 0.40.0',
+  version: '0.2.0',
+  meson_version: '>= 0.47.0',
   license: 'MPL-2.0 or LGPLv2.1+',
   default_options: [
+    # We want all internal libraries, including libgsystemservice, to be
+    # static.
+    'default_library=static',
     'c_std=gnu11',
     'warning_level=2',
   ],
@@ -10,6 +13,9 @@ project('eos-payg','c',
 
 gnome = import('gnome')
 pkgconfig = import('pkgconfig')
+
+eos_payg_api_version = '1'
+eos_payg_api_name = 'eos-payg-' + eos_payg_api_version
 
 prefix = get_option('prefix')
 bindir = join_paths(prefix, get_option('bindir'))
@@ -20,6 +26,8 @@ localedir = join_paths(prefix, get_option('localedir'))
 includedir = join_paths(prefix, get_option('includedir'))
 localstatedir = join_paths(prefix, get_option('localstatedir'))
 sysconfdir = join_paths(prefix, get_option('sysconfdir'))
+pkglibdir = join_paths(libdir, eos_payg_api_name)
+pluginsdir = join_paths(pkglibdir, 'plugins')
 
 config_h = configuration_data()
 config_h.set_quoted('DATADIR', datadir)
@@ -28,6 +36,7 @@ config_h.set_quoted('LOCALEDIR', localedir)
 config_h.set_quoted('LOCALSTATEDIR', localstatedir)
 config_h.set_quoted('PREFIX', prefix)
 config_h.set_quoted('SYSCONFDIR', sysconfdir)
+config_h.set_quoted('PLUGINSDIR', pluginsdir)
 configure_file(
   output: 'config.h',
   configuration: config_h,
@@ -71,7 +80,7 @@ test_args = [
   '-Wmissing-prototypes',
   '-Wnested-externs',
   '-Wno-error=cpp',
-  '-Wno-discarded-qualifiers',
+  '-Wdiscarded-qualifiers',
   '-Wno-missing-field-initializers',
   '-Wno-suggest-attribute=format',
   '-Wno-unused-parameter',

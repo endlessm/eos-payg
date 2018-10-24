@@ -17,27 +17,11 @@
  * version of this file under the terms of either the MPL or the LGPL.
  */
 
-#pragma once
+#include "config.h"
 
 #include <glib.h>
-#include <glib-object.h>
-#include <libeos-payg/provider.h>
+#include <libeos-payg/errors.h>
 
-G_BEGIN_DECLS
 
-#define EPG_TYPE_MANAGER epg_manager_get_type ()
-G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
-
-void         epg_manager_new        (gboolean             enabled,
-                                     GFile               *key_file,
-                                     GFile               *state_directory,
-                                     GCancellable        *cancellable,
-                                     GAsyncReadyCallback  callback,
-                                     gpointer             user_data);
-EpgProvider *epg_manager_new_finish (GAsyncResult  *result,
-                                     GError       **error);
-
-GFile      *epg_manager_get_key_file        (EpgManager *self);
-GFile      *epg_manager_get_state_directory (EpgManager *self);
-
-G_END_DECLS
+/* These errors do go over the bus, and are registered in manager-service.c. */
+G_DEFINE_QUARK (EpgManagerError, epg_manager_error)

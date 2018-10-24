@@ -23,12 +23,16 @@
 #include <glib-object.h>
 #include <glib/gi18n-lib.h>
 #include <gio/gio.h>
+#include <libeos-payg/errors.h>
 #include <libeos-payg/manager.h>
+#include <libeos-payg/multi-task.h>
 #include <libeos-payg-codes/codes.h>
 
 
-/* These errors do go over the bus, and are registered in manager-service.c. */
-G_DEFINE_QUARK (EpgManagerError, epg_manager_error)
+static void epg_manager_async_initable_iface_init (gpointer g_iface,
+                                                   gpointer iface_data);
+static void epg_manager_provider_iface_init (gpointer g_iface,
+                                             gpointer iface_data);
 
 static void epg_manager_constructed  (GObject *object);
 static void epg_manager_dispose      (GObject *object);
@@ -41,6 +45,49 @@ static void epg_manager_set_property (GObject      *object,
                                       guint         property_id,
                                       const GValue *value,
                                       GParamSpec   *pspec);
+
+static void epg_manager_init_async  (GAsyncInitable      *initable,
+                                     int                  priority,
+                                     GCancellable        *cancellable,
+                                     GAsyncReadyCallback  callback,
+                                     gpointer             user_data);
+static gboolean epg_manager_init_finish (GAsyncInitable  *initable,
+                                         GAsyncResult    *result,
+                                         GError         **error);
+
+static gboolean    epg_manager_add_code   (EpgProvider  *provider,
+                                           const gchar  *code_str,
+                                           guint64       now_secs,
+                                           GError      **error);
+static gboolean    epg_manager_clear_code (EpgProvider  *provider,
+                                           GError      **error);
+
+static void        epg_manager_save_state_async  (EpgProvider          *provider,
+                                                  GCancellable         *cancellable,
+                                                  GAsyncReadyCallback   callback,
+                                                  gpointer              user_data);
+static gboolean    epg_manager_save_state_finish (EpgProvider          *provider,
+                                                  GAsyncResult         *result,
+                                                  GError              **error);
+
+static void        epg_manager_shutdown_async  (EpgProvider          *provider,
+                                                GCancellable         *cancellable,
+                                                GAsyncReadyCallback   callback,
+                                                gpointer              user_data);
+static gboolean    epg_manager_shutdown_finish (EpgProvider          *provider,
+                                                GAsyncResult         *result,
+                                                GError              **error);
+
+static void        internal_save_state_cb (GObject      *source_object,
+                                           GAsyncResult *result,
+                                           gpointer      user_data);
+static void        shutdown_save_state_cb (GObject      *source_object,
+                                           GAsyncResult *result,
+                                           gpointer      user_data);
+
+static guint64     epg_manager_get_expiry_time     (EpgProvider *provider);
+static gboolean    epg_manager_get_enabled         (EpgProvider *provider);
+static guint64     epg_manager_get_rate_limit_end_time (EpgProvider *provider);
 
 /* Struct for storing the values in a used-codes file. The alignment and
  * size of this struct are file format ABI, and must be kept the same. */
@@ -91,6 +138,7 @@ struct _EpgManager
   GArray *used_codes;  /* (element-type UsedCode) (owned) */
   guint64 expiry_time_secs;  /* UNIX timestamp in seconds */
   gboolean enabled;
+  GFile *key_file;  /* (owned) */
   GBytes *key_bytes;  /* (owned) */
 
   GFile *state_directory;  /* (owned) */
@@ -102,89 +150,81 @@ struct _EpgManager
    * of recent epg_manager_add_code() attempts. See check_rate_limiting(). */
   guint64 rate_limiting_history[RATE_LIMITING_N_ATTEMPTS];
   guint64 rate_limit_end_time_secs;
+
+  /* Number of internal calls to epg_manager_save_state_async() in flight */
+  guint64 pending_internal_save_state_calls;
+
+  /* (owned) (nullable): epg_provider_shutdown_async() task to resume once
+   * pending_internal_save_state_calls reaches 0
+   */
+  GTask *pending_shutdown;
 };
 
 typedef enum
 {
-  PROP_EXPIRY_TIME = 1,
-  PROP_ENABLED,
-  PROP_KEY_BYTES,
+  /* Local properties */
+  PROP_KEY_FILE = 1,
   PROP_STATE_DIRECTORY,
+
+  /* Properties inherited from EpgProvider */
+  PROP_EXPIRY_TIME,
+  PROP_ENABLED,
   PROP_RATE_LIMIT_END_TIME,
+  PROP_CODE_FORMAT,
 } EpgManagerProperty;
 
-G_DEFINE_TYPE (EpgManager, epg_manager, G_TYPE_OBJECT)
+G_DEFINE_TYPE_WITH_CODE (EpgManager, epg_manager, G_TYPE_OBJECT,
+                         G_IMPLEMENT_INTERFACE (G_TYPE_ASYNC_INITABLE,
+                                                epg_manager_async_initable_iface_init);
+                         G_IMPLEMENT_INTERFACE (EPG_TYPE_PROVIDER,
+                                                epg_manager_provider_iface_init);
+                         )
 
 static void
 epg_manager_class_init (EpgManagerClass *klass)
 {
   GObjectClass *object_class = (GObjectClass *) klass;
-  GParamSpec *props[PROP_RATE_LIMIT_END_TIME + 1] = { NULL, };
+  GParamSpec *props[PROP_STATE_DIRECTORY + 1] = { NULL, };
 
   object_class->constructed = epg_manager_constructed;
   object_class->dispose = epg_manager_dispose;
   object_class->get_property = epg_manager_get_property;
   object_class->set_property = epg_manager_set_property;
 
-  /**
-   * EpgManager:expiry-time:
-   *
-   * UNIX timestamp when the current pay as you go code will expire, in seconds
-   * since the epoch. At this point, it is expected that clients of this service
-   * will lock the computer until a new code is entered. Use
-   * epg_manager_add_code() to add a new code and extend the expiry time.
-   *
-   * If #EpgManager:enabled is %FALSE, this will always be zero.
-   *
-   * Since: 0.1.0
-   */
-  props[PROP_EXPIRY_TIME] =
-      g_param_spec_uint64 ("expiry-time", "Expiry Time",
-                           "UNIX timestamp when the current pay as you go code "
-                           "will expire, in seconds since the epoch.",
-                           0, G_MAXUINT64, 0,
-                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+  g_object_class_override_property (object_class, PROP_EXPIRY_TIME, "expiry-time");
+  g_object_class_override_property (object_class, PROP_ENABLED, "enabled");
+  g_object_class_override_property (object_class, PROP_RATE_LIMIT_END_TIME, "rate-limit-end-time");
+  g_object_class_override_property (object_class, PROP_CODE_FORMAT, "code-format");
 
   /**
-   * EpgManager:enabled:
+   * EpgManager:key-file:
    *
-   * Whether pay as you go support is enabled on the system. If this is %FALSE,
-   * the #EpgManager:expiry-time can be ignored, and #EpgManager::expired will
-   * never be emitted. It is expected that this will be constant for a
-   * particular system, only being modified at image configuration time.
-   *
-   * Since: 0.1.0
-   */
-  props[PROP_ENABLED] =
-      g_param_spec_boolean ("enabled", "Enabled",
-                            "Whether pay as you go support is enabled on the system.",
-                            FALSE,
-                            G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
-
-  /**
-   * EpgManager:key-bytes:
-   *
-   * Shared key to verify codes with. These must be the bytes of the key, with
+   * File containing shared key to verify codes with, with
    * no surrounding whitespace or padding. This must be the same key used to
    * generate the codes being verified.
    *
    * Keys must be at least %EPC_KEY_MINIMUM_LENGTH_BYTES bytes in length, or
    * they will be rejected.
    *
-   * Since: 0.1.0
+   * A system-wide path is used if this property is not specified or is %NULL.
+   * Only unit tests should need to override this path.
+   *
+   * Since: 0.2.0
    */
-  props[PROP_KEY_BYTES] =
-      g_param_spec_boxed ("key-bytes", "Key Bytes",
-                          "Shared key to verify codes with.",
-                          G_TYPE_BYTES,
-                          G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
+  props[PROP_KEY_FILE] =
+      g_param_spec_object ("key-file", "Key File",
+                           "File containing shared key to verify codes with.",
+                           G_TYPE_FILE,
+                           G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
 
   /**
    * EpgManager:state-directory:
    *
-   * Directory to store and load state from. This will typically be something
-   * like `/var/lib/eos-payg`, apart from in unit tests. It is used by
-   * epg_manager_save_state_async() and epg_manager_load_state_async().
+   * Directory to store and load state from. It is used by
+   * epg_manager_new() and epg_manager_save_state_async().
+   *
+   * A system-wide path is used if this property is not specified or is %NULL.
+   * Only unit tests should need to override this path.
    *
    * Since: 0.1.0
    */
@@ -194,47 +234,40 @@ epg_manager_class_init (EpgManagerClass *klass)
                            G_TYPE_FILE,
                            G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
 
-  /**
-   * EpgManager:rate-limit-end-time:
-   *
-   * UNIX timestamp when the rate limit on adding codes will end, in seconds
-   * since the epoch. At this point, a new call to epg_manager_add_code() will
-   * not immediately result in an %EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS error.
-   *
-   * If #EpgManager:enabled is %FALSE, this will always be zero.
-   *
-   * Since: 0.1.0
-   */
-  props[PROP_RATE_LIMIT_END_TIME] =
-      g_param_spec_uint64 ("rate-limit-end-time", "Rate Limit End Time",
-                           "UNIX timestamp when the rate limit on adding codes "
-                           "will end, in seconds since the epoch.",
-                           0, G_MAXUINT64, 0,
-                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
-
   g_object_class_install_properties (object_class, G_N_ELEMENTS (props), props);
+}
 
-  /**
-   * EpgManager::expired:
-   * @self: a #EpgManager
-   *
-   * Emitted when the #EpgManager:expiry-time is reached, and the current pay as
-   * you go code expires. It is expected that when this is emitted, clients of
-   * this service will lock the computer until a new code is entered.
-   *
-   * This will never be emitted when #EpgManager:enabled is %FALSE.
-   *
-   * Since: 0.1.0
-   */
-  g_signal_new ("expired", G_TYPE_FROM_CLASS (klass),
-                G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
-                G_TYPE_NONE, 0);
+static void
+epg_manager_async_initable_iface_init (gpointer g_iface,
+                                       gpointer iface_data)
+{
+  GAsyncInitableIface *iface = g_iface;
+
+  iface->init_async = epg_manager_init_async;
+  iface->init_finish = epg_manager_init_finish;
+}
+
+static void
+epg_manager_provider_iface_init (gpointer g_iface,
+                                 gpointer iface_data)
+{
+  EpgProviderInterface *iface = g_iface;
+
+  iface->add_code = epg_manager_add_code;
+  iface->clear_code = epg_manager_clear_code;
+  iface->shutdown_async = epg_manager_shutdown_async;
+  iface->shutdown_finish = epg_manager_shutdown_finish;
+  iface->get_expiry_time = epg_manager_get_expiry_time;
+  iface->get_enabled = epg_manager_get_enabled;
+  iface->get_rate_limit_end_time = epg_manager_get_rate_limit_end_time;
+
+  iface->code_format = "^[0-9]{8}$";
 }
 
 static void
 epg_manager_init (EpgManager *self)
 {
-  /* @used_codes is populated when epg_manager_load_state_async() is called. */
+  /* @used_codes is populated when epg_manager_init_async() is called. */
   self->used_codes = g_array_new (FALSE, FALSE, sizeof (UsedCode));
   self->context = g_main_context_ref_thread_default ();
   self->cancellable = g_cancellable_new ();
@@ -260,9 +293,12 @@ epg_manager_constructed (GObject *object)
   /* Chain up to the parent class */
   G_OBJECT_CLASS (epg_manager_parent_class)->constructed (object);
 
-  /* Ensure all our construct-time properties have been set. */
-  g_assert (self->key_bytes != NULL);
-  g_assert (self->state_directory != NULL);
+  /* Set defaults for construct-time properties. */
+  if (self->key_file == NULL)
+    self->key_file = g_file_new_for_path (PREFIX "/local/share/eos-payg/key");
+
+  if (self->state_directory == NULL)
+    self->state_directory = g_file_new_for_path (LOCALSTATEDIR "/lib/eos-payg");
 }
 
 static void
@@ -280,6 +316,7 @@ epg_manager_dispose (GObject *object)
 
   g_clear_pointer (&self->used_codes, g_array_unref);
   g_clear_pointer (&self->key_bytes, g_bytes_unref);
+  g_clear_object (&self->key_file);
   g_clear_object (&self->state_directory);
   g_clear_pointer (&self->context, g_main_context_unref);
 
@@ -294,23 +331,27 @@ epg_manager_get_property (GObject    *object,
                           GParamSpec *pspec)
 {
   EpgManager *self = EPG_MANAGER (object);
+  EpgProvider *provider = EPG_PROVIDER (self);
 
   switch ((EpgManagerProperty) property_id)
     {
     case PROP_EXPIRY_TIME:
-      g_value_set_uint64 (value, epg_manager_get_expiry_time (self));
+      g_value_set_uint64 (value, epg_provider_get_expiry_time (provider));
       break;
     case PROP_ENABLED:
-      g_value_set_boolean (value, epg_manager_get_enabled (self));
+      g_value_set_boolean (value, epg_provider_get_enabled (provider));
       break;
-    case PROP_KEY_BYTES:
-      g_value_set_boxed (value, epg_manager_get_key_bytes (self));
+    case PROP_KEY_FILE:
+      g_value_set_object (value, epg_manager_get_key_file (self));
       break;
     case PROP_STATE_DIRECTORY:
       g_value_set_object (value, epg_manager_get_state_directory (self));
       break;
     case PROP_RATE_LIMIT_END_TIME:
-      g_value_set_uint64 (value, epg_manager_get_rate_limit_end_time (self));
+      g_value_set_uint64 (value, epg_provider_get_rate_limit_end_time (provider));
+      break;
+    case PROP_CODE_FORMAT:
+      g_value_set_static_string (value, epg_provider_get_code_format (provider));
       break;
     default:
       g_assert_not_reached ();
@@ -329,6 +370,7 @@ epg_manager_set_property (GObject      *object,
     {
     case PROP_EXPIRY_TIME:
     case PROP_RATE_LIMIT_END_TIME:
+    case PROP_CODE_FORMAT:
       /* Read only. */
       g_assert_not_reached ();
       break;
@@ -336,10 +378,10 @@ epg_manager_set_property (GObject      *object,
       /* Construct only. */
       self->enabled = g_value_get_boolean (value);
       break;
-    case PROP_KEY_BYTES:
+    case PROP_KEY_FILE:
       /* Construct only. */
-      g_assert (self->key_bytes == NULL);
-      self->key_bytes = g_value_dup_boxed (value);
+      g_assert (self->key_file == NULL);
+      self->key_file = g_value_dup_object (value);
       break;
     case PROP_STATE_DIRECTORY:
       /* Construct only. */
@@ -355,29 +397,68 @@ epg_manager_set_property (GObject      *object,
  * epg_manager_new:
  * @enabled: whether PAYG is enabled; if not, the #EpgManager will return
  *    %EPG_MANAGER_ERROR_DISABLED for all operations
- * @key_bytes: shared key to verify codes with; see #EpgManager:key-bytes
- * @state_directory: (transfer none): directory to load/store state in; see
- *    #EpgManager:state-directory
+ * @key_file: (transfer none) (optional): file containing shared key to verify codes with;
+ *    see #EpgManager:key-file
+ * @state_directory: (transfer none) (optional): directory to load/store state
+ *    in, or %NULL to use the default directory; see #EpgManager:state-directory
+ * @cancellable: (nullable): a #GCancellable or %NULL
+ * @callback: callback function to invoke when the #EpgManager is ready
+ * @user_data: user data to pass to @callback
  *
- * Create a new #EpgManager instance, which will load its previous state from
- * disk when epg_manager_load_state_async() is called.
+ * Asynchronously creates a new #EpgManager instance, which will load its
+ * previous state from disk.
  *
- * Returns: (transfer full): a new #EpgManager
- * Since: 0.1.0
+ * When the initialization is finished, @callback will be called. You can then
+ * call epg_manager_new_finish() to get the #EpgManager and check for any
+ * errors.
+ *
+ * Since: 0.2.0
  */
-EpgManager *
-epg_manager_new (gboolean  enabled,
-                 GBytes   *key_bytes,
-                 GFile    *state_directory)
+void
+epg_manager_new (gboolean             enabled,
+                 GFile               *key_file,
+                 GFile               *state_directory,
+                 GCancellable        *cancellable,
+                 GAsyncReadyCallback  callback,
+                 gpointer             user_data)
 {
-  g_return_val_if_fail (key_bytes != NULL, NULL);
-  g_return_val_if_fail (G_IS_FILE (state_directory), NULL);
+  g_return_if_fail (key_file == NULL || G_IS_FILE (key_file));
+  g_return_if_fail (state_directory == NULL || G_IS_FILE (state_directory));
+  g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
 
-  return g_object_new (EPG_TYPE_MANAGER,
-                       "enabled", enabled,
-                       "key-bytes", key_bytes,
-                       "state-directory", state_directory,
-                       NULL);
+  g_async_initable_new_async (EPG_TYPE_MANAGER,
+                              G_PRIORITY_DEFAULT,
+                              cancellable,
+                              callback,
+                              user_data,
+                              "enabled", enabled,
+                              "key-file", key_file,
+                              "state-directory", state_directory,
+                              NULL);
+}
+
+/**
+ * epg_manager_new_finish:
+ * @result: a #GAsyncResult obtained from the #GAsyncReadyCallback passed to
+ *    epg_manager_new()
+ * @error: return location for error or %NULL
+ *
+ * Finishes creating an #EpgManager.
+ *
+ * Since: 0.2.0
+ */
+EpgProvider *
+epg_manager_new_finish (GAsyncResult  *result,
+                        GError       **error)
+{
+  g_autoptr(GObject) source_object;
+
+  source_object = g_async_result_get_source_object (result);
+  g_assert (source_object != NULL);
+
+  return EPG_PROVIDER (g_async_initable_new_finish (G_ASYNC_INITABLE (source_object),
+                                                    result,
+                                                    error));
 }
 
 /* Check whether PAYG is enabled. If not, set an error. */
@@ -678,39 +759,16 @@ used_codes_sort_cb (gconstpointer a,
   return 0;
 }
 
-/**
- * epg_manager_add_code:
- * @self: an #EpgManager
- * @code_str: code to verify and add, in a form suitable for parsing with
- *    epc_parse_code()
- * @now_secs: the current time, in seconds since the UNIX epoch, as returned by
- *    (g_get_real_time() / G_USEC_PER_SEC); this is parameterised to allow for
- *    easy testing
- * @error: return location for a #GError
- *
- * Verify and add the given @code_str. This checks that @code_str is valid, and
- * has not been used already. If so, it will add the time period given in the
- * @code_str to #EpgManager:expiry-time (or to @now_secs if
- * #EpgManager:expiry-time is in the past). If @code_str fails verification or
- * cannot be added, an error will be returned.
- *
- * Calls to this function are rate limited: if too many attempts are made within
- * a given time period, %EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS will be returned
- * until that period expires. The rate limiting history is reset on a successful
- * verification of a code.
- *
- * Returns: %TRUE on success, %FALSE otherwise
- * Since: 0.1.0
- */
-gboolean
-epg_manager_add_code (EpgManager   *self,
+static gboolean
+epg_manager_add_code (EpgProvider   *provider,
                       const gchar  *code_str,
                       guint64       now_secs,
                       GError      **error)
 {
+  EpgManager *self = EPG_MANAGER (provider);
   g_autoptr(GError) local_error = NULL;
 
-  g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
+  g_return_val_if_fail (EPG_IS_MANAGER (provider), FALSE);
   g_return_val_if_fail (code_str != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
@@ -718,6 +776,9 @@ epg_manager_add_code (EpgManager   *self,
     return FALSE;
 
   if (!check_rate_limiting (self, now_secs, error))
+    return FALSE;
+
+  if (g_cancellable_set_error_if_cancelled (self->cancellable, error))
     return FALSE;
 
   /* Convert from a string to #EpcCode. */
@@ -758,34 +819,32 @@ epg_manager_add_code (EpgManager   *self,
   /* Reset the rate limiting history, since the code was successful. */
   clear_rate_limiting (self);
 
-  /* Kick off an asynchronous save. */
-  epg_manager_save_state_async (self, self->cancellable, NULL, NULL);
+  /* Kick off an asynchronous save.
+   *
+   * FIXME: pass self->cancellable; see comment in
+   * epg_manager_shutdown_async().
+   */
+  g_assert (self->pending_internal_save_state_calls < G_MAXUINT64);
+  self->pending_internal_save_state_calls++;
+  epg_manager_save_state_async (provider, NULL,
+                                internal_save_state_cb, NULL);
 
   return TRUE;
 }
 
-/**
- * epg_manager_clear_code:
- * @self: an #EpgManager
- * @error: return location for a #GError
- *
- * Clear the current pay as you go code, reset #EpgManager:expiry-time to zero,
- * and cause #EpgManager::expired to be emitted instantly. This is typically
- * intended to be used for testing.
- *
- * If pay as you go is disabled, %EPG_MANAGER_ERROR_DISABLED will be returned.
- *
- * Returns: %TRUE on success, %FALSE otherwise
- * Since: 0.1.0
- */
 gboolean
-epg_manager_clear_code (EpgManager  *self,
+epg_manager_clear_code (EpgProvider  *provider,
                         GError     **error)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   if (!check_enabled (self, error))
+    return FALSE;
+
+  if (g_cancellable_set_error_if_cancelled (self->cancellable, error))
     return FALSE;
 
   if (self->expiry_time_secs != 0)
@@ -796,10 +855,44 @@ epg_manager_clear_code (EpgManager  *self,
 
   clear_expiry_timer (self);
 
-  /* Kick off an asynchronous save. */
-  epg_manager_save_state_async (self, self->cancellable, NULL, NULL);
+  /* Kick off an asynchronous save.
+   *
+   * FIXME: pass self->cancellable; see comment in
+   * epg_manager_shutdown_async().
+   */
+  g_assert (self->pending_internal_save_state_calls < G_MAXUINT64);
+  self->pending_internal_save_state_calls++;
+  epg_manager_save_state_async (provider, NULL,
+                                internal_save_state_cb, NULL);
 
   return TRUE;
+}
+
+static void
+internal_save_state_cb (GObject      *source_object,
+                        GAsyncResult *result,
+                        gpointer      user_data)
+{
+  EpgManager *self = EPG_MANAGER (source_object);
+  EpgProvider *provider = EPG_PROVIDER (self);
+  g_autoptr(GError) local_error = NULL;
+
+  if (!epg_manager_save_state_finish (provider, result, &local_error))
+    g_warning ("save_state failed: %s", local_error->message);
+
+  g_return_if_fail (self->pending_internal_save_state_calls > 0);
+  self->pending_internal_save_state_calls--;
+
+  if (self->pending_internal_save_state_calls == 0 &&
+      self->pending_shutdown != NULL)
+    {
+      if (local_error != NULL)
+        g_task_return_error (self->pending_shutdown, g_steal_pointer (&local_error));
+      else
+        g_task_return_boolean (self->pending_shutdown, TRUE);
+
+      g_clear_object (&self->pending_shutdown);
+    }
 }
 
 /* Get the path of the state file containing the expiry time. */
@@ -823,30 +916,31 @@ static void file_load_delete_cb (GObject      *source_object,
                                  GAsyncResult *result,
                                  gpointer      user_data);
 
-/**
- * epg_manager_load_state_async:
+/*
+ * epg_manager_init_async:
  * @self: an #EpgManager
+ * @priority: priority
  * @cancellable: a #GCancellable, or %NULL
  * @callback: function to call once the async operation is complete
  * @user_data: data to pass to @callback
  *
- * Load the state for the #EpgManager from the #EpgManager:state-directory, and
- * overwrite any state currently in memory.
- *
- * Since: 0.1.0
+ * Load the state for the #EpgManager from the #EpgManager:state-directory.
  */
-void
-epg_manager_load_state_async (EpgManager          *self,
-                              GCancellable        *cancellable,
-                              GAsyncReadyCallback  callback,
-                              gpointer             user_data)
+static void
+epg_manager_init_async (GAsyncInitable      *initable,
+                        int                  priority,
+                        GCancellable        *cancellable,
+                        GAsyncReadyCallback  callback,
+                        gpointer             user_data)
 {
-  g_return_if_fail (EPG_IS_MANAGER (self));
+  g_return_if_fail (EPG_IS_MANAGER (initable));
   g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
 
+  EpgManager *self = EPG_MANAGER (initable);
   g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
-  g_task_set_source_tag (task, epg_manager_load_state_async);
-  g_task_set_task_data (task, GUINT_TO_POINTER (3), NULL);
+  g_task_set_source_tag (task, epg_manager_init_async);
+  g_task_set_priority (task, priority);
+  epg_multi_task_attach (task, 4);
 
   /* Load the expiry time. */
   g_autoptr(GFile) expiry_time_file = get_expiry_time_file (self);
@@ -860,9 +954,12 @@ epg_manager_load_state_async (EpgManager          *self,
   g_file_load_contents_async (used_codes_file, cancellable,
                               file_load_cb, g_object_ref (task));
 
+  /* And the key. */
+  g_file_load_contents_async (self->key_file, cancellable,
+                              file_load_cb, g_object_ref (task));
+
   /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
+  epg_multi_task_return_boolean (task, TRUE);
 }
 
 static void
@@ -878,14 +975,7 @@ file_load_cb (GObject      *source_object,
 
   guint64 now_secs = g_get_real_time () / G_USEC_PER_SEC;
 
-  /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
-
-  /* Handle any error. The first error returned from an operation is propagated;
-   * subsequent errors are logged and ignored.
-   *
-   * If the file is not found, we continue below, but with @data set to %NULL
+  /* If the file is not found, we continue below, but with @data set to %NULL
    * and @data_len set to zero. */
   g_autofree gchar *data = NULL;  /* actually guint8 if it weren’t for strict aliasing */
   gsize data_len = 0;
@@ -893,10 +983,7 @@ file_load_cb (GObject      *source_object,
   if (!g_file_load_contents_finish (file, result, &data, &data_len, NULL, &local_error) &&
       !g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
     {
-      if (g_task_had_error (task))
-        g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
-      else
-        g_task_return_error (task, g_steal_pointer (&local_error));
+      epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
       return;
     }
 
@@ -916,7 +1003,7 @@ file_load_cb (GObject      *source_object,
           union
             {
               guint64 u64;
-              const gchar u8[8];
+              gchar u8[8];
             } expiry_time_secs;
           G_STATIC_ASSERT (sizeof (expiry_time_secs.u8) == sizeof (self->expiry_time_secs));
 
@@ -924,9 +1011,6 @@ file_load_cb (GObject      *source_object,
            * don’t error next time we start. */
           if (data_len != sizeof (expiry_time_secs.u8))
             {
-              /* Increment the pending operation count. */
-              g_task_set_task_data (task, GUINT_TO_POINTER (++operation_count), NULL);
-
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -952,9 +1036,6 @@ file_load_cb (GObject      *source_object,
            * don’t error next time we start. */
           if ((data_len % sizeof (UsedCode)) != 0)
             {
-              /* Increment the pending operation count. */
-              g_task_set_task_data (task, GUINT_TO_POINTER (++operation_count), NULL);
-
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -979,9 +1060,6 @@ file_load_cb (GObject      *source_object,
 
               if (!epc_period_validate (used_code->period, &local_error))
                 {
-                  /* Increment the pending operation count. */
-                  g_task_set_task_data (task, GUINT_TO_POINTER (++operation_count), NULL);
-
                   g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                        file_load_delete_cb, g_object_ref (task));
                   return;
@@ -994,13 +1072,29 @@ file_load_cb (GObject      *source_object,
           g_array_sort (self->used_codes, used_codes_sort_cb);
         }
     }
+  else if (g_file_equal (file, self->key_file))
+    {
+      if (data == NULL)
+        {
+          /* The key is missing, so (this flavour of) PAYG is not enabled. */
+          self->enabled = FALSE;
+          g_object_notify (G_OBJECT (self), "enabled");
+
+          /* Use a key of all zeros, just to avoid having to propagate the special
+           * case of (key_bytes != NULL ∨ ¬enabled) throughout the code. */
+          data_len = EPC_KEY_MINIMUM_LENGTH_BYTES;
+          data = g_malloc0 (data_len);
+        }
+
+      self->key_bytes = g_bytes_new_take (g_steal_pointer (&data), data_len);
+      data_len = 0;
+    }
   else
     {
       g_assert_not_reached ();
     }
 
-  if (operation_count == 0)
-    g_task_return_boolean (task, TRUE);
+  epg_multi_task_return_boolean (task, TRUE);
 }
 
 static void
@@ -1012,48 +1106,41 @@ file_load_delete_cb (GObject      *source_object,
   g_autoptr(GTask) task = G_TASK (user_data);
   g_autoptr(GError) local_error = NULL;
 
-  /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
-
   /* Log any error, but don’t propagate it since we’re already returning an
    * error due to the file being the wrong length. */
   if (!g_file_delete_finish (file, result, &local_error) &&
       !g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
     g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
 
-  /* Another operation may have finished and returned an error while we were
-   * deleting. */
   g_autofree gchar *file_path = g_file_get_path (file);
 
-  if (g_task_had_error (task))
-    g_warning (_("State file ‘%s’ was the wrong length."), file_path);
-  else
-    g_task_return_new_error (task, G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+  g_clear_error (&local_error);
+  local_error = g_error_new (G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
                              _("State file ‘%s’ was the wrong length."),
                              file_path);
+  epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
 }
 
-/**
- * epg_manager_load_state_finish:
- * @self: an #EpgManager
+/*
+ * epg_manager_init_finish:
+ * @initable: an #EpgManager
  * @result: asynchronous operation result
  * @error: return location for an error, or %NULL
  *
  * Finish an asynchronous load operation started with
- * epg_manager_load_state_async().
+ * epg_manager_init_async().
  *
  * Returns: %TRUE on success, %FALSE otherwise
  * Since: 0.1.0
  */
-gboolean
-epg_manager_load_state_finish (EpgManager    *self,
-                               GAsyncResult  *result,
-                               GError       **error)
+static gboolean
+epg_manager_init_finish (GAsyncInitable  *initable,
+                         GAsyncResult    *result,
+                         GError         **error)
 {
-  g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
-  g_return_val_if_fail (g_task_is_valid (result, self), FALSE);
-  g_return_val_if_fail (g_async_result_is_tagged (result, epg_manager_load_state_async), FALSE);
+  g_return_val_if_fail (EPG_IS_MANAGER (initable), FALSE);
+  g_return_val_if_fail (g_task_is_valid (result, initable), FALSE);
+  g_return_val_if_fail (g_async_result_is_tagged (result, epg_manager_init_async), FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   return g_task_propagate_boolean (G_TASK (result), error);
@@ -1066,29 +1153,20 @@ static void file_save_delete_cb (GObject      *source_object,
                                  GAsyncResult *result,
                                  gpointer      user_data);
 
-/**
- * epg_manager_save_state_async:
- * @self: an #EpgManager
- * @cancellable: a #GCancellable, or %NULL
- * @callback: function to call once the async operation is complete
- * @user_data: data to pass to @callback
- *
- * Save the state for the #EpgManager to the #EpgManager:state-directory.
- *
- * Since: 0.1.0
- */
-void
-epg_manager_save_state_async (EpgManager          *self,
+static void
+epg_manager_save_state_async (EpgProvider         *provider,
                               GCancellable        *cancellable,
                               GAsyncReadyCallback  callback,
                               gpointer             user_data)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_if_fail (EPG_IS_MANAGER (self));
   g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
 
   g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
   g_task_set_source_tag (task, epg_manager_save_state_async);
-  g_task_set_task_data (task, GUINT_TO_POINTER (3), NULL);
+  epg_multi_task_attach (task, 3);
 
   /* Save the expiry time. */
   g_autoptr(GFile) expiry_time_file = get_expiry_time_file (self);
@@ -1136,12 +1214,9 @@ epg_manager_save_state_async (EpgManager          *self,
                            cancellable, file_save_delete_cb, g_object_ref (task));
     }
 
-  /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
+  epg_multi_task_return_boolean (task, TRUE);
 }
 
-/* FIXME: Factor out the handling of parallel operations and add to GLib. */
 static void
 file_replace_cb (GObject      *source_object,
                  GAsyncResult *result,
@@ -1151,23 +1226,10 @@ file_replace_cb (GObject      *source_object,
   g_autoptr(GTask) task = G_TASK (user_data);
   g_autoptr(GError) local_error = NULL;
 
-  /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
-
-  /* Handle any error. The first error returned from an operation is propagated;
-   * subsequent errors are logged and ignored. */
   if (!g_file_replace_contents_finish (file, result, NULL, &local_error))
-    {
-      if (g_task_had_error (task))
-        g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
-      else
-        g_task_return_error (task, g_steal_pointer (&local_error));
-      return;
-    }
-
-  if (operation_count == 0)
-    g_task_return_boolean (task, TRUE);
+    epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
+  else
+    epg_multi_task_return_boolean (task, TRUE);
 }
 
 static void
@@ -1179,43 +1241,20 @@ file_save_delete_cb (GObject      *source_object,
   g_autoptr(GTask) task = G_TASK (user_data);
   g_autoptr(GError) local_error = NULL;
 
-  /* Decrement the pending operation count. */
-  guint operation_count = GPOINTER_TO_UINT (g_task_get_task_data (task));
-  g_task_set_task_data (task, GUINT_TO_POINTER (--operation_count), NULL);
-
-  /* Handle any error. The first error returned from an operation is propagated;
-   * subsequent errors are logged and ignored. */
   if (!g_file_delete_finish (file, result, &local_error) &&
       !g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
-    {
-      if (g_task_had_error (task))
-        g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
-      else
-        g_task_return_error (task, g_steal_pointer (&local_error));
-      return;
-    }
-
-  if (operation_count == 0)
-    g_task_return_boolean (task, TRUE);
+    epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
+  else
+    epg_multi_task_return_boolean (task, TRUE);
 }
 
-/**
- * epg_manager_save_state_finish:
- * @self: an #EpgManager
- * @result: asynchronous operation result
- * @error: return location for an error, or %NULL
- *
- * Finish an asynchronous save operation started with
- * epg_manager_save_state_async().
- *
- * Returns: %TRUE on success, %FALSE otherwise
- * Since: 0.1.0
- */
-gboolean
-epg_manager_save_state_finish (EpgManager    *self,
+static gboolean
+epg_manager_save_state_finish (EpgProvider   *provider,
                                GAsyncResult  *result,
                                GError       **error)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
   g_return_val_if_fail (g_task_is_valid (result, self), FALSE);
   g_return_val_if_fail (g_async_result_is_tagged (result, epg_manager_save_state_async), FALSE);
@@ -1224,56 +1263,112 @@ epg_manager_save_state_finish (EpgManager    *self,
   return g_task_propagate_boolean (G_TASK (result), error);
 }
 
-/**
- * epg_manager_get_expiry_time:
- * @self: a #EpgManager
- *
- * Get the value of #EpgManager:expiry-time.
- *
- * Returns: the UNIX timestamp when the current pay as you go top up will
- *    expire, in seconds since the UNIX epoch
- * Since: 0.1.0
- */
-guint64
-epg_manager_get_expiry_time (EpgManager *self)
+static void
+epg_manager_shutdown_async (EpgProvider         *provider,
+                            GCancellable        *cancellable,
+                            GAsyncReadyCallback  callback,
+                            gpointer             user_data)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
+  g_return_if_fail (EPG_IS_MANAGER (self));
+  g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
+
+  g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
+  g_task_set_source_tag (task, epg_manager_shutdown_async);
+
+  g_autoptr(GError) local_error = NULL;
+
+  /* It's only legal to call this method once */
+  if (g_cancellable_set_error_if_cancelled (self->cancellable, &local_error))
+    {
+      g_task_return_error (task, g_steal_pointer (&local_error));
+      return;
+    }
+
+  /* Prevent any further state modifications.
+   *
+   * FIXME: we would like to also pass this to all internal calls to
+   * epg_manager_save_state_async() but but this is currently unsafe due to
+   * bugs in in g_file_replace_contents_bytes_async() triggered by cancelling
+   * it. https://gitlab.gnome.org/GNOME/glib/issues/1561
+   */
+  g_cancellable_cancel (self->cancellable);
+
+  /* If any saves are in flight, wait for those to finish and return the last
+   * result. If none are in flight, perform one final save. */
+  if (self->pending_internal_save_state_calls == 0)
+    epg_manager_save_state_async (provider, cancellable, shutdown_save_state_cb,
+                                  g_steal_pointer (&task));
+  else
+    self->pending_shutdown = g_steal_pointer (&task);
+}
+
+static void
+shutdown_save_state_cb (GObject      *source_object,
+                        GAsyncResult *result,
+                        gpointer      user_data)
+{
+  EpgProvider *provider = EPG_PROVIDER (source_object);
+  g_autoptr(GTask) task = G_TASK (user_data);
+  g_autoptr(GError) local_error = NULL;
+
+  if (!epg_manager_save_state_finish (provider, result, &local_error))
+    g_task_return_error (task, g_steal_pointer (&local_error));
+  else
+    g_task_return_boolean (task, TRUE);
+}
+
+static gboolean
+epg_manager_shutdown_finish (EpgProvider   *provider,
+                             GAsyncResult  *result,
+                             GError       **error)
+{
+  EpgManager *self = EPG_MANAGER (provider);
+
+  g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
+  g_return_val_if_fail (g_task_is_valid (result, self), FALSE);
+  g_return_val_if_fail (g_async_result_is_tagged (result, epg_manager_shutdown_async), FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
+  return g_task_propagate_boolean (G_TASK (result), error);
+}
+
+static guint64
+epg_manager_get_expiry_time (EpgProvider *provider)
+{
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), 0);
 
   return self->enabled ? self->expiry_time_secs : 0;
 }
 
-/**
- * epg_manager_get_enabled:
- * @self: a #EpgManager
- *
- * Get the value of #EpgManager:enabled.
- *
- * Returns: (transfer none): %TRUE if pay as you go is enabled, %FALSE otherwise
- * Since: 0.1.0
- */
-gboolean
-epg_manager_get_enabled (EpgManager *self)
+static gboolean
+epg_manager_get_enabled (EpgProvider *provider)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), FALSE);
 
   return self->enabled;
 }
 
 /**
- * epg_manager_get_key_bytes:
+ * epg_manager_get_key_file:
  * @self: a #EpgManager
  *
- * Get the value of #EpgManager:key-bytes.
+ * Get the value of #EpgManager:key-file.
  *
- * Returns: (transfer none): bytes of the shared key
+ * Returns: (transfer none): file holding the shared key
  * Since: 0.1.0
  */
-GBytes *
-epg_manager_get_key_bytes (EpgManager *self)
+GFile *
+epg_manager_get_key_file (EpgManager *self)
 {
   g_return_val_if_fail (EPG_IS_MANAGER (self), NULL);
 
-  return self->key_bytes;
+  return self->key_file;
 }
 
 /**
@@ -1293,19 +1388,11 @@ epg_manager_get_state_directory (EpgManager *self)
   return self->state_directory;
 }
 
-/**
- * epg_manager_get_rate_limit_end_time:
- * @self: a #EpgManager
- *
- * Get the value of #EpgManager:rate-limit-end-time.
- *
- * Returns: the UNIX timestamp when the current rate limit on calling
- *    epg_manager_add_code() will reset, in seconds since the UNIX epoch
- * Since: 0.1.0
- */
-guint64
-epg_manager_get_rate_limit_end_time (EpgManager *self)
+static guint64
+epg_manager_get_rate_limit_end_time (EpgProvider *provider)
 {
+  EpgManager *self = EPG_MANAGER (provider);
+
   g_return_val_if_fail (EPG_IS_MANAGER (self), 0);
 
   return self->enabled ? self->rate_limit_end_time_secs : 0;

@@ -1,3 +1,4 @@
+
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*-
  *
  * Copyright © 2018 Endless Mobile, Inc.
@@ -15,29 +16,36 @@
  * above and replace them with the notice and other provisions required by the
  * LGPL. If you do not delete the provisions above, a recipient may use your
  * version of this file under the terms of either the MPL or the LGPL.
+ * All rights reserved.
  */
 
-#pragma once
+#include <libpeas/peas.h>
+#include <libeos-payg/tests/plugins/test-provider.h>
 
-#include <glib.h>
-#include <glib-object.h>
-#include <libeos-payg/provider.h>
+void peas_register_types (PeasObjectModule *module);
 
-G_BEGIN_DECLS
+struct _EpgTestProviderOne {
+  EpgTestProvider parent;
+};
 
-#define EPG_TYPE_MANAGER epg_manager_get_type ()
-G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
+#define EPG_TYPE_TEST_PROVIDER_ONE epg_test_provider_one_get_type ()
+G_DECLARE_FINAL_TYPE (EpgTestProviderOne, epg_test_provider_one, EPG, TEST_PROVIDER_ONE, EpgTestProvider)
+G_DEFINE_TYPE (EpgTestProviderOne, epg_test_provider_one, EPG_TYPE_TEST_PROVIDER);
 
-void         epg_manager_new        (gboolean             enabled,
-                                     GFile               *key_file,
-                                     GFile               *state_directory,
-                                     GCancellable        *cancellable,
-                                     GAsyncReadyCallback  callback,
-                                     gpointer             user_data);
-EpgProvider *epg_manager_new_finish (GAsyncResult  *result,
-                                     GError       **error);
+static void
+epg_test_provider_one_class_init (EpgTestProviderOneClass *klass)
+{
+}
 
-GFile      *epg_manager_get_key_file        (EpgManager *self);
-GFile      *epg_manager_get_state_directory (EpgManager *self);
+static void
+epg_test_provider_one_init (EpgTestProviderOne *self)
+{
+}
 
-G_END_DECLS
+G_MODULE_EXPORT void
+peas_register_types (PeasObjectModule *module)
+{
+  peas_object_module_register_extension_type (module,
+                                              EPG_TYPE_PROVIDER,
+                                              EPG_TYPE_TEST_PROVIDER_ONE);
+}
