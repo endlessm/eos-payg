@@ -107,11 +107,7 @@ test_args = [
   '-Wwrite-strings'
 ]
 cc = meson.get_compiler('c')
-foreach arg: test_args
-  if cc.has_argument(arg)
-    add_project_arguments(arg, language : 'c')
-  endif
-endforeach
+add_project_arguments(cc.get_supported_arguments(test_args), language: 'c')
 
 enable_installed_tests = get_option('installed_tests')
 test_template = files('template.test.in')
