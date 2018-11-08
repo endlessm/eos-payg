@@ -121,6 +121,20 @@ epg_provider_default_init (EpgProviderInterface *iface)
   g_object_interface_install_property (iface, pspec);
 
   /**
+   * EpgProvider:clock:
+   *
+   * Clock used to get the time and create timeout #GSource objects.
+   *
+   * Since: 0.2.1
+   */
+  pspec =
+      g_param_spec_object ("clock", "Clock",
+                           "Clock implementation",
+                           EPG_TYPE_CLOCK,
+                           G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
+  g_object_interface_install_property (iface, pspec);
+
+  /**
    * EpgProvider::expired:
    * @self: a #EpgProvider
    *
@@ -344,4 +358,25 @@ epg_provider_get_code_format (EpgProvider *self)
   g_assert (iface->code_format != NULL);
 
   return iface->code_format;
+}
+
+/**
+ * epg_provider_get_clock:
+ * @self: a #EpgProvider
+ *
+ * Get the value of #EpgProvider:clock
+ *
+ * Returns: (transfer none): the #EpgClock used by this provider
+ * Since: 0.2.1
+ */
+EpgClock *
+epg_provider_get_clock (EpgProvider *self)
+{
+  g_return_val_if_fail (EPG_IS_PROVIDER (self), NULL);
+
+  EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
+
+  g_assert (iface->get_clock != NULL);
+
+  return iface->get_clock (self);
 }

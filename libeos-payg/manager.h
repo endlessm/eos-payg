@@ -22,6 +22,7 @@
 #include <glib.h>
 #include <glib-object.h>
 #include <libeos-payg/provider.h>
+#include <libeos-payg/clock.h>
 
 G_BEGIN_DECLS
 
@@ -31,6 +32,7 @@ G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
 void         epg_manager_new        (gboolean             enabled,
                                      GFile               *key_file,
                                      GFile               *state_directory,
+                                     EpgClock            *clock,
                                      GCancellable        *cancellable,
                                      GAsyncReadyCallback  callback,
                                      gpointer             user_data);

@@ -25,6 +25,7 @@
 #include <gio/gio.h>
 #include <libeos-payg/errors.h>
 #include <libeos-payg/manager.h>
+#include <libeos-payg/real-clock.h>
 #include <libeos-payg/multi-task.h>
 #include <libeos-payg-codes/codes.h>
 
@@ -88,6 +89,7 @@ static void        shutdown_save_state_cb (GObject      *source_object,
 static guint64     epg_manager_get_expiry_time     (EpgProvider *provider);
 static gboolean    epg_manager_get_enabled         (EpgProvider *provider);
 static guint64     epg_manager_get_rate_limit_end_time (EpgProvider *provider);
+static EpgClock *  epg_manager_get_clock (EpgProvider *provider);
 
 /* Struct for storing the values in a used-codes file. The alignment and
  * size of this struct are file format ABI, and must be kept the same. */
@@ -140,6 +142,7 @@ struct _EpgManager
   gboolean enabled;
   GFile *key_file;  /* (owned) */
   GBytes *key_bytes;  /* (owned) */
+  EpgClock *clock; /* (owned) */
 
   GFile *state_directory;  /* (owned) */
 
@@ -171,6 +174,7 @@ typedef enum
   PROP_ENABLED,
   PROP_RATE_LIMIT_END_TIME,
   PROP_CODE_FORMAT,
+  PROP_CLOCK,
 } EpgManagerProperty;
 
 G_DEFINE_TYPE_WITH_CODE (EpgManager, epg_manager, G_TYPE_OBJECT,
@@ -195,6 +199,7 @@ epg_manager_class_init (EpgManagerClass *klass)
   g_object_class_override_property (object_class, PROP_ENABLED, "enabled");
   g_object_class_override_property (object_class, PROP_RATE_LIMIT_END_TIME, "rate-limit-end-time");
   g_object_class_override_property (object_class, PROP_CODE_FORMAT, "code-format");
+  g_object_class_override_property (object_class, PROP_CLOCK, "clock");
 
   /**
    * EpgManager:key-file:
@@ -260,6 +265,7 @@ epg_manager_provider_iface_init (gpointer g_iface,
   iface->get_expiry_time = epg_manager_get_expiry_time;
   iface->get_enabled = epg_manager_get_enabled;
   iface->get_rate_limit_end_time = epg_manager_get_rate_limit_end_time;
+  iface->get_clock = epg_manager_get_clock;
 
   iface->code_format = "^[0-9]{8}$";
 }
@@ -299,6 +305,9 @@ epg_manager_constructed (GObject *object)
 
   if (self->state_directory == NULL)
     self->state_directory = g_file_new_for_path (LOCALSTATEDIR "/lib/eos-payg");
+
+  if (self->clock == NULL)
+    self->clock = EPG_CLOCK (epg_real_clock_new ());
 }
 
 static void
@@ -353,6 +362,9 @@ epg_manager_get_property (GObject    *object,
     case PROP_CODE_FORMAT:
       g_value_set_static_string (value, epg_provider_get_code_format (provider));
       break;
+    case PROP_CLOCK:
+      g_value_set_object (value, epg_provider_get_clock (provider));
+      break;
     default:
       g_assert_not_reached ();
     }
@@ -388,6 +400,11 @@ epg_manager_set_property (GObject      *object,
       g_assert (self->state_directory == NULL);
       self->state_directory = g_value_dup_object (value);
       break;
+    case PROP_CLOCK:
+      /* Construct only. */
+      g_assert (self->clock == NULL);
+      self->clock = g_value_dup_object (value);
+      break;
     default:
       g_assert_not_reached ();
     }
@@ -401,6 +418,8 @@ epg_manager_set_property (GObject      *object,
  *    see #EpgManager:key-file
  * @state_directory: (transfer none) (optional): directory to load/store state
  *    in, or %NULL to use the default directory; see #EpgManager:state-directory
+ * @clock: (transfer none) (optional): an #EpgClock, or %NULL to use the default
+ *    clock implementation
  * @cancellable: (nullable): a #GCancellable or %NULL
  * @callback: callback function to invoke when the #EpgManager is ready
  * @user_data: user data to pass to @callback
@@ -418,6 +437,7 @@ void
 epg_manager_new (gboolean             enabled,
                  GFile               *key_file,
                  GFile               *state_directory,
+                 EpgClock            *clock,
                  GCancellable        *cancellable,
                  GAsyncReadyCallback  callback,
                  gpointer             user_data)
@@ -434,6 +454,7 @@ epg_manager_new (gboolean             enabled,
                               "enabled", enabled,
                               "key-file", key_file,
                               "state-directory", state_directory,
+                              "clock", clock,
                               NULL);
 }
 
@@ -1396,4 +1417,14 @@ epg_manager_get_rate_limit_end_time (EpgProvider *provider)
   g_return_val_if_fail (EPG_IS_MANAGER (self), 0);
 
   return self->enabled ? self->rate_limit_end_time_secs : 0;
+}
+
+static EpgClock *
+epg_manager_get_clock (EpgProvider *provider)
+{
+  EpgManager *self = EPG_MANAGER (provider);
+
+  g_return_val_if_fail (EPG_IS_MANAGER (self), NULL);
+
+  return self->clock;
 }

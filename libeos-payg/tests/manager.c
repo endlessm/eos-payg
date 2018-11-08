@@ -23,6 +23,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gio/gio.h>
+#include <libeos-payg/real-clock.h>
 #include <libeos-payg/errors.h>
 #include <libeos-payg/manager.h>
 #include <libeos-payg-codes/codes.h>
@@ -159,11 +160,13 @@ manager_new_failable (Fixture *fixture,
                       GError **error)
 {
   g_autoptr(GAsyncResult) result = NULL;
-
+  g_autoptr(EpgRealClock) clock = NULL;
   g_assert_null (fixture->provider);
 
+  /* TODO replace this with a fake clock so we can fast-forward time */
+  clock = epg_real_clock_new ();
   epg_manager_new (enabled, fixture->key_file, fixture->tmp_dir,
-                   NULL, async_cb, &result);
+                   EPG_CLOCK (clock), NULL, async_cb, &result);
 
   while (result == NULL)
     g_main_context_iteration (NULL, TRUE);

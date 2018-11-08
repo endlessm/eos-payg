@@ -62,10 +62,12 @@ static gboolean    epg_test_provider_shutdown_finish (EpgProvider           *pro
 static guint64     epg_test_provider_get_expiry_time     (EpgProvider *provider);
 static gboolean    epg_test_provider_get_enabled         (EpgProvider *provider);
 static guint64     epg_test_provider_get_rate_limit_end_time (EpgProvider *provider);
+static EpgClock *  epg_test_provider_get_clock (EpgProvider *provider);
 
 typedef struct
 {
   gboolean enabled;
+  EpgClock *clock; /* (owned) */
 } EpgTestProviderPrivate;
 
 typedef enum
@@ -74,6 +76,7 @@ typedef enum
   PROP_ENABLED,
   PROP_RATE_LIMIT_END_TIME,
   PROP_CODE_FORMAT,
+  PROP_CLOCK,
 } EpgTestProviderProperty;
 
 G_DEFINE_TYPE_WITH_CODE (EpgTestProvider, epg_test_provider, G_TYPE_OBJECT,
@@ -97,6 +100,7 @@ epg_test_provider_class_init (EpgTestProviderClass *klass)
   g_object_class_override_property (object_class, PROP_ENABLED, "enabled");
   g_object_class_override_property (object_class, PROP_RATE_LIMIT_END_TIME, "rate-limit-end-time");
   g_object_class_override_property (object_class, PROP_CODE_FORMAT, "code-format");
+  g_object_class_override_property (object_class, PROP_CLOCK, "clock");
 }
 
 static void
@@ -122,6 +126,7 @@ epg_test_provider_provider_iface_init (gpointer g_iface,
   iface->get_expiry_time = epg_test_provider_get_expiry_time;
   iface->get_enabled = epg_test_provider_get_enabled;
   iface->get_rate_limit_end_time = epg_test_provider_get_rate_limit_end_time;
+  iface->get_clock = epg_test_provider_get_clock;
   iface->code_format = "";
 }
 
@@ -153,6 +158,9 @@ epg_test_provider_get_property (GObject    *object,
     case PROP_CODE_FORMAT:
       g_value_set_static_string (value, epg_provider_get_code_format (provider));
       break;
+    case PROP_CLOCK:
+      g_value_set_object (value, epg_provider_get_clock (provider));
+      break;
     default:
       g_assert_not_reached ();
     }
@@ -178,6 +186,11 @@ epg_test_provider_set_property (GObject      *object,
     case PROP_ENABLED:
       /* Construct only. */
       priv->enabled = g_value_get_boolean (value);
+      break;
+    case PROP_CLOCK:
+      /* Construct only. */
+      g_assert (priv->clock == NULL);
+      priv->clock = g_value_dup_object (value);
       break;
     default:
       g_assert_not_reached ();
@@ -316,4 +329,16 @@ epg_test_provider_get_rate_limit_end_time (EpgProvider *provider)
   g_return_val_if_fail (EPG_IS_TEST_PROVIDER (self), 0);
 
   return 0;
+}
+
+static EpgClock *
+epg_test_provider_get_clock (EpgProvider *provider)
+{
+  EpgTestProvider *self = EPG_TEST_PROVIDER (provider);
+
+  g_return_val_if_fail (EPG_IS_TEST_PROVIDER (self), NULL);
+
+  EpgTestProviderPrivate *priv = epg_test_provider_get_instance_private (self);
+
+  return priv->clock;
 }
