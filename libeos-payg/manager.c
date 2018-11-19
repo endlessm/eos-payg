@@ -138,7 +138,7 @@ struct _EpgManager
   GCancellable *cancellable;  /* (owned) */
 
   GArray *used_codes;  /* (element-type UsedCode) (owned) */
-  guint64 expiry_time_secs;  /* UNIX timestamp in seconds */
+  guint64 expiry_time_secs;  /* Timestamp in seconds based on CLOCK_BOOTTIME */
   gboolean enabled;
   GFile *key_file;  /* (owned) */
   GBytes *key_bytes;  /* (owned) */
@@ -149,8 +149,14 @@ struct _EpgManager
   GMainContext *context;  /* (owned) */
   GSource *expiry;  /* (owned) (nullable) */
 
-  /* Rate limiting history. This is a FIFO queue of UNIX timestamps (in seconds)
-   * of recent epg_manager_add_code() attempts. See check_rate_limiting(). */
+  guint64 last_save_time_secs; /* wallclock timestamp of last state save */
+  guint64 last_save_expiry_secs; /* seconds left to expiration at time of last state save */
+  gboolean last_save_time_secs_set; /* whether last_save_time_secs has been set */
+  gboolean last_save_expiry_secs_set; /* whether last_save_expiry_secs has been set */
+
+  /* Rate limiting history. This is a FIFO queue of CLOCK_BOOTTIME timestamps
+   * (in seconds) of recent epg_manager_add_code() attempts. See
+   * check_rate_limiting(). */
   guint64 rate_limiting_history[RATE_LIMITING_N_ATTEMPTS];
   guint64 rate_limit_end_time_secs;
 
@@ -277,6 +283,8 @@ epg_manager_init (EpgManager *self)
   self->used_codes = g_array_new (FALSE, FALSE, sizeof (UsedCode));
   self->context = g_main_context_ref_thread_default ();
   self->cancellable = g_cancellable_new ();
+  self->last_save_time_secs_set = FALSE;
+  self->last_save_expiry_secs_set = FALSE;
 }
 
 /* Clear the expiry #GSource timer, if it hasn’t been already cleared. */
@@ -606,7 +614,7 @@ check_expired_cb (gpointer user_data)
     return G_SOURCE_REMOVE;
 
   /* Expired yet? */
-  guint64 now_secs = g_get_real_time () / G_USEC_PER_SEC;
+  guint64 now_secs = epg_clock_get_time (self->clock);
 
   if (self->expiry_time_secs <= now_secs)
     {
@@ -626,9 +634,9 @@ set_expiry_time (EpgManager *self,
                  guint64     now_secs,
                  guint64     span_secs)
 {
-  /* FIXME: Our use of g_get_real_time() means PAYG can be avoided by changing
-   * the system clock, but there’s no way round that. g_get_monotonic_time() can
-   * use a different epoch across reboots. */
+  /* Note that we're indirectly using CLOCK_BOOTTIME here and in the callback,
+   * so that the clock includes time spent suspended and so that manual clock
+   * adjustments have no effect */
   guint64 old_expiry_time_secs = self->expiry_time_secs;
 
   /* If the old PAYG code had expired, start from @now_secs; otherwise start
@@ -638,23 +646,31 @@ set_expiry_time (EpgManager *self,
   /* Clamp to the end of time instead of overflowing. */
   self->expiry_time_secs = (base_secs <= G_MAXUINT64 - span_secs) ? base_secs + span_secs : G_MAXUINT64;
 
-  /* Set the expiry timer. g_timeout_source_new_seconds() takes a #guint, and
-   * @span is a #guint64. However, the maximum span is 365 days, which is
-   * representable in 32 bits. We don’t set a timer for infinite periods.
-   *
-   * FIXME: For the moment, poll every 60s until the expiry time is reached, so
-   * we don’t have to worry about recalculating the timeout period after
-   * resuming from suspend, or if the system clock or timezone changes.
-   * See: https://phabricator.endlessm.com/T22074 */
+  /* Set the expiry timer. epg_clock_source_new_seconds() takes a #guint, and
+   * @span_secs is a #guint64 so clamp to G_MAXUINT */
   clear_expiry_timer (self);
 
   if (self->expiry_time_secs != G_MAXUINT64)
     {
+      g_autoptr(GError) local_error = NULL;
+
       g_assert (self->expiry_time_secs >= now_secs);
-      g_assert (self->expiry_time_secs - now_secs <= G_MAXUINT);
-      self->expiry = g_timeout_source_new_seconds (MIN (self->expiry_time_secs - now_secs, 60));
-      g_source_set_callback (self->expiry, check_expired_cb, self, NULL);
-      g_source_attach (self->expiry, self->context);
+      guint expiry_span_clamped = MIN (self->expiry_time_secs - now_secs, G_MAXUINT);
+      self->expiry = epg_clock_source_new_seconds (self->clock,
+                                                   expiry_span_clamped,
+                                                   &local_error);
+      if (self->expiry == NULL)
+        {
+          g_warning ("%s: epg_clock_source_new_seconds() failed: %s", G_STRFUNC, local_error->message);
+          /* We have no way to check expiration, so assume time is up */
+          self->expiry_time_secs = now_secs;
+          check_expired_cb (self);
+        }
+      else
+        {
+          g_source_set_callback (self->expiry, check_expired_cb, self, NULL);
+          g_source_attach (self->expiry, self->context);
+        }
     }
 
   if (old_expiry_time_secs != self->expiry_time_secs &&
@@ -668,7 +684,7 @@ set_expiry_time (EpgManager *self,
  * would overflow, set the expiry time as high as possible. Everything is
  * handled in seconds.
  *
- * @now will typically be the value of (g_get_real_time() / G_USEC_PER_SEC).
+ * @now will typically be the current value of CLOCK_BOOTTIME.
  * It is parameterised to allow easy testing. */
 static void
 extend_expiry_time (EpgManager *self,
@@ -916,7 +932,22 @@ internal_save_state_cb (GObject      *source_object,
     }
 }
 
-/* Get the path of the state file containing the expiry time. */
+/* Get the path of the state file containing the wall clock time. */
+static GFile *
+get_wallclock_time_file (EpgManager *self)
+{
+  return g_file_get_child (self->state_directory, "clock-time");
+}
+
+/* Get the path of the state file containing the expiry seconds. */
+static GFile *
+get_expiry_seconds_file (EpgManager *self)
+{
+  return g_file_get_child (self->state_directory, "expiry-seconds");
+}
+
+/* Get the path of the state file containing the expiry time.
+ * This file is deprecated but kept for now for backwards compat. */
 static GFile *
 get_expiry_time_file (EpgManager *self)
 {
@@ -959,14 +990,15 @@ epg_manager_init_async (GAsyncInitable      *initable,
 
   EpgManager *self = EPG_MANAGER (initable);
   g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
+
   g_task_set_source_tag (task, epg_manager_init_async);
   g_task_set_priority (task, priority);
   epg_multi_task_attach (task, 4);
 
-  /* Load the expiry time. */
-  g_autoptr(GFile) expiry_time_file = get_expiry_time_file (self);
+  /* Load the wall clock time of the last state save. */
+  g_autoptr(GFile) wallclock_time_file = get_wallclock_time_file (self);
 
-  g_file_load_contents_async (expiry_time_file, cancellable,
+  g_file_load_contents_async (wallclock_time_file, cancellable,
                               file_load_cb, g_object_ref (task));
 
   /* And the used codes. */
@@ -994,7 +1026,9 @@ file_load_cb (GObject      *source_object,
   EpgManager *self = g_task_get_source_object (task);
   g_autoptr(GError) local_error = NULL;
 
-  guint64 now_secs = g_get_real_time () / G_USEC_PER_SEC;
+  guint64 now_secs = epg_clock_get_time (self->clock);
+  guint64 wallclock_now_secs = epg_clock_get_wallclock_time (self->clock);
+
 
   /* If the file is not found, we continue below, but with @data set to %NULL
    * and @data_len set to zero. */
@@ -1009,10 +1043,58 @@ file_load_cb (GObject      *source_object,
     }
 
   /* Update the manager’s state. */
+  g_autoptr(GFile) wallclock_time_file = get_wallclock_time_file (self);
+  g_autoptr(GFile) expiry_seconds_file = get_expiry_seconds_file (self);
   g_autoptr(GFile) expiry_time_file = get_expiry_time_file (self);
   g_autoptr(GFile) used_codes_file = get_used_codes_file (self);
 
-  if (g_file_equal (file, expiry_time_file))
+  if (g_file_equal (file, wallclock_time_file))
+    {
+      epg_multi_task_increment (task);
+
+      if (g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+        {
+          /* Load the expiry time (deprecated but kept for backwards compat). */
+          g_file_load_contents_async (expiry_time_file, cancellable,
+                                      file_load_cb, g_object_ref (task));
+        }
+      else
+        {
+          /* Load the expiry seconds. */
+          g_file_load_contents_async (expiry_seconds_file, cancellable,
+                                      file_load_cb, g_object_ref (task));
+        }
+
+      /* If data_len == 0 the behavior depends on whether expiry_time_file or
+       * expiry_seconds_file exist */
+      if (data_len != 0)
+        {
+          union
+            {
+              guint64 u64;
+              gchar u8[8];
+            } last_save_time_union;
+          G_STATIC_ASSERT (sizeof (last_save_time_union.u8) == sizeof (self->expiry_time_secs));
+
+          /* Check the file is the right size. If not, delete it so that we
+           * don’t error next time we start. */
+          if (data_len != sizeof (last_save_time_union.u8))
+            {
+              g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
+                                   file_load_delete_cb, g_object_ref (task));
+              return;
+            }
+
+          /* No other validation is needed on the loaded number, as the
+           * entire range of the type is valid. */
+          memcpy (last_save_time_union.u8, data, sizeof (last_save_time_union.u8));
+
+          /* Just record the value; it will be used below */
+          self->last_save_time_secs = last_save_time_union.u64;
+          self->last_save_time_secs_set = TRUE;
+        }
+    }
+  else if (g_file_equal (file, expiry_time_file)) /* for backwards compat */
     {
       if (data_len == 0)
         {
@@ -1038,10 +1120,52 @@ file_load_cb (GObject      *source_object,
             }
 
           /* Set the expiry time. No other validation is needed on the loaded
-           * number, as the entire range of the type is valid. */
+           * number, as the entire range of the type is valid.
+           * The value stored on disk is in terms of wall clock time, but we
+           * want self->expiry_time_secs to be in terms of CLOCK_BOOTTIME, so
+           * we're migrating here */
           memcpy (expiry_time_secs.u8, data, sizeof (expiry_time_secs.u8));
           set_expiry_time (self, now_secs,
-                           (expiry_time_secs.u64 > now_secs) ? expiry_time_secs.u64 - now_secs : 0);
+                           (expiry_time_secs.u64 > wallclock_now_secs) ? expiry_time_secs.u64 - wallclock_now_secs : 0);
+
+          /* Delete the file since we now use clock-time and expiry-seconds instead */
+          epg_multi_task_increment (task);
+          g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
+                               file_load_delete_cb, g_object_ref (task));
+        }
+    }
+  else if (g_file_equal (file, expiry_seconds_file))
+    {
+      if (data_len == 0)
+        {
+          /* No expiry time is set. Expire immediately. */
+          set_expiry_time (self, now_secs, 0);
+        }
+      else
+        {
+          union
+            {
+              guint64 u64;
+              gchar u8[8];
+            } expiry_secs;
+          G_STATIC_ASSERT (sizeof (expiry_secs.u8) == sizeof (self->expiry_time_secs));
+
+          /* Check the file is the right size. If not, delete it so that we
+           * don’t error next time we start. */
+          if (data_len != sizeof (expiry_secs.u8))
+            {
+              g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
+                                   file_load_delete_cb, g_object_ref (task));
+              return;
+            }
+
+          /* Set the expiry time. No other validation is needed on the loaded
+           * number, as the entire range of the type is valid. */
+          memcpy (expiry_secs.u8, data, sizeof (expiry_secs.u8));
+
+          /* Just record the value; it will be used below */
+          self->last_save_expiry_secs = expiry_secs.u64;
+          self->last_save_expiry_secs_set = TRUE;
         }
     }
   else if (g_file_equal (file, used_codes_file))
@@ -1115,6 +1239,32 @@ file_load_cb (GObject      *source_object,
       g_assert_not_reached ();
     }
 
+  /* Once both the wallclock time and expiry seconds have been loaded, deduce
+   * the expiry time from them. */
+  if (self->last_save_time_secs_set && self->last_save_expiry_secs_set &&
+      (g_file_equal (file, wallclock_time_file) ||
+       g_file_equal (file, expiry_seconds_file)))
+    {
+      if (self->last_save_time_secs > wallclock_now_secs)
+        {
+          /* Time has gone backwards!? Either the saved time is wrong (and
+           * there's no way to know by how much) or the current time is wrong
+           * (and NTP will fix it, see T24501). Let's just assume time stood
+           * still. */
+          set_expiry_time (self, now_secs, self->last_save_expiry_secs);
+        }
+      else
+        {
+          /* Time has continued its inexorable march forward while the computer
+           * was off. Consume the appropriate credit */
+          guint64 unaccounted_time = wallclock_now_secs - self->last_save_time_secs;
+          if (unaccounted_time > self->last_save_expiry_secs)
+            set_expiry_time (self, now_secs, 0);
+          else
+            set_expiry_time (self, now_secs, self->last_save_expiry_secs - unaccounted_time);
+        }
+    }
+
   epg_multi_task_return_boolean (task, TRUE);
 }
 
@@ -1126,6 +1276,8 @@ file_load_delete_cb (GObject      *source_object,
   GFile *file = G_FILE (source_object);
   g_autoptr(GTask) task = G_TASK (user_data);
   g_autoptr(GError) local_error = NULL;
+  EpgManager *self = g_task_get_source_object (task);
+  g_autoptr(GFile) expiry_time_file = get_expiry_time_file (self);
 
   /* Log any error, but don’t propagate it since we’re already returning an
    * error due to the file being the wrong length. */
@@ -1133,12 +1285,20 @@ file_load_delete_cb (GObject      *source_object,
       !g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
     g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
 
-  g_autofree gchar *file_path = g_file_get_path (file);
+  /* The expiry-time file is likely being deleted to migrate to using clock-time
+   * and expiry-seconds instead */
+  if (!g_file_equal (file, expiry_time_file))
+    {
+      g_autofree gchar *file_path = g_file_get_path (file);
 
-  g_clear_error (&local_error);
-  local_error = g_error_new (G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
-                             _("State file ‘%s’ was the wrong length."),
-                             file_path);
+      g_clear_error (&local_error);
+      local_error = g_error_new (G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                                 _("State file ‘%s’ was the wrong length."),
+                                 file_path);
+    }
+  else if (local_error == NULL)
+    epg_multi_task_return_boolean (task, TRUE);
+
   epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
 }
 
@@ -1187,24 +1347,52 @@ epg_manager_save_state_async (EpgProvider         *provider,
 
   g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
   g_task_set_source_tag (task, epg_manager_save_state_async);
-  epg_multi_task_attach (task, 3);
+  epg_multi_task_attach (task, 4);
 
-  /* Save the expiry time. */
-  g_autoptr(GFile) expiry_time_file = get_expiry_time_file (self);
+  /* Save the wall clock time. */
+  g_autoptr(GFile) wallclock_time_file = get_wallclock_time_file (self);
+  guint64 wallclock_seconds = epg_clock_get_wallclock_time (self->clock);
 
   union
     {
       guint64 u64;
       const guint8 u8[8];
-    } expiry_time_secs;
-  G_STATIC_ASSERT (sizeof (expiry_time_secs.u8) == sizeof (self->expiry_time_secs));
-  expiry_time_secs.u64 = self->expiry_time_secs;
+    } wallclock_time_secs;
+  wallclock_time_secs.u64 = wallclock_seconds;
 
-  g_autoptr(GBytes) expiry_time_bytes = g_bytes_new (expiry_time_secs.u8,
-                                                     sizeof (expiry_time_secs.u8));
+  g_autoptr(GBytes) wallclock_time_bytes = g_bytes_new (wallclock_time_secs.u8,
+                                                        sizeof (wallclock_time_secs.u8));
 
-  g_file_replace_contents_bytes_async (expiry_time_file,
-                                       expiry_time_bytes,
+  g_file_replace_contents_bytes_async (wallclock_time_file,
+                                       wallclock_time_bytes,
+                                       NULL,  /* ETag */
+                                       FALSE,  /* no backup */
+                                       G_FILE_CREATE_PRIVATE,
+                                       cancellable,
+                                       file_replace_cb,
+                                       g_object_ref (task));
+
+  /* Save the expiry seconds. */
+  g_autoptr(GFile) expiry_seconds_file = get_expiry_seconds_file (self);
+
+  union
+    {
+      guint64 u64;
+      const guint8 u8[8];
+    } expiry_secs;
+  G_STATIC_ASSERT (sizeof (expiry_secs.u8) == sizeof (self->expiry_time_secs));
+
+  guint64 now_secs = epg_clock_get_time (self->clock);
+  if (now_secs > self->expiry_time_secs)
+    expiry_secs.u64 = 0;
+  else
+    expiry_secs.u64 = self->expiry_time_secs - now_secs;
+
+  g_autoptr(GBytes) expiry_seconds_bytes = g_bytes_new (expiry_secs.u8,
+                                                        sizeof (expiry_secs.u8));
+
+  g_file_replace_contents_bytes_async (expiry_seconds_file,
+                                       expiry_seconds_bytes,
                                        NULL,  /* ETag */
                                        FALSE,  /* no backup */
                                        G_FILE_CREATE_PRIVATE,
