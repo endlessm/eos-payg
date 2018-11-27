@@ -1080,6 +1080,7 @@ file_load_cb (GObject      *source_object,
            * don’t error next time we start. */
           if (data_len != sizeof (last_save_time_union.u8))
             {
+              epg_multi_task_increment (task);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -1114,6 +1115,7 @@ file_load_cb (GObject      *source_object,
            * don’t error next time we start. */
           if (data_len != sizeof (expiry_time_secs.u8))
             {
+              epg_multi_task_increment (task);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -1154,6 +1156,7 @@ file_load_cb (GObject      *source_object,
            * don’t error next time we start. */
           if (data_len != sizeof (expiry_secs.u8))
             {
+              epg_multi_task_increment (task);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -1181,6 +1184,7 @@ file_load_cb (GObject      *source_object,
            * don’t error next time we start. */
           if ((data_len % sizeof (UsedCode)) != 0)
             {
+              epg_multi_task_increment (task);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -1205,6 +1209,7 @@ file_load_cb (GObject      *source_object,
 
               if (!epc_period_validate (used_code->period, &local_error))
                 {
+                  epg_multi_task_increment (task);
                   g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                        file_load_delete_cb, g_object_ref (task));
                   return;
