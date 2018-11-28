@@ -24,12 +24,12 @@ import sys
 from dateutil import tz
 from gi.repository import GLib, Gio
 
-BUS_NAME = 'com.endlessm.Payg1'
-OBJECT_PATH = '/com/endlessm/Payg1'
-INTERFACE = 'com.endlessm.Payg1'
-ERROR_DOMAIN = 'com.endlessm.Payg1.Error'
+BUS_NAME = "com.endlessm.Payg1"
+OBJECT_PATH = "/com/endlessm/Payg1"
+INTERFACE = "com.endlessm.Payg1"
+ERROR_DOMAIN = "com.endlessm.Payg1.Error"
 
-DBUS_PROPERTIES_INTERFACE = 'org.freedesktop.DBus.Properties'
+DBUS_PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 
 
 def __format_utc_timestamp(timestamp):
@@ -51,7 +51,7 @@ def __get_proxy():
 
 
 def command_status(proxy):
-    '''Show the current PAYG status of this device.'''
+    """Show the current PAYG status of this device."""
     props = {
         name: proxy.get_cached_property(name).unpack()
         for name in proxy.get_cached_property_names()
@@ -59,13 +59,13 @@ def command_status(proxy):
 
     width = max(map(len, props), default=0)
     formatters = {
-        'ExpiryTime': __format_utc_timestamp,
-        'RateLimitEndTime': __format_utc_timestamp,
+        "ExpiryTime": __format_utc_timestamp,
+        "RateLimitEndTime": __format_utc_timestamp,
     }
 
     for key, value in sorted(props.items()):
         formatted = formatters.get(key, lambda x: x)(value)
-        print('{:>{}}: {}'.format(key, width, formatted))
+        print("{:>{}}: {}".format(key, width, formatted))
 
 
 @contextlib.contextmanager
@@ -85,21 +85,21 @@ def __exit_on_payg_error():
         # Gio.dbus_error_get_remote_error(e) does not modify e.message,
         # presumably because the Python-side GLib.GError is marshalled back to
         # a new temporary C-side GError.
-        message = e.message[e.message.index(remote_error):]
+        message = e.message[e.message.index(remote_error) :]
         print(message, file=sys.stderr, flush=True)
         raise SystemExit(1)
 
 
 def command_add_code(proxy, code):
-    '''Verify and add the given code, assuming it has not already been used,
-    and extend the expiry time as appropriate.'''
+    """Verify and add the given code, assuming it has not already been used,
+    and extend the expiry time as appropriate."""
     with __exit_on_payg_error():
-        proxy.AddCode('(s)', code)
+        proxy.AddCode("(s)", code)
 
 
 def command_clear_code(proxy):
-    '''Clear the current code(s), causing any remaining credit to expire
-    immediately. This is typically intended to be used for testing.'''
+    """Clear the current code(s), causing any remaining credit to expire
+    immediately. This is typically intended to be used for testing."""
     with __exit_on_payg_error():
         proxy.ClearCode()
 
@@ -107,22 +107,21 @@ def command_clear_code(proxy):
 def main():
     parser = argparse.ArgumentParser()
     parser.set_defaults(function=command_status)
-    subparsers = parser.add_subparsers(title='subcommands')
+    subparsers = parser.add_subparsers(title="subcommands")
 
     def add_parser(name, function):
-        p = subparsers.add_parser(name,
-                                  help=function.__doc__,
-                                  description=function.__doc__)
+        p = subparsers.add_parser(
+            name, help=function.__doc__, description=function.__doc__
+        )
         p.set_defaults(function=function)
         return p
 
-    add_parser('status', command_status)
+    add_parser("status", command_status)
 
-    add_code = add_parser('add-code', command_add_code)
-    add_code.add_argument('code',
-                          help='a new PAYG code')
+    add_code = add_parser("add-code", command_add_code)
+    add_code.add_argument("code", help="a new PAYG code")
 
-    add_parser('clear-code', command_clear_code)
+    add_parser("clear-code", command_clear_code)
 
     args = parser.parse_args()
     function = args.function
@@ -132,5 +131,5 @@ def main():
     function(proxy, **vars(args))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

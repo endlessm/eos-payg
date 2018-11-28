@@ -1,0 +1,4 @@
+# Accept the output of https://github.com/ambv/black
+[flake8]
+max-line-length = 88
+ignore = E203, W503
