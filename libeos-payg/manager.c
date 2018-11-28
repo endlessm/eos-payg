@@ -1015,6 +1015,24 @@ epg_manager_init_async (GAsyncInitable      *initable,
   epg_multi_task_return_boolean (task, TRUE);
 }
 
+/* Convert bytes into a guint64 assuming host endianness */
+/* @bytes must have length 8 */
+static guint64
+get_guint64_from_bytes (const guint8 *bytes)
+{
+  g_assert (bytes != NULL);
+
+  union
+    {
+      guint64 u64;
+      gchar u8[8];
+    } number_union;
+
+  memcpy (number_union.u8, bytes, sizeof (number_union.u8));
+
+  return number_union.u64;
+}
+
 static void
 file_load_cb (GObject      *source_object,
               GAsyncResult *result,
@@ -1069,16 +1087,9 @@ file_load_cb (GObject      *source_object,
        * expiry_seconds_file exist */
       if (data_len != 0)
         {
-          union
-            {
-              guint64 u64;
-              gchar u8[8];
-            } last_save_time_union;
-          G_STATIC_ASSERT (sizeof (last_save_time_union.u8) == sizeof (self->expiry_time_secs));
-
           /* Check the file is the right size. If not, delete it so that we
            * don’t error next time we start. */
-          if (data_len != sizeof (last_save_time_union.u8))
+          if (data_len != sizeof (self->last_save_time_secs))
             {
               epg_multi_task_increment (task);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
@@ -1086,12 +1097,8 @@ file_load_cb (GObject      *source_object,
               return;
             }
 
-          /* No other validation is needed on the loaded number, as the
-           * entire range of the type is valid. */
-          memcpy (last_save_time_union.u8, data, sizeof (last_save_time_union.u8));
-
           /* Just record the value; it will be used below */
-          self->last_save_time_secs = last_save_time_union.u64;
+          self->last_save_time_secs = get_guint64_from_bytes ((const guint8 *)data);
           self->last_save_time_secs_set = TRUE;
         }
     }
@@ -1104,16 +1111,11 @@ file_load_cb (GObject      *source_object,
         }
       else
         {
-          union
-            {
-              guint64 u64;
-              gchar u8[8];
-            } expiry_time_secs;
-          G_STATIC_ASSERT (sizeof (expiry_time_secs.u8) == sizeof (self->expiry_time_secs));
+          guint64 wallclock_expiry_time_secs;
 
           /* Check the file is the right size. If not, delete it so that we
            * don’t error next time we start. */
-          if (data_len != sizeof (expiry_time_secs.u8))
+          if (data_len != sizeof (wallclock_expiry_time_secs))
             {
               epg_multi_task_increment (task);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
@@ -1126,9 +1128,9 @@ file_load_cb (GObject      *source_object,
            * The value stored on disk is in terms of wall clock time, but we
            * want self->expiry_time_secs to be in terms of CLOCK_BOOTTIME, so
            * we're migrating here */
-          memcpy (expiry_time_secs.u8, data, sizeof (expiry_time_secs.u8));
+          wallclock_expiry_time_secs = get_guint64_from_bytes ((const guint8 *)data);
           set_expiry_time (self, now_secs,
-                           (expiry_time_secs.u64 > wallclock_now_secs) ? expiry_time_secs.u64 - wallclock_now_secs : 0);
+                           (wallclock_expiry_time_secs > wallclock_now_secs) ? wallclock_expiry_time_secs - wallclock_now_secs : 0);
 
           /* Delete the file since we now use clock-time and expiry-seconds instead */
           epg_multi_task_increment (task);
@@ -1145,16 +1147,9 @@ file_load_cb (GObject      *source_object,
         }
       else
         {
-          union
-            {
-              guint64 u64;
-              gchar u8[8];
-            } expiry_secs;
-          G_STATIC_ASSERT (sizeof (expiry_secs.u8) == sizeof (self->expiry_time_secs));
-
           /* Check the file is the right size. If not, delete it so that we
            * don’t error next time we start. */
-          if (data_len != sizeof (expiry_secs.u8))
+          if (data_len != sizeof (self->last_save_expiry_secs))
             {
               epg_multi_task_increment (task);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
@@ -1162,12 +1157,8 @@ file_load_cb (GObject      *source_object,
               return;
             }
 
-          /* Set the expiry time. No other validation is needed on the loaded
-           * number, as the entire range of the type is valid. */
-          memcpy (expiry_secs.u8, data, sizeof (expiry_secs.u8));
-
           /* Just record the value; it will be used below */
-          self->last_save_expiry_secs = expiry_secs.u64;
+          self->last_save_expiry_secs = get_guint64_from_bytes ((const guint8 *)data);
           self->last_save_expiry_secs_set = TRUE;
         }
     }
@@ -1338,6 +1329,31 @@ static void file_replace_cb     (GObject      *source_object,
 static void file_save_delete_cb (GObject      *source_object,
                                  GAsyncResult *result,
                                  gpointer      user_data);
+static void
+write_guint64_to_file (guint64       number,
+                       GFile        *file,
+                       GTask        *task,
+                       GCancellable *cancellable)
+{
+  union
+    {
+      guint64 u64;
+      const guint8 u8[8];
+    } number_union;
+  number_union.u64 = number;
+
+  g_autoptr(GBytes) number_bytes = g_bytes_new (number_union.u8,
+                                                sizeof (number_union.u8));
+
+  g_file_replace_contents_bytes_async (file,
+                                       number_bytes,
+                                       NULL,  /* ETag */
+                                       FALSE,  /* no backup */
+                                       G_FILE_CREATE_PRIVATE,
+                                       cancellable,
+                                       file_replace_cb,
+                                       g_object_ref (task));
+}
 
 static void
 epg_manager_save_state_async (EpgProvider         *provider,
@@ -1357,53 +1373,15 @@ epg_manager_save_state_async (EpgProvider         *provider,
   /* Save the wall clock time. */
   g_autoptr(GFile) wallclock_time_file = get_wallclock_time_file (self);
   guint64 wallclock_seconds = epg_clock_get_wallclock_time (self->clock);
-
-  union
-    {
-      guint64 u64;
-      const guint8 u8[8];
-    } wallclock_time_secs;
-  wallclock_time_secs.u64 = wallclock_seconds;
-
-  g_autoptr(GBytes) wallclock_time_bytes = g_bytes_new (wallclock_time_secs.u8,
-                                                        sizeof (wallclock_time_secs.u8));
-
-  g_file_replace_contents_bytes_async (wallclock_time_file,
-                                       wallclock_time_bytes,
-                                       NULL,  /* ETag */
-                                       FALSE,  /* no backup */
-                                       G_FILE_CREATE_PRIVATE,
-                                       cancellable,
-                                       file_replace_cb,
-                                       g_object_ref (task));
+  write_guint64_to_file (wallclock_seconds, wallclock_time_file, task, cancellable);
 
   /* Save the expiry seconds. */
   g_autoptr(GFile) expiry_seconds_file = get_expiry_seconds_file (self);
-
-  union
-    {
-      guint64 u64;
-      const guint8 u8[8];
-    } expiry_secs;
-  G_STATIC_ASSERT (sizeof (expiry_secs.u8) == sizeof (self->expiry_time_secs));
-
   guint64 now_secs = epg_clock_get_time (self->clock);
   if (now_secs > self->expiry_time_secs)
-    expiry_secs.u64 = 0;
+    write_guint64_to_file (0, expiry_seconds_file, task, cancellable);
   else
-    expiry_secs.u64 = self->expiry_time_secs - now_secs;
-
-  g_autoptr(GBytes) expiry_seconds_bytes = g_bytes_new (expiry_secs.u8,
-                                                        sizeof (expiry_secs.u8));
-
-  g_file_replace_contents_bytes_async (expiry_seconds_file,
-                                       expiry_seconds_bytes,
-                                       NULL,  /* ETag */
-                                       FALSE,  /* no backup */
-                                       G_FILE_CREATE_PRIVATE,
-                                       cancellable,
-                                       file_replace_cb,
-                                       g_object_ref (task));
+    write_guint64_to_file (self->expiry_time_secs - now_secs, expiry_seconds_file, task, cancellable);
 
   /* And the used codes, if there are any. Otherwise delete the file. */
   g_autoptr(GFile) used_codes_file = get_used_codes_file (self);
