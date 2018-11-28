@@ -20,6 +20,7 @@
 import argparse
 import contextlib
 import datetime as dt
+import posix
 import sys
 from dateutil import tz
 from gi.repository import GLib, Gio
@@ -38,9 +39,20 @@ def __format_utc_timestamp(timestamp):
     return str(expiry_local)
 
 
-def __get_proxy():
-    return Gio.DBusProxy.new_for_bus_sync(
-        Gio.BusType.SYSTEM,
+def __get_proxy(bus_address):
+    if bus_address is not None:
+        bus = Gio.DBusConnection.new_for_address_sync(
+            bus_address,
+            Gio.DBusConnectionFlags.AUTHENTICATION_CLIENT
+            | Gio.DBusConnectionFlags.MESSAGE_BUS_CONNECTION,
+            None,
+            None,
+        )
+    else:
+        bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+
+    proxy = Gio.DBusProxy.new_sync(
+        bus,
         Gio.DBusProxyFlags.NONE,
         None,
         BUS_NAME,
@@ -48,6 +60,10 @@ def __get_proxy():
         INTERFACE,
         None,  # cancellable
     )
+    if proxy.get_name_owner() is None:
+        print("Error: could not rouse {}".format(BUS_NAME), file=sys.stderr, flush=True)
+        exit(posix.EX_UNAVAILABLE)
+    return proxy
 
 
 def command_status(proxy):
@@ -107,6 +123,12 @@ def command_clear_code(proxy):
 def main():
     parser = argparse.ArgumentParser()
     parser.set_defaults(function=command_status)
+    parser.add_argument(
+        "-a",
+        "--bus-address",
+        metavar="ADDRESS",
+        help="Address of the D-Bus daemon to use (default: the system bus)",
+    )
     subparsers = parser.add_subparsers(title="subcommands")
 
     def add_parser(name, function):
@@ -124,11 +146,13 @@ def main():
     add_parser("clear-code", command_clear_code)
 
     args = parser.parse_args()
-    function = args.function
-    del args.function
 
-    proxy = __get_proxy()
-    function(proxy, **vars(args))
+    kwargs = vars(args)
+    function = kwargs.pop("function")
+    bus_address = kwargs.pop("bus_address")
+
+    proxy = __get_proxy(bus_address)
+    function(proxy, **kwargs)
 
 
 if __name__ == "__main__":
