@@ -492,8 +492,11 @@ test_manager_add_infinite_code (Fixture      *fixture,
   EpcCode code;
   g_autofree gchar *code_str = NULL;
   g_autoptr(GError) error = NULL;
-  guint64 expiry_after_code, expiry_after_reload;
+  guint64 expiry_before_code, expiry_after_code, expiry_after_reload;
   gboolean ret;
+
+  expiry_before_code = epg_provider_get_expiry_time (fixture->provider);
+  g_assert_cmpuint (G_MAXUINT64, !=, expiry_before_code);
 
   /* Apply an infinite code. The expiry time should be updated to be infinitely
    * far away. (TODO: or, set Enabled=False in this case?)
