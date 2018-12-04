@@ -2,6 +2,7 @@ libeos_payg_sources = [
   'boottime-source.c',
   'clock.c',
   'errors.c',
+  'fake-clock.c',
   'manager.c',
   'manager-service.c',
   'multi-task.c',
@@ -13,6 +14,7 @@ libeos_payg_sources = [
 libeos_payg_exported_headers = [
   'clock.h',
   'errors.h',
+  'fake-clock.h',
   'multi-task.h',
   'provider.h',
   'real-clock.h'
