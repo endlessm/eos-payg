@@ -36,7 +36,6 @@ struct _EpgProviderInterface
 
   gboolean        (*add_code)   (EpgProvider  *self,
                                  const gchar  *code_str,
-                                 guint64       now_secs,
                                  GError      **error);
   gboolean        (*clear_code) (EpgProvider  *self,
                                  GError      **error);
@@ -59,7 +58,6 @@ struct _EpgProviderInterface
 
 gboolean        epg_provider_add_code   (EpgProvider  *self,
                                          const gchar  *code_str,
-                                         guint64       now_secs,
                                          GError      **error);
 gboolean        epg_provider_clear_code (EpgProvider  *self,
                                          GError      **error);

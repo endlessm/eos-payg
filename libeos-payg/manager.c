@@ -58,7 +58,6 @@ static gboolean epg_manager_init_finish (GAsyncInitable  *initable,
 
 static gboolean    epg_manager_add_code   (EpgProvider  *provider,
                                            const gchar  *code_str,
-                                           guint64       now_secs,
                                            GError      **error);
 static gboolean    epg_manager_clear_code (EpgProvider  *provider,
                                            GError      **error);
@@ -684,8 +683,7 @@ set_expiry_time (EpgManager *self,
  * would overflow, set the expiry time as high as possible. Everything is
  * handled in seconds.
  *
- * @now will typically be the current value of CLOCK_BOOTTIME.
- * It is parameterised to allow easy testing. */
+ * @now will typically be the current value of CLOCK_BOOTTIME. */
 static void
 extend_expiry_time (EpgManager *self,
                     guint64     now_secs,
@@ -799,11 +797,11 @@ used_codes_sort_cb (gconstpointer a,
 static gboolean
 epg_manager_add_code (EpgProvider   *provider,
                       const gchar  *code_str,
-                      guint64       now_secs,
                       GError      **error)
 {
   EpgManager *self = EPG_MANAGER (provider);
   g_autoptr(GError) local_error = NULL;
+  guint64 now_secs;
 
   g_return_val_if_fail (EPG_IS_MANAGER (provider), FALSE);
   g_return_val_if_fail (code_str != NULL, FALSE);
@@ -812,6 +810,7 @@ epg_manager_add_code (EpgProvider   *provider,
   if (!check_enabled (self, error))
     return FALSE;
 
+  now_secs = epg_clock_get_time (self->clock);
   if (!check_rate_limiting (self, now_secs, error))
     return FALSE;
 

@@ -46,7 +46,6 @@ static gboolean epg_test_provider_init_finish (GAsyncInitable  *initable,
 
 static gboolean    epg_test_provider_add_code   (EpgProvider  *provider,
                                                  const gchar  *code_str,
-                                                 guint64       now_secs,
                                                  GError      **error);
 static gboolean    epg_test_provider_clear_code (EpgProvider   *provider,
                                                  GError      **error);
@@ -215,7 +214,6 @@ epg_test_provider_constructed (GObject *object)
 static gboolean
 epg_test_provider_add_code (EpgProvider  *provider,
                             const gchar  *code_str,
-                            guint64       now_secs,
                             GError      **error)
 {
   return TRUE;
