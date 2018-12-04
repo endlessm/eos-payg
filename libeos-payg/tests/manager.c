@@ -440,6 +440,48 @@ test_manager_save_error (Fixture *fixture,
   g_test_assert_expected_messages ();
 }
 
+/* test_manager_extend_expiry:
+ *
+ * Tests that applying a code extends the expiry time, regardless of whether
+ * the current time is before or after the current expiry time.
+ */
+static void
+test_manager_extend_expiry (Fixture *fixture,
+                            gconstpointer data)
+{
+  manager_new (fixture);
+  g_autofree gchar *code_str = NULL;
+  g_autoptr(GError) error = NULL;
+  guint64 expiry_before_code, now, expiry_after_code;
+  gboolean ret;
+  EpgFakeClock *clock;
+
+  /* First test with the current time after the expiration time */
+  clock = (EpgFakeClock *)epg_provider_get_clock (fixture->provider);
+  expiry_before_code = epg_provider_get_expiry_time (fixture->provider);
+  now = expiry_before_code + 5;
+  epg_fake_clock_set_time (clock, now);
+  code_str = get_next_code (fixture);
+  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  g_assert_no_error (error);
+  g_assert_true (ret);
+
+  expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
+  g_assert_cmpint (now + 5, ==, expiry_after_code);
+
+  /* Now test with the current time before the expiration time */
+  expiry_before_code = expiry_after_code;
+  now = epg_clock_get_time (EPG_CLOCK (clock));
+  g_assert_cmpint (now, <, expiry_before_code);
+  code_str = get_next_code (fixture);
+  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  g_assert_no_error (error);
+  g_assert_true (ret);
+
+  expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
+  g_assert_cmpint (expiry_before_code + 5, ==, expiry_after_code);
+}
+
 /* test_manager_add_save_reload:
  *
  * Tests that applying a code (to extend the expiry time), tearing down the
@@ -736,6 +778,7 @@ main (int    argc,
   T ("/manager/load-error/unreadable/used-codes", test_manager_load_error_unreadable, used_codes_offset);
   T ("/manager/save-error/no-codes-applied", test_manager_save_error, GINT_TO_POINTER (FALSE));
   T ("/manager/save-error/codes-applied", test_manager_save_error, GINT_TO_POINTER (TRUE));
+  T ("/manager/extend-expiry", test_manager_extend_expiry, NULL);
   T ("/manager/add-save-reload", test_manager_add_save_reload, NULL);
   T ("/manager/add-infinite", test_manager_add_infinite_code, NULL);
   T ("/manager/error/malformed", test_manager_error_malformed, NULL);
