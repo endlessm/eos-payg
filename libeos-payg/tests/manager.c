@@ -35,7 +35,9 @@ typedef struct _Fixture {
   gchar *tmp_path;
   GFile *tmp_dir;
 
-  gchar *expiry_time_path;
+  gchar *clock_time_path;
+  gchar *expiry_seconds_path;
+  gchar *expiry_time_path; /* for backwards compat only */
   gchar *used_codes_path;
 
   GBytes *key;
@@ -59,6 +61,8 @@ setup (Fixture *fixture,
 
   fixture->tmp_dir = g_file_new_for_path (fixture->tmp_path);
 
+  fixture->clock_time_path = g_build_filename (fixture->tmp_path, "clock-time", NULL);
+  fixture->expiry_seconds_path = g_build_filename (fixture->tmp_path, "expiry-seconds", NULL);
   fixture->expiry_time_path = g_build_filename (fixture->tmp_path, "expiry-time", NULL);
   fixture->used_codes_path = g_build_filename (fixture->tmp_path, "used-codes", NULL);
 
@@ -145,6 +149,8 @@ teardown (Fixture *fixture,
   g_assert_no_error (local_error);
   g_assert_true (ret);
 
+  g_clear_pointer (&fixture->clock_time_path, remove_and_free_path);
+  g_clear_pointer (&fixture->expiry_seconds_path, remove_and_free_path);
   g_clear_pointer (&fixture->expiry_time_path, remove_and_free_path);
   g_clear_pointer (&fixture->used_codes_path, remove_and_free_path);
   g_clear_pointer (&fixture->key_path, remove_and_free_path);
@@ -733,6 +739,10 @@ main (int    argc,
   setlocale (LC_ALL, "");
   g_test_init (&argc, &argv, NULL);
 
+  const gpointer clock_time_offset =
+     GSIZE_TO_POINTER (G_STRUCT_OFFSET (Fixture, clock_time_path));
+  const gpointer expiry_seconds_offset =
+     GSIZE_TO_POINTER (G_STRUCT_OFFSET (Fixture, expiry_seconds_path));
   const gpointer expiry_time_offset =
      GSIZE_TO_POINTER (G_STRUCT_OFFSET (Fixture, expiry_time_path));
   const gpointer used_codes_offset =
@@ -772,6 +782,8 @@ main (int    argc,
   add_many ("/manager/code-format/rejects",
             test_manager_code_format_rejects,
             non_matches);
+  T ("/manager/load-error/malformed/clock-time", test_manager_load_error_malformed, clock_time_offset);
+  T ("/manager/load-error/malformed/expiry-seconds", test_manager_load_error_malformed, expiry_seconds_offset);
   T ("/manager/load-error/malformed/expiry-time", test_manager_load_error_malformed, expiry_time_offset);
   T ("/manager/load-error/malformed/used-codes", test_manager_load_error_malformed, used_codes_offset);
   T ("/manager/load-error/unreadable/expiry-time", test_manager_load_error_unreadable, expiry_time_offset);
