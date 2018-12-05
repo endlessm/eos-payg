@@ -235,16 +235,16 @@ static void
 test_manager_load_empty (Fixture *fixture,
                          gconstpointer data)
 {
-  guint64 start, expiry, end;
+  guint64 expiry, current_time;
+  EpgClock *clock;
 
-  start = g_get_real_time () / G_USEC_PER_SEC;
   manager_new (fixture);
-  end = g_get_real_time () / G_USEC_PER_SEC;
+  clock = epg_provider_get_clock (fixture->provider);
+  current_time = epg_clock_get_time (clock);
 
   /* Default expiry time is "now". */
   expiry = epg_provider_get_expiry_time (fixture->provider);
-  g_assert_cmpuint (start, <=, expiry);
-  g_assert_cmpuint (expiry, <=, end);
+  g_assert_cmpuint (expiry, <=, current_time);
 }
 
 static GRegex *
