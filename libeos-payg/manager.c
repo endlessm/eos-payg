@@ -1042,6 +1042,12 @@ file_load_cb (GObject      *source_object,
   GCancellable *cancellable = g_task_get_cancellable (task);
   EpgManager *self = g_task_get_source_object (task);
   g_autoptr(GError) local_error = NULL;
+  g_autoptr(GError) invalid_data_error = NULL;
+  g_autofree gchar *file_path = g_file_get_path (file);
+
+  invalid_data_error = g_error_new (G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
+                                    _("State file ‘%s’ was the wrong length."),
+                                    file_path);
 
   guint64 now_secs = epg_clock_get_time (self->clock);
   guint64 wallclock_now_secs = epg_clock_get_wallclock_time (self->clock);
@@ -1091,6 +1097,7 @@ file_load_cb (GObject      *source_object,
           if (data_len != sizeof (self->last_save_time_secs))
             {
               epg_multi_task_increment (task);
+              g_task_set_task_data (task, g_steal_pointer (&invalid_data_error), (GDestroyNotify)g_error_free);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -1117,6 +1124,7 @@ file_load_cb (GObject      *source_object,
           if (data_len != sizeof (wallclock_expiry_time_secs))
             {
               epg_multi_task_increment (task);
+              g_task_set_task_data (task, g_steal_pointer (&invalid_data_error), (GDestroyNotify)g_error_free);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -1151,6 +1159,7 @@ file_load_cb (GObject      *source_object,
           if (data_len != sizeof (self->last_save_expiry_secs))
             {
               epg_multi_task_increment (task);
+              g_task_set_task_data (task, g_steal_pointer (&invalid_data_error), (GDestroyNotify)g_error_free);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -1175,6 +1184,7 @@ file_load_cb (GObject      *source_object,
           if ((data_len % sizeof (UsedCode)) != 0)
             {
               epg_multi_task_increment (task);
+              g_task_set_task_data (task, g_steal_pointer (&invalid_data_error), (GDestroyNotify)g_error_free);
               g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                    file_load_delete_cb, g_object_ref (task));
               return;
@@ -1200,6 +1210,7 @@ file_load_cb (GObject      *source_object,
               if (!epc_period_validate (used_code->period, &local_error))
                 {
                   epg_multi_task_increment (task);
+                  g_task_set_task_data (task, g_steal_pointer (&invalid_data_error), (GDestroyNotify)g_error_free);
                   g_file_delete_async (file, G_PRIORITY_DEFAULT, cancellable,
                                        file_load_delete_cb, g_object_ref (task));
                   return;
@@ -1273,28 +1284,23 @@ file_load_delete_cb (GObject      *source_object,
   g_autoptr(GError) local_error = NULL;
   EpgManager *self = g_task_get_source_object (task);
   g_autoptr(GFile) expiry_time_file = get_expiry_time_file (self);
+  GError *error = g_task_get_task_data (task);
 
-  /* Log any error, but don’t propagate it since we’re already returning an
-   * error due to the file being the wrong length. */
+  /* If we’re already returning an error that was set earlier, just
+   * log this new error. */
   if (!g_file_delete_finish (file, result, &local_error) &&
       !g_error_matches (local_error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
-    g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
-
-  /* The expiry-time file is likely being deleted to migrate to using clock-time
-   * and expiry-seconds instead */
-  if (!g_file_equal (file, expiry_time_file))
     {
-      g_autofree gchar *file_path = g_file_get_path (file);
-
-      g_clear_error (&local_error);
-      local_error = g_error_new (G_IO_ERROR, G_IO_ERROR_INVALID_DATA,
-                                 _("State file ‘%s’ was the wrong length."),
-                                 file_path);
+      if (error == NULL)
+        error = local_error;
+      else
+        g_debug ("%s: Error: %s", G_STRFUNC, local_error->message);
     }
-  else if (local_error == NULL)
+
+  if (error == NULL)
     epg_multi_task_return_boolean (task, TRUE);
 
-  epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
+  epg_multi_task_return_error (task, G_STRFUNC, g_error_copy (error));
 }
 
 /*

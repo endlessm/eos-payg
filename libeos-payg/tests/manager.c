@@ -325,6 +325,21 @@ test_manager_code_format_rejects (Fixture *fixture,
   g_assert_false (g_match_info_is_partial_match (match_info));
 }
 
+static void
+write_valid_clock_time_file (Fixture *fixture)
+{
+  guint64 current_time = g_get_real_time () / G_USEC_PER_SEC;
+  gboolean ret;
+  g_autoptr(GError) error = NULL;
+
+  ret = g_file_set_contents (fixture->clock_time_path,
+                             (char *)&current_time,
+                             sizeof (current_time),
+                             &error);
+  g_assert_no_error (error);
+  g_assert_true (ret);
+}
+
 /* test_manager_load_error_malformed:
  * @data: offset within Fixture of the path to a state file, which will be
  * initialized to an invalid value
@@ -347,6 +362,10 @@ test_manager_load_error_malformed (Fixture *fixture,
   ret = g_file_set_contents (path_p, "X", 1, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
+
+  /* expiry-seconds is a special case because it is only read if clock-time exists */
+  if (g_strcmp0 (path_p, fixture->expiry_seconds_path) == 0)
+    write_valid_clock_time_file (fixture);
 
   manager_new_failable (fixture, TRUE, &error);
   g_assert_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_DATA);
