@@ -14,14 +14,57 @@ libeos_payg_exported_headers = [
 ]
 libeos_payg_headers = libeos_payg_exported_headers + [
   'manager.h',
-  'manager-interface.h',
   'manager-service.h',
   'provider-loader.h',
   'service.h',
 ]
 
+# FIXME: once we can depend on gio >= 2.58.3 (earlier point releases aren't
+# enough, due to https://gitlab.gnome.org/GNOME/glib/merge_requests/514),
+# make this required, delete the fallback block, and delete the checked-in
+# copies of manager-interface.[ch].
+gio_dep = dependency('gio-2.0', version: '>= 2.58.3', required: false)
+if gio_dep.found()
+  warning('Looks like Endless now has GLib >= 2.58.3; please update libeos-payg/meson.build accordingly')
+
+  # TODO: add --interface-info-{header,body} support to Meson's 'gnome' module?
+  gdbus_codegen = gio_dep.get_pkgconfig_variable('gdbus_codegen')
+
+  manager_interface_c = custom_target('manager-interface-c',
+    input: ['com.endlessm.Payg1.xml'],
+    output: ['manager-interface.c'],
+    command: [gdbus_codegen, '--interface-info-body',
+              '--output', '@OUTPUT@',
+              '--interface-prefix', 'com.endlessm',
+              '--c-namespace', 'epg',
+              '--pragma-once',
+              '@INPUT@'])
+  libeos_payg_sources += [manager_interface_c]
+
+  manager_interface_h = custom_target('manager-interface-h',
+    input: ['com.endlessm.Payg1.xml'],
+    output: ['manager-interface.h'],
+    command: [gdbus_codegen, '--interface-info-header',
+              '--output', '@OUTPUT@',
+              '--interface-prefix', 'com.endlessm',
+              '--c-namespace', 'epg',
+              '--pragma-once',
+              '@INPUT@'])
+  libeos_payg_headers += [manager_interface_h]
+
+  diff = find_program('diff')
+  test('generated header matches',
+    diff, args: files('manager-interface.h') + [manager_interface_h])
+  test('generated body matches',
+    diff, args: files('manager-interface.c') + [manager_interface_c])
+else
+  gio_dep = dependency('gio-2.0', version: '>= 2.54')
+  libeos_payg_sources += ['manager-interface.c']
+  libeos_payg_headers += ['manager-interface.h']
+endif
+
 libeos_payg_deps = [
-  dependency('gio-2.0', version: '>= 2.46'),
+  gio_dep,
   dependency('glib-2.0', version: '>= 2.54'),
   dependency('gobject-2.0', version: '>= 2.54'),
   dependency('libpeas-1.0'),

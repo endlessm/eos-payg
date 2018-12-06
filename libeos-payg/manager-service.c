@@ -437,7 +437,7 @@ epg_manager_service_entry_introspect (GDBusConnection *connection,
     {
       /* The root node implements the manager only. */
       interfaces = g_new0 (GDBusInterfaceInfo *, 2);
-      interfaces[0] = (GDBusInterfaceInfo *) &manager_interface;
+      interfaces[0] = (GDBusInterfaceInfo *) &epg_payg1_interface;
       interfaces[1] = NULL;
     }
 
@@ -520,11 +520,6 @@ manager_methods[] =
       epg_manager_service_manager_clear_code },
   };
 
-G_STATIC_ASSERT (G_N_ELEMENTS (manager_methods) ==
-                 G_N_ELEMENTS (manager_interface_methods) +
-                 -1  /* NULL terminator */ +
-                 3  /* o.fdo.DBus.Properties */);
-
 static void
 epg_manager_service_manager_method_call (GDBusConnection       *connection,
                                          const gchar           *sender,
@@ -558,7 +553,8 @@ epg_manager_service_manager_method_call (GDBusConnection       *connection,
 
   /* Make sure we actually called a method implementation. GIO guarantees that
    * this function is only called with methods we’ve declared in the interface
-   * info, so this should never fail. */
+   * info, so this should never fail (unless we forgot to implement one of the
+   * methods on the interface). */
   g_assert_not_reached ();
 }
 
@@ -596,10 +592,6 @@ manager_properties[] =
     { "com.endlessm.Payg1", "CodeFormat", "code-format",
       epg_manager_service_manager_get_code_format, NULL  /* read-only */ },
   };
-
-G_STATIC_ASSERT (G_N_ELEMENTS (manager_properties) ==
-                 G_N_ELEMENTS (manager_interface_properties) +
-                 -1  /* NULL terminator */);
 
 static void
 epg_manager_service_manager_properties_get (EpgManagerService     *self,
