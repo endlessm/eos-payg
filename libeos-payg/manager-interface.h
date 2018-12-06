@@ -12,5 +12,6 @@
 G_BEGIN_DECLS
 
 extern const GDBusInterfaceInfo epg_payg1_interface;
+extern const GDBusInterfaceInfo epg_payg1_provisioning_interface;
 
 G_END_DECLS

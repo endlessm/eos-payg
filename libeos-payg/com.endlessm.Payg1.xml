@@ -34,4 +34,14 @@
     <property name="ExpiryTime" type="t" access="read"/>
     <property name="RateLimitEndTime" type="t" access="read"/>
   </interface>
+
+  <interface name="com.endlessm.Payg1.Provisioning">
+    <method name="Provision">
+      <arg type="s" name="provider" direction="in"/>
+      <arg type="a{sv}" name="options" direction="in"/>
+    </method>
+
+    <property name="Provider" type="s" access="read"/>
+    <property name="Provisioned" type="b" access="read"/>
+  </interface>
 </node>

@@ -124,3 +124,79 @@ const GDBusInterfaceInfo epg_payg1_interface =
   NULL,  /* no annotations */
 };
 
+/* ------------------------------------------------------------------------ */
+/* Definitions for com.endlessm.Payg1.Provisioning */
+
+const GDBusArgInfo epg_payg1_provisioning_interface__provision_method_in_args__provider_arg =
+{
+  -1,  /* ref count */
+  (gchar *) "provider",
+  (gchar *) "s",
+  NULL,  /* no annotations */
+};
+
+const GDBusArgInfo epg_payg1_provisioning_interface__provision_method_in_args__options_arg =
+{
+  -1,  /* ref count */
+  (gchar *) "options",
+  (gchar *) "a{sv}",
+  NULL,  /* no annotations */
+};
+
+const GDBusArgInfo * const epg_payg1_provisioning_interface__provision_method_in_args[] =
+{
+  &epg_payg1_provisioning_interface__provision_method_in_args__options_arg,
+  &epg_payg1_provisioning_interface__provision_method_in_args__provider_arg,
+  NULL,
+};
+
+const GDBusMethodInfo epg_payg1_provisioning_interface__provision_method =
+{
+  -1,  /* ref count */
+  (gchar *) "Provision",
+  (GDBusArgInfo **) epg_payg1_provisioning_interface__provision_method_in_args,
+  NULL,  /* no out args */
+  NULL,  /* no annotations */
+};
+
+const GDBusMethodInfo * const epg_payg1_provisioning_interface_methods[] =
+{
+  &epg_payg1_provisioning_interface__provision_method,
+  NULL,
+};
+
+const GDBusPropertyInfo epg_payg1_provisioning_interface__provider_property =
+{
+  -1,  /* ref count */
+  (gchar *) "Provider",
+  (gchar *) "s",
+  G_DBUS_PROPERTY_INFO_FLAGS_READABLE,
+  NULL,  /* no annotations */
+};
+
+const GDBusPropertyInfo epg_payg1_provisioning_interface__provisioned_property =
+{
+  -1,  /* ref count */
+  (gchar *) "Provisioned",
+  (gchar *) "b",
+  G_DBUS_PROPERTY_INFO_FLAGS_READABLE,
+  NULL,  /* no annotations */
+};
+
+const GDBusPropertyInfo * const epg_payg1_provisioning_interface_properties[] =
+{
+  &epg_payg1_provisioning_interface__provider_property,
+  &epg_payg1_provisioning_interface__provisioned_property,
+  NULL,
+};
+
+const GDBusInterfaceInfo epg_payg1_provisioning_interface =
+{
+  -1,  /* ref count */
+  (gchar *) "com.endlessm.Payg1.Provisioning",
+  (GDBusMethodInfo **) epg_payg1_provisioning_interface_methods,
+  NULL,  /* no signals */
+  (GDBusPropertyInfo **) epg_payg1_provisioning_interface_properties,
+  NULL,  /* no annotations */
+};
+
