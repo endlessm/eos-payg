@@ -138,12 +138,4 @@ static const GDBusInterfaceInfo manager_interface =
   NULL,  /* no annotations */
 };
 
-static const gchar *manager_errors[] =
-{
-  "com.endlessm.Payg1.Error.InvalidCode",
-  "com.endlessm.Payg1.Error.CodeAlreadyUsed",
-  "com.endlessm.Payg1.Error.TooManyAttempts",
-  "com.endlessm.Payg1.Error.Disabled",
-};
-
 G_END_DECLS
