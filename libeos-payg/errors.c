@@ -25,3 +25,4 @@
 
 /* These errors do go over the bus, and are registered in manager-service.c. */
 G_DEFINE_QUARK (EpgManagerError, epg_manager_error)
+G_DEFINE_QUARK (EpgProvisioningError, epg_provisioning_error)

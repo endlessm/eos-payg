@@ -90,6 +90,12 @@ static void epg_manager_service_manager_clear_code         (EpgManagerService   
                                                             GVariant              *parameters,
                                                             GDBusMethodInvocation *invocation);
 
+static void epg_manager_service_provisioning_provision     (EpgManagerService     *self,
+                                                            GDBusConnection       *connection,
+                                                            const gchar           *sender,
+                                                            GVariant              *parameters,
+                                                            GDBusMethodInvocation *invocation);
+
 static GVariant *epg_manager_service_manager_get_expiry_time (EpgManagerService     *self,
                                                               GDBusConnection       *connection,
                                                               const gchar           *sender,
@@ -115,6 +121,13 @@ static GVariant *epg_manager_service_manager_get_code_format (EpgManagerService 
                                                               const gchar           *property_name,
                                                               GDBusMethodInvocation *invocation);
 
+static GVariant *epg_manager_service_provisioning_get_provider (EpgManagerService     *self,
+                                                                GDBusConnection       *connection,
+                                                                const gchar           *sender,
+                                                                const gchar           *interface_name,
+                                                                const gchar           *property_name,
+                                                                GDBusMethodInvocation *invocation);
+
 static void expired_cb (EpgProvider *provider,
                         gpointer     user_data);
 static void notify_cb  (GObject    *obj,
@@ -133,6 +146,17 @@ static const GDBusErrorEntry manager_error_map[] =
       "com.endlessm.Payg1.Error.Disabled" },
   };
 G_STATIC_ASSERT (G_N_ELEMENTS (manager_error_map) == EPG_MANAGER_N_ERRORS);
+
+static const GDBusErrorEntry provisioning_error_map[] =
+  {
+    { EPG_PROVISIONING_ERROR_ALREADY_PROVISIONED,
+      "com.endlessm.Payg1.Provisioning.Error.AlreadyProvisioned" },
+    { EPG_PROVISIONING_ERROR_NOT_FOUND,
+      "com.endlessm.Payg1.Provisioning.Error.NotFound" },
+    { EPG_PROVISIONING_ERROR_NOT_SUPPORTED,
+      "com.endlessm.Payg1.Provisioning.Error.NotSupported" },
+  };
+G_STATIC_ASSERT (G_N_ELEMENTS (provisioning_error_map) == EPG_PROVISIONING_N_ERRORS);
 
 /**
  * EpgManagerService:
@@ -234,6 +258,10 @@ epg_manager_service_class_init (EpgManagerServiceClass *klass)
     g_dbus_error_register_error (EPG_MANAGER_ERROR,
                                  manager_error_map[i].error_code,
                                  manager_error_map[i].dbus_error_name);
+  for (gsize i = 0; i < G_N_ELEMENTS (provisioning_error_map); i++)
+    g_dbus_error_register_error (EPG_PROVISIONING_ERROR,
+                                 provisioning_error_map[i].error_code,
+                                 provisioning_error_map[i].dbus_error_name);
 }
 
 static void
@@ -436,9 +464,10 @@ epg_manager_service_entry_introspect (GDBusConnection *connection,
   if (node == NULL)
     {
       /* The root node implements the manager only. */
-      interfaces = g_new0 (GDBusInterfaceInfo *, 2);
+      interfaces = g_new0 (GDBusInterfaceInfo *, 3);
       interfaces[0] = (GDBusInterfaceInfo *) &epg_payg1_interface;
-      interfaces[1] = NULL;
+      interfaces[1] = (GDBusInterfaceInfo *) &epg_payg1_provisioning_interface;
+      interfaces[2] = NULL;
     }
 
   return g_steal_pointer (&interfaces);
@@ -465,7 +494,8 @@ epg_manager_service_entry_dispatch (GDBusConnection *connection,
 
   /* Manager is implemented on the root of the tree. */
   if (node == NULL &&
-      g_str_equal (interface_name, "com.endlessm.Payg1"))
+      (g_str_equal (interface_name, "com.endlessm.Payg1") ||
+       g_str_equal (interface_name, "com.endlessm.Payg1.Provisioning")))
     {
       *out_user_data = user_data;
       return &manager_interface_vtable;
@@ -518,6 +548,10 @@ manager_methods[] =
       epg_manager_service_manager_add_code },
     { "com.endlessm.Payg1", "ClearCode",
       epg_manager_service_manager_clear_code },
+
+    /* Provisioning methods. */
+    { "com.endlessm.Payg1.Provisioning", "Provision",
+      epg_manager_service_provisioning_provision },
   };
 
 static void
@@ -591,6 +625,11 @@ manager_properties[] =
       epg_manager_service_manager_get_rate_limit_end_time, NULL  /* read-only */ },
     { "com.endlessm.Payg1", "CodeFormat", "code-format",
       epg_manager_service_manager_get_code_format, NULL  /* read-only */ },
+
+    /* Provisioning properties. */
+    { "com.endlessm.Payg1.Provisioning", "Provider",
+      NULL  /* Doesn't change on any given EpgProvider interface */,
+      epg_manager_service_provisioning_get_provider, NULL  /* read-only */ },
   };
 
 static void
@@ -730,7 +769,7 @@ notify_cb (GObject    *obj,
     {
       const gchar *object_property_name = manager_properties[i].object_property_name;
 
-      if (g_str_equal (g_param_spec_get_name (pspec), object_property_name))
+      if (g_strcmp0 (g_param_spec_get_name (pspec), object_property_name) == 0)
         break;
     }
 
@@ -818,6 +857,17 @@ epg_manager_service_manager_get_code_format (EpgManagerService     *self,
   return g_variant_new_string (epg_provider_get_code_format (self->provider));
 }
 
+static GVariant *
+epg_manager_service_provisioning_get_provider (EpgManagerService     *self,
+                                               GDBusConnection       *connection,
+                                               const gchar           *sender,
+                                               const gchar           *interface_name,
+                                               const gchar           *property_name,
+                                               GDBusMethodInvocation *invocation)
+{
+  return g_variant_new_string (epg_provider_get_name (self->provider));
+}
+
 static void
 epg_manager_service_manager_add_code (EpgManagerService     *self,
                                       GDBusConnection       *connection,
@@ -854,6 +904,42 @@ epg_manager_service_manager_clear_code (EpgManagerService     *self,
     g_dbus_method_invocation_return_gerror (invocation, local_error);
   else
     g_dbus_method_invocation_return_value (invocation, NULL);
+}
+
+static void
+epg_manager_service_provisioning_provision (EpgManagerService     *self,
+                                            GDBusConnection       *connection,
+                                            const gchar           *sender,
+                                            GVariant              *parameters,
+                                            GDBusMethodInvocation *invocation)
+{
+  const gchar *provider_name;
+  GVariant *options;
+  g_variant_get (parameters, "(&s@a{sv})", &provider_name, &options);
+
+  /* TODO: Find the named provider and instantiate it. This is a bit tricky to
+   * do without duplicating the loading logic from provider-loader or service
+   * but options include:
+   *   - call directly into provider-loader from here
+   *     and float the fallback logic into it
+   *   - emit a signal to request an un-init'd object from service.c and call
+   *     init_async on it here
+   */
+  if (g_strcmp0 (epg_provider_get_name (self->provider), provider_name) != 0)
+    {
+      g_dbus_method_invocation_return_error (invocation,
+                                             EPG_PROVISIONING_ERROR,
+                                             EPG_PROVISIONING_ERROR_NOT_SUPPORTED,
+                                             "Requested '%s' but '%s' is in use",
+                                             provider_name,
+                                             epg_provider_get_name (self->provider));
+      return;
+    }
+
+  g_dbus_method_invocation_return_error (invocation,
+                                         EPG_PROVISIONING_ERROR,
+                                         EPG_PROVISIONING_ERROR_NOT_SUPPORTED,
+                                         "Oh no");
 }
 
 /**

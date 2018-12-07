@@ -49,4 +49,27 @@ typedef enum
 GQuark epg_manager_error_quark (void);
 #define EPG_MANAGER_ERROR epg_manager_error_quark ()
 
+/**
+ * EpgProvisioningError:
+ * @EPG_PROVISIONING_ERROR_ALREADY_PROVISIONED: The device is already
+ *    provisioned
+ * @EPG_PROVISIONING_ERROR_NOT_FOUND: The requested PAYG provider was not found
+ * @EPG_PROVISIONING_ERROR_NOT_SUPPORTED: The requested PAYG provider does not
+ *    support provisioning
+ *
+ * Errors which can be returned during provisioning.
+ *
+ * Since: X.Y.Z
+ */
+typedef enum
+{
+  EPG_PROVISIONING_ERROR_ALREADY_PROVISIONED = 0,
+  EPG_PROVISIONING_ERROR_NOT_FOUND,
+  EPG_PROVISIONING_ERROR_NOT_SUPPORTED,
+} EpgProvisioningError;
+#define EPG_PROVISIONING_N_ERRORS (EPG_PROVISIONING_ERROR_NOT_SUPPORTED + 1)
+
+GQuark epg_provisioning_error_quark (void);
+#define EPG_PROVISIONING_ERROR epg_provisioning_error_quark ()
+
 G_END_DECLS

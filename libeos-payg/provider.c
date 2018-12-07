@@ -345,3 +345,24 @@ epg_provider_get_code_format (EpgProvider *self)
 
   return iface->code_format;
 }
+
+/**
+ * epg_provider_get_name:
+ * @self: a #EpgProvider
+ *
+ * Gets the value of #EpgProviderInterface.name, defaulting to
+ * G_OBJECT_TYPE_NAME() of @self if that field is %NULL.
+ *
+ * Returns: the name of this provider
+ */
+const gchar *
+epg_provider_get_name (EpgProvider *self)
+{
+  g_return_val_if_fail (EPG_IS_PROVIDER (self), NULL);
+
+  EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
+
+  g_return_val_if_fail (iface->name != NULL, G_OBJECT_TYPE_NAME (self));
+
+  return iface->name;
+}

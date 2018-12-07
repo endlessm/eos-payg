@@ -261,6 +261,7 @@ epg_manager_provider_iface_init (gpointer g_iface,
   iface->get_enabled = epg_manager_get_enabled;
   iface->get_rate_limit_end_time = epg_manager_get_rate_limit_end_time;
 
+  iface->name = "com.endlessm.Payg1.Endless";
   iface->code_format = "^[0-9]{8}$";
 }
 

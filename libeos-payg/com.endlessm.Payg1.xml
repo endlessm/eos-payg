@@ -42,6 +42,5 @@
     </method>
 
     <property name="Provider" type="s" access="read"/>
-    <property name="Provisioned" type="b" access="read"/>
   </interface>
 </node>

@@ -52,6 +52,7 @@ struct _EpgProviderInterface
   guint64         (*get_rate_limit_end_time) (EpgProvider *self);
 
   const gchar *     code_format;
+  const gchar *     name;
 };
 
 gboolean        epg_provider_add_code   (EpgProvider  *self,
@@ -73,5 +74,6 @@ guint64         epg_provider_get_expiry_time         (EpgProvider *self);
 gboolean        epg_provider_get_enabled             (EpgProvider *self);
 guint64         epg_provider_get_rate_limit_end_time (EpgProvider *self);
 const gchar *   epg_provider_get_code_format         (EpgProvider *self);
+const gchar *   epg_provider_get_name                (EpgProvider *self);
 
 G_END_DECLS
