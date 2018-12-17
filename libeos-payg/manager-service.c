@@ -835,16 +835,17 @@ epg_manager_service_manager_add_code (EpgManagerService     *self,
                                       GDBusMethodInvocation *invocation)
 {
   g_autoptr(GError) local_error = NULL;
+  gint64 time_added = 0;
 
   const gchar *code_str;
   g_variant_get (parameters, "(&s)", &code_str);
 
-  epg_provider_add_code (self->provider, code_str, &local_error);
+  epg_provider_add_code (self->provider, code_str, &time_added, &local_error);
 
   if (local_error != NULL)
     g_dbus_method_invocation_return_gerror (invocation, local_error);
   else
-    g_dbus_method_invocation_return_value (invocation, NULL);
+    g_dbus_method_invocation_return_value (invocation, g_variant_new ("(x)", time_added));
 }
 
 static void

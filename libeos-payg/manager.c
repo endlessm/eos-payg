@@ -58,6 +58,7 @@ static gboolean epg_manager_init_finish (GAsyncInitable  *initable,
 
 static gboolean    epg_manager_add_code   (EpgProvider  *provider,
                                            const gchar  *code_str,
+                                           gint64       *time_added,
                                            GError      **error);
 static gboolean    epg_manager_clear_code (EpgProvider  *provider,
                                            GError      **error);
@@ -714,7 +715,7 @@ set_expiry_time (EpgManager *self,
  * handled in seconds.
  *
  * @now_secs will typically be the current value of CLOCK_BOOTTIME. */
-static void
+static gint64
 extend_expiry_time (EpgManager *self,
                     guint64     now_secs,
                     EpcPeriod   period)
@@ -806,6 +807,8 @@ extend_expiry_time (EpgManager *self,
     }
 
   set_expiry_time (self, NULL, FALSE, now_secs, span_secs);
+
+  return MIN(span_secs, G_MAXINT64);
 }
 
 static gint
@@ -827,6 +830,7 @@ used_codes_sort_cb (gconstpointer a,
 static gboolean
 epg_manager_add_code (EpgProvider   *provider,
                       const gchar  *code_str,
+                      gint64       *time_added,
                       GError      **error)
 {
   EpgManager *self = EPG_MANAGER (provider);
@@ -835,6 +839,7 @@ epg_manager_add_code (EpgProvider   *provider,
 
   g_return_val_if_fail (EPG_IS_MANAGER (provider), FALSE);
   g_return_val_if_fail (code_str != NULL, FALSE);
+  g_return_val_if_fail (time_added != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   if (!check_enabled (self, error))
@@ -880,7 +885,7 @@ epg_manager_add_code (EpgProvider   *provider,
   g_array_sort (self->used_codes, used_codes_sort_cb);
 
   /* Extend the expiry time. */
-  extend_expiry_time (self, now_secs, period);
+  *time_added = extend_expiry_time (self, now_secs, period);
 
   /* Reset the rate limiting history, since the code was successful. */
   clear_rate_limiting (self);

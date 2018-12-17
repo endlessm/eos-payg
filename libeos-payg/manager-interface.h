@@ -38,10 +38,22 @@ static const GDBusArgInfo manager_interface_add_code_arg_code =
   (gchar *) "s",
   NULL
 };
+static const GDBusArgInfo manager_interface_add_code_arg_time_added =
+{
+  -1,  /* ref count */
+  (gchar *) "time_added",
+  (gchar *) "x",
+  NULL
+};
 
 static const GDBusArgInfo *manager_interface_add_code_in_args[] =
 {
   &manager_interface_add_code_arg_code,
+  NULL,
+};
+static const GDBusArgInfo *manager_interface_add_code_out_args[] =
+{
+  &manager_interface_add_code_arg_time_added,
   NULL,
 };
 static const GDBusMethodInfo manager_interface_add_code =
@@ -49,7 +61,7 @@ static const GDBusMethodInfo manager_interface_add_code =
   -1,  /* ref count */
   (gchar *) "AddCode",
   (GDBusArgInfo **) manager_interface_add_code_in_args,
-  NULL,  /* out args */
+  (GDBusArgInfo **) manager_interface_add_code_out_args,
   NULL,  /* annotations */
 };
 

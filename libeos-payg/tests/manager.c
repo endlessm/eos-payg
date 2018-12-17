@@ -212,6 +212,7 @@ test_manager_disabled (Fixture *fixture,
     remove_path (fixture->key_path);
 
   g_autoptr(GError) error = NULL;
+  gint64 time_added = 0;
 
   manager_new_failable (fixture, initially_enabled, &error);
   g_assert_no_error (error);
@@ -221,9 +222,10 @@ test_manager_disabled (Fixture *fixture,
   g_assert_cmpuint (0, ==, epg_provider_get_expiry_time (fixture->provider));
   g_assert_cmpuint (0, ==, epg_provider_get_rate_limit_end_time (fixture->provider));
 
-  ret = epg_provider_add_code (fixture->provider, "00000000", &error);
+  ret = epg_provider_add_code (fixture->provider, "00000000", &time_added, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_DISABLED);
   g_assert_false (ret);
+  g_assert_cmpuint (0, ==, time_added);
   g_clear_error (&error);
 
   ret = epg_provider_clear_code (fixture->provider, &error);
@@ -436,6 +438,7 @@ test_manager_save_error (Fixture *fixture,
   gboolean apply_code = GPOINTER_TO_INT (data);
   manager_new (fixture);
   g_autoptr(GError) error = NULL;
+  gint64 time_added = 0;
   gboolean ret;
 
   /* Sabotage any future attempts to save state. */
@@ -454,7 +457,7 @@ test_manager_save_error (Fixture *fixture,
        */
       g_test_expect_message (G_LOG_DOMAIN, G_LOG_LEVEL_WARNING,
                              "*save_state failed:*");
-      ret = epg_provider_add_code (fixture->provider, code_str, &error);
+      ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
       g_assert_no_error (error);
       g_assert_true (ret);
     }
@@ -479,6 +482,7 @@ test_manager_extend_expiry (Fixture *fixture,
   manager_new (fixture);
   g_autofree gchar *code_str = NULL;
   g_autoptr(GError) error = NULL;
+  gint64 time_added = 0;
   guint64 expiry_before_code, now, expiry_after_code;
   gboolean ret;
   EpgFakeClock *clock;
@@ -489,24 +493,26 @@ test_manager_extend_expiry (Fixture *fixture,
   now = expiry_before_code + 5;
   epg_fake_clock_set_time (clock, now);
   code_str = get_next_code (fixture);
-  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
   expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
   g_assert_cmpint (now + 5, ==, expiry_after_code);
+  g_assert_cmpint (5, ==, time_added);
 
   /* Now test with the current time before the expiration time */
   expiry_before_code = expiry_after_code;
   now = epg_clock_get_time (EPG_CLOCK (clock));
   g_assert_cmpint (now, <, expiry_before_code);
   code_str = get_next_code (fixture);
-  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
   expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
   g_assert_cmpint (expiry_before_code + 5, ==, expiry_after_code);
+  g_assert_cmpint (5, ==, time_added);
 }
 
 /* test_manager_add_save_reload:
@@ -521,6 +527,7 @@ test_manager_add_save_reload (Fixture *fixture,
   manager_new (fixture);
   g_autofree gchar *code_str = NULL;
   g_autoptr(GError) error = NULL;
+  gint64 time_added = 0;
   guint64 expiry_before_code, expiry_after_code, expiry_after_reload;
   gboolean ret;
 
@@ -528,12 +535,13 @@ test_manager_add_save_reload (Fixture *fixture,
 
   code_str = get_next_code (fixture);
 
-  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
   expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
   g_assert_cmpint (expiry_before_code + 5, ==, expiry_after_code);
+  g_assert_cmpint (5, ==, time_added);
 
   /* Adding the code kicks off an async save, but we can't be sure it will have
    * finished before we re-load the files. Force the issue here.
@@ -561,6 +569,7 @@ test_manager_add_infinite_code (Fixture      *fixture,
   EpcCode code;
   g_autofree gchar *code_str = NULL;
   g_autoptr(GError) error = NULL;
+  gint64 time_added = 0;
   guint64 expiry_before_code, expiry_after_code, expiry_after_reload;
   gboolean ret;
 
@@ -574,24 +583,26 @@ test_manager_add_infinite_code (Fixture      *fixture,
   g_assert_no_error (error);
   code_str = epc_format_code (code);
 
-  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
   expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
   g_assert_cmpint (G_MAXUINT64, ==, expiry_after_code);
+  g_assert_cmpint (G_MAXINT64, ==, time_added);
 
   /* Apply a 5-second code. It should have no effect: the expiry time should be
    * clamped to infinitely far away.
    */
   g_clear_pointer (&code_str, g_free);
   code_str = get_next_code (fixture);
-  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
   expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
   g_assert_cmpint (G_MAXUINT64, ==, expiry_after_code);
+  g_assert_cmpint (5, ==, time_added);
 
   /* Tear down and restart. */
   ret = shutdown (fixture, &error);
@@ -614,18 +625,20 @@ test_manager_error_malformed (Fixture *fixture,
 {
   manager_new (fixture);
   g_autoptr(GError) error = NULL;
+  gint64 time_added = 0;
   guint64 expiry, expiry_after_code;
   gboolean ret;
 
   expiry = epg_provider_get_expiry_time (fixture->provider);
 
   /* Just use an obviously-wrong code. The nuances are tested in libeos-payg-codes. */
-  ret = epg_provider_add_code (fixture->provider, "abcdefgh", &error);
+  ret = epg_provider_add_code (fixture->provider, "abcdefgh", &time_added, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_INVALID_CODE);
   g_assert_false (ret);
 
   expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
   g_assert_cmpint (expiry, ==, expiry_after_code);
+  g_assert_cmpint (time_added, ==, 0);
 }
 
 /* test_manager_error_reused:
@@ -640,13 +653,14 @@ test_manager_error_reused (Fixture *fixture,
   manager_new (fixture);
   g_autofree gchar *code_str = get_next_code (fixture);
   g_autoptr(GError) error = NULL;
+  gint64 time_added = 0;
   guint64 expiry_before_code, expiry_after_code;
   gboolean ret;
   EpgFakeClock *clock;
 
   expiry_before_code = epg_provider_get_expiry_time (fixture->provider);
 
-  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
@@ -654,7 +668,7 @@ test_manager_error_reused (Fixture *fixture,
   g_assert_cmpint (expiry_before_code + 5, ==, expiry_after_code);
 
   /* Test that the code is rejected before the last application expires */
-  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_CODE_ALREADY_USED);
   g_assert_false (ret);
 
@@ -665,7 +679,7 @@ test_manager_error_reused (Fixture *fixture,
   epg_fake_clock_set_time (clock, expiry_after_code + 5);
 
   g_clear_error (&error);
-  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_CODE_ALREADY_USED);
   g_assert_false (ret);
 
@@ -686,6 +700,7 @@ test_manager_error_rate_limit (Fixture *fixture,
   manager_new (fixture);
 
   g_autoptr(GError) error = NULL;
+  gint64 time_added = 0;
   g_autofree gchar *code_str = NULL;
   /* Avoid hardcoding the actual limit, but surely it should be less than this */
   int attempts_remaining = 100;
@@ -700,9 +715,10 @@ test_manager_error_rate_limit (Fixture *fixture,
     {
       g_clear_pointer (&code_str, g_free);
       code_str = get_next_code (fixture);
-      ret = epg_provider_add_code (fixture->provider, code_str, &error);
+      ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
       g_assert_no_error (error);
       g_assert_true (ret);
+      g_assert_cmpint (5, ==, time_added);
     }
 
   expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
@@ -712,7 +728,7 @@ test_manager_error_rate_limit (Fixture *fixture,
   do
     {
       g_clear_error (&error);
-      ret = epg_provider_add_code (fixture->provider, code_str, &error);
+      ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
       g_assert_false (ret);
   }
   while (g_error_matches (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_CODE_ALREADY_USED) &&
@@ -726,7 +742,7 @@ test_manager_error_rate_limit (Fixture *fixture,
 
   /* The code is valid, but trying to use it should still fail because we're now rate-limited */
   g_clear_error (&error);
-  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS);
   g_assert_false (ret);
 
@@ -741,11 +757,12 @@ test_manager_error_rate_limit (Fixture *fixture,
   now = rate_limit_end_time + 1;
   epg_fake_clock_set_time (clock, now);
   g_clear_error (&error);
-  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  ret = epg_provider_add_code (fixture->provider, code_str, &time_added, &error);
   g_assert_no_error (error);
   g_assert_true (ret);
 
   g_assert_cmpuint (now + 5, ==, epg_provider_get_expiry_time (fixture->provider));
+  g_assert_cmpuint (5, ==, time_added);
 }
 
 static void
