@@ -1269,6 +1269,17 @@ file_load_cb (GObject      *source_object,
           else
             set_expiry_time (self, now_secs, self->last_save_expiry_secs - unaccounted_time);
         }
+
+      /* Kick off an asynchronous save. Otherwise an unclean shutdown would
+       * cause us to consume credit for the same time period again.
+       *
+       * FIXME: pass self->cancellable; see comment in
+       * epg_manager_shutdown_async().
+       */
+      g_assert (self->pending_internal_save_state_calls < G_MAXUINT64);
+      self->pending_internal_save_state_calls++;
+      epg_manager_save_state_async (EPG_PROVIDER (self), NULL,
+                                    internal_save_state_cb, NULL);
     }
 
   epg_multi_task_return_boolean (task, TRUE);
