@@ -626,7 +626,7 @@ test_manager_error_malformed (Fixture *fixture,
   g_assert_cmpint (expiry, ==, expiry_after_code);
 }
 
-/* test_manager_error_malformed:
+/* test_manager_error_reused:
  *
  * Tests that entering a code twice causes it to be rejected the second time,
  * without extending the expiry time.
