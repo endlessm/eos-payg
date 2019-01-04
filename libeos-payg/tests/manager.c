@@ -640,6 +640,7 @@ test_manager_error_reused (Fixture *fixture,
   g_autoptr(GError) error = NULL;
   guint64 expiry_before_code, expiry_after_code;
   gboolean ret;
+  EpgFakeClock *clock;
 
   expiry_before_code = epg_provider_get_expiry_time (fixture->provider);
 
@@ -650,6 +651,18 @@ test_manager_error_reused (Fixture *fixture,
   expiry_after_code = epg_provider_get_expiry_time (fixture->provider);
   g_assert_cmpint (expiry_before_code + 5, ==, expiry_after_code);
 
+  /* Test that the code is rejected before the last application expires */
+  ret = epg_provider_add_code (fixture->provider, code_str, &error);
+  g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_CODE_ALREADY_USED);
+  g_assert_false (ret);
+
+  g_assert_cmpint (expiry_after_code, ==, epg_provider_get_expiry_time (fixture->provider));
+
+  /* Test that the code is rejected after the last application expired */
+  clock = (EpgFakeClock *)epg_provider_get_clock (fixture->provider);
+  epg_fake_clock_set_time (clock, expiry_after_code + 5);
+
+  g_clear_error (&error);
   ret = epg_provider_add_code (fixture->provider, code_str, &error);
   g_assert_error (error, EPG_MANAGER_ERROR, EPG_MANAGER_ERROR_CODE_ALREADY_USED);
   g_assert_false (ret);
