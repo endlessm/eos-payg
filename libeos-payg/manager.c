@@ -451,6 +451,7 @@ epg_manager_new (gboolean             enabled,
 {
   g_return_if_fail (key_file == NULL || G_IS_FILE (key_file));
   g_return_if_fail (state_directory == NULL || G_IS_FILE (state_directory));
+  g_return_if_fail (clock == NULL || EPG_IS_CLOCK (clock));
   g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
 
   g_async_initable_new_async (EPG_TYPE_MANAGER,
