@@ -35,9 +35,9 @@ epg_provider_default_init (EpgProviderInterface *iface)
   /**
    * EpgProvider:expiry-time:
    *
-   * UNIX timestamp when the current pay as you go credit will expire, in seconds
-   * since the epoch. At this point, it is expected that clients of this service
-   * will lock the computer until a new code is entered. Use
+   * When the current pay as you go credit will expire, in seconds based on
+   * CLOCK_BOOTTIME.  At this point, it is expected that clients of this
+   * service will lock the computer until a new code is entered. Use
    * epg_provider_add_code() to add a new code and extend the expiry time.
    *
    * If #EpgProvider:enabled is %FALSE, this will always be zero.
@@ -46,8 +46,8 @@ epg_provider_default_init (EpgProviderInterface *iface)
    */
   pspec =
       g_param_spec_uint64 ("expiry-time", "Expiry Time",
-                           "UNIX timestamp when the current pay as you go code "
-                           "will expire, in seconds since the epoch.",
+                           "When the current pay as you go code "
+                           "will expire, based on CLOCK_BOOTTIME.",
                            0, G_MAXUINT64, 0,
                            G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
   g_object_interface_install_property (iface, pspec);
@@ -71,8 +71,8 @@ epg_provider_default_init (EpgProviderInterface *iface)
   /**
    * EpgProvider:rate-limit-end-time:
    *
-   * UNIX timestamp when the rate limit on adding codes will end, in seconds
-   * since the epoch. At this point, a new call to epg_provider_add_code() will
+   * When the rate limit on adding codes will end, in seconds based on
+   * CLOCK_BOOTTIME.  At this point, a new call to epg_provider_add_code() will
    * not immediately result in an %EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS error.
    *
    * If #EpgProvider:enabled is %FALSE, this will always be zero.
@@ -81,8 +81,8 @@ epg_provider_default_init (EpgProviderInterface *iface)
    */
   pspec =
       g_param_spec_uint64 ("rate-limit-end-time", "Rate Limit End Time",
-                           "UNIX timestamp when the rate limit on adding codes "
-                           "will end, in seconds since the epoch.",
+                           "When the rate limit on adding codes "
+                           "will end, based on CLOCK_BOOTTIME.",
                            0, G_MAXUINT64, 0,
                            G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
   g_object_interface_install_property (iface, pspec);
@@ -121,6 +121,20 @@ epg_provider_default_init (EpgProviderInterface *iface)
   g_object_interface_install_property (iface, pspec);
 
   /**
+   * EpgProvider:clock:
+   *
+   * Clock used to get the time and create timeout #GSource objects.
+   *
+   * Since: 0.2.1
+   */
+  pspec =
+      g_param_spec_object ("clock", "Clock",
+                           "Clock implementation",
+                           EPG_TYPE_CLOCK,
+                           G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
+  g_object_interface_install_property (iface, pspec);
+
+  /**
    * EpgProvider::expired:
    * @self: a #EpgProvider
    *
@@ -141,14 +155,11 @@ epg_provider_default_init (EpgProviderInterface *iface)
  * epg_provider_add_code:
  * @self: an #EpgProvider
  * @code_str: code to verify and add
- * @now_secs: the current time, in seconds since the UNIX epoch, as returned by
- *    (g_get_real_time() / G_USEC_PER_SEC); this is parameterised to allow for
- *    easy testing
  * @error: return location for a #GError
  *
  * Verify and add the given @code_str. This checks that @code_str is valid, and
  * has not been used already. If so, it will add the time period given in the
- * @code_str to #EpgProvider:expiry-time (or to @now_secs if
+ * @code_str to #EpgProvider:expiry-time (or to the current time if
  * #EpgProvider:expiry-time is in the past). If @code_str fails verification or
  * cannot be added, an error will be returned.
  *
@@ -163,7 +174,6 @@ epg_provider_default_init (EpgProviderInterface *iface)
 gboolean
 epg_provider_add_code   (EpgProvider  *self,
                          const gchar  *code_str,
-                         guint64       now_secs,
                          GError      **error)
 {
   g_return_val_if_fail (EPG_IS_PROVIDER (self), FALSE);
@@ -172,7 +182,7 @@ epg_provider_add_code   (EpgProvider  *self,
 
   g_assert (iface->add_code != NULL);
 
-  return iface->add_code (self, code_str, now_secs, error);
+  return iface->add_code (self, code_str, error);
 }
 
 /**
@@ -266,8 +276,8 @@ epg_provider_shutdown_finish (EpgProvider   *self,
  *
  * Get the value of #EpgProvider:expiry-time.
  *
- * Returns: the UNIX timestamp when the current pay as you go top up will
- *    expire, in seconds since the UNIX epoch
+ * Returns: the timestamp when the current pay as you go top up will
+ *    expire, in seconds relative to CLOCK_BOOTTIME
  * Since: 0.2.0
  */
 guint64
@@ -309,8 +319,8 @@ epg_provider_get_enabled (EpgProvider *self)
  *
  * Get the value of #EpgProvider:rate-limit-end-time.
  *
- * Returns: the UNIX timestamp when the current rate limit on calling
- *    epg_provider_add_code() will reset, in seconds since the UNIX epoch
+ * Returns: the timestamp when the current rate limit on calling
+ *    epg_provider_add_code() will reset, in seconds relative to CLOCK_BOOTTIME
  * Since: 0.2.0
  */
 guint64
@@ -344,4 +354,25 @@ epg_provider_get_code_format (EpgProvider *self)
   g_assert (iface->code_format != NULL);
 
   return iface->code_format;
+}
+
+/**
+ * epg_provider_get_clock:
+ * @self: a #EpgProvider
+ *
+ * Get the value of #EpgProvider:clock
+ *
+ * Returns: (transfer none): the #EpgClock used by this provider
+ * Since: 0.2.1
+ */
+EpgClock *
+epg_provider_get_clock (EpgProvider *self)
+{
+  g_return_val_if_fail (EPG_IS_PROVIDER (self), NULL);
+
+  EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
+
+  g_assert (iface->get_clock != NULL);
+
+  return iface->get_clock (self);
 }

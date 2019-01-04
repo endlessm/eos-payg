@@ -23,6 +23,8 @@
 #include <glib-object.h>
 #include <gio/gio.h>
 
+#include <libeos-payg/clock.h>
+
 G_BEGIN_DECLS
 
 #define EPG_TYPE_PROVIDER epg_provider_get_type ()
@@ -34,7 +36,6 @@ struct _EpgProviderInterface
 
   gboolean        (*add_code)   (EpgProvider  *self,
                                  const gchar  *code_str,
-                                 guint64       now_secs,
                                  GError      **error);
   gboolean        (*clear_code) (EpgProvider  *self,
                                  GError      **error);
@@ -50,13 +51,13 @@ struct _EpgProviderInterface
   guint64         (*get_expiry_time)         (EpgProvider *self);
   gboolean        (*get_enabled)             (EpgProvider *self);
   guint64         (*get_rate_limit_end_time) (EpgProvider *self);
+  EpgClock       *(*get_clock)               (EpgProvider *self);
 
   const gchar *     code_format;
 };
 
 gboolean        epg_provider_add_code   (EpgProvider  *self,
                                          const gchar  *code_str,
-                                         guint64       now_secs,
                                          GError      **error);
 gboolean        epg_provider_clear_code (EpgProvider  *self,
                                          GError      **error);
@@ -73,5 +74,6 @@ guint64         epg_provider_get_expiry_time         (EpgProvider *self);
 gboolean        epg_provider_get_enabled             (EpgProvider *self);
 guint64         epg_provider_get_rate_limit_end_time (EpgProvider *self);
 const gchar *   epg_provider_get_code_format         (EpgProvider *self);
+EpgClock *      epg_provider_get_clock               (EpgProvider *self);
 
 G_END_DECLS

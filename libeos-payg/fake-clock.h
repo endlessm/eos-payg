@@ -19,27 +19,20 @@
 
 #pragma once
 
-#include <glib.h>
-#include <glib-object.h>
-#include <libeos-payg/provider.h>
 #include <libeos-payg/clock.h>
+#include <glib.h>
 
 G_BEGIN_DECLS
 
-#define EPG_TYPE_MANAGER epg_manager_get_type ()
-G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
+#define EPG_TYPE_FAKE_CLOCK epg_fake_clock_get_type ()
+G_DECLARE_FINAL_TYPE (EpgFakeClock, epg_fake_clock, EPG, FAKE_CLOCK, GObject)
 
-void         epg_manager_new        (gboolean             enabled,
-                                     GFile               *key_file,
-                                     GFile               *state_directory,
-                                     EpgClock            *clock,
-                                     GCancellable        *cancellable,
-                                     GAsyncReadyCallback  callback,
-                                     gpointer             user_data);
-EpgProvider *epg_manager_new_finish (GAsyncResult  *result,
-                                     GError       **error);
+EpgFakeClock *epg_fake_clock_new (gint64 optional_time,
+                                  gint64 optional_wallclock_time);
 
-GFile      *epg_manager_get_key_file        (EpgManager *self);
-GFile      *epg_manager_get_state_directory (EpgManager *self);
+void epg_fake_clock_set_time (EpgFakeClock *self,
+                              gint64        new_time);
+void epg_fake_clock_set_wallclock_time (EpgFakeClock *self,
+                                        gint64        new_time);
 
 G_END_DECLS

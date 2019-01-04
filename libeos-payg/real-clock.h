@@ -19,27 +19,14 @@
 
 #pragma once
 
-#include <glib.h>
-#include <glib-object.h>
-#include <libeos-payg/provider.h>
 #include <libeos-payg/clock.h>
+#include <glib.h>
 
 G_BEGIN_DECLS
 
-#define EPG_TYPE_MANAGER epg_manager_get_type ()
-G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
+#define EPG_TYPE_REAL_CLOCK epg_real_clock_get_type ()
+G_DECLARE_FINAL_TYPE (EpgRealClock, epg_real_clock, EPG, REAL_CLOCK, GObject)
 
-void         epg_manager_new        (gboolean             enabled,
-                                     GFile               *key_file,
-                                     GFile               *state_directory,
-                                     EpgClock            *clock,
-                                     GCancellable        *cancellable,
-                                     GAsyncReadyCallback  callback,
-                                     gpointer             user_data);
-EpgProvider *epg_manager_new_finish (GAsyncResult  *result,
-                                     GError       **error);
-
-GFile      *epg_manager_get_key_file        (EpgManager *self);
-GFile      *epg_manager_get_state_directory (EpgManager *self);
+EpgRealClock *epg_real_clock_new (void);
 
 G_END_DECLS

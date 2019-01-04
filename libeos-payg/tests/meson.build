@@ -18,6 +18,7 @@ test_programs = [
   ['multi-task', [], deps],
   ['service', [], deps],
   ['provider-loader', [], deps],
+  ['boottime-source', [], deps],
 ]
 
 installed_tests_metadir = join_paths(datadir, 'installed-tests',
