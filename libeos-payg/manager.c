@@ -334,6 +334,7 @@ epg_manager_dispose (GObject *object)
   g_clear_pointer (&self->key_bytes, g_bytes_unref);
   g_clear_object (&self->key_file);
   g_clear_object (&self->state_directory);
+  g_clear_object (&self->clock);
   g_clear_pointer (&self->context, g_main_context_unref);
 
   /* Chain up to the parent class */
