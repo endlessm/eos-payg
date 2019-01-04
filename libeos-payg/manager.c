@@ -683,7 +683,7 @@ set_expiry_time (EpgManager *self,
  * would overflow, set the expiry time as high as possible. Everything is
  * handled in seconds.
  *
- * @now will typically be the current value of CLOCK_BOOTTIME. */
+ * @now_secs will typically be the current value of CLOCK_BOOTTIME. */
 static void
 extend_expiry_time (EpgManager *self,
                     guint64     now_secs,
