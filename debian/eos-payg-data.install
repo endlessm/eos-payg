@@ -1,2 +1,3 @@
 usr/share/locale
 usr/bin/eos-payg-ctl
+usr/bin/get-clock-boottime
