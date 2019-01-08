@@ -20,8 +20,10 @@
 import argparse
 import contextlib
 import datetime as dt
+import time
 import posix
 import sys
+import subprocess
 from dateutil import tz
 from gi.repository import GLib, Gio
 
@@ -31,6 +33,20 @@ INTERFACE = "com.endlessm.Payg1"
 ERROR_DOMAIN = "com.endlessm.Payg1.Error"
 
 DBUS_PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
+
+
+def __get_utc_from_boottime(timestamp):
+    #FIXME: Replace this with time.clock_gettime(time.CLOCK_BOOTTIME)
+    # once we have Python 3.7
+    # https://phabricator.endlessm.com/T25065
+    try:
+        current_boottime = int(subprocess.check_output('get-clock-boottime'))
+    except subprocess.CalledProcessError as e:
+        print("Error calling get-clock-boottime: {}".format(e.output), file=sys.stderr, flush=True)
+        raise SystemExit(1)
+
+    timestamp_delta = timestamp - current_boottime
+    return time.time() + timestamp_delta
 
 
 def __format_utc_timestamp(timestamp):
@@ -80,7 +96,11 @@ def command_status(proxy):
     }
 
     for key, value in sorted(props.items()):
-        formatted = formatters.get(key, lambda x: x)(value)
+        if key == "ExpiryTime" or key == "RateLimitEndTime":
+            utc_timestamp = __get_utc_from_boottime(value)
+            formatted = formatters.get(key, lambda x: x)(utc_timestamp)
+        else:
+            formatted = value
         print("{:>{}}: {}".format(key, width, formatted))
 
 
