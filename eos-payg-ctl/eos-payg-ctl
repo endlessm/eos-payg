@@ -40,15 +40,29 @@ DBUS_PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 CLOCK_BOOTTIME = getattr(time, 'CLOCK_BOOTTIME', 7)
 
 
-def __format_boottime_timestamp(boottime_timestamp):
-    # Convert from CLOCK_BOOTTIME to seconds since the epoch
-    timestamp_delta = boottime_timestamp - time.clock_gettime(CLOCK_BOOTTIME)
-    utc_timestamp = time.time() + timestamp_delta
+def __make_boottime_formatter():
+    '''Returns a function which formats a timestamp in units of CLOCK_BOOTTIME
+    as a human-readable date & time. This is implemented as a higher-order
+    function so the same origin point is used for both the properties of this
+    type; otherwise, if both ExpiryTime and RateLimitEndTime are 0, they would
+    show as fractionally different times.'''
+    now_boottime = time.clock_gettime(CLOCK_BOOTTIME)
+    now_utc = time.time()
 
-    # Format that as a human-readable local time
-    expiry_utc = dt.datetime.fromtimestamp(utc_timestamp, tz=tz.tzutc())
-    expiry_local = expiry_utc.astimezone(tz.tzlocal())
-    return str(expiry_local)
+    def __format_boottime_timestamp(boottime_timestamp):
+        # Convert from CLOCK_BOOTTIME to seconds since the epoch
+        timestamp_delta = boottime_timestamp - now_boottime
+        utc_timestamp = now_utc + timestamp_delta
+
+        # Format that as a human-readable local time
+        expiry_utc = dt.datetime.fromtimestamp(utc_timestamp, tz=tz.tzutc())
+        expiry_local = expiry_utc.astimezone(tz.tzlocal())
+        return str(expiry_local)
+
+    return __format_boottime_timestamp
+
+
+__format_boottime_timestamp = __make_boottime_formatter()
 
 
 def __get_proxy(bus_address):
