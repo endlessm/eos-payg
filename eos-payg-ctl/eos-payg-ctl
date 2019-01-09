@@ -40,13 +40,13 @@ DBUS_PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 CLOCK_BOOTTIME = getattr(time, 'CLOCK_BOOTTIME', 7)
 
 
-def __get_utc_from_boottime(timestamp):
-    timestamp_delta = timestamp - time.clock_gettime(CLOCK_BOOTTIME)
-    return time.time() + timestamp_delta
+def __format_boottime_timestamp(boottime_timestamp):
+    # Convert from CLOCK_BOOTTIME to seconds since the epoch
+    timestamp_delta = boottime_timestamp - time.clock_gettime(CLOCK_BOOTTIME)
+    utc_timestamp = time.time() + timestamp_delta
 
-
-def __format_utc_timestamp(timestamp):
-    expiry_utc = dt.datetime.fromtimestamp(timestamp, tz=tz.tzutc())
+    # Format that as a human-readable local time
+    expiry_utc = dt.datetime.fromtimestamp(utc_timestamp, tz=tz.tzutc())
     expiry_local = expiry_utc.astimezone(tz.tzlocal())
     return str(expiry_local)
 
@@ -87,16 +87,12 @@ def command_status(proxy):
 
     width = max(map(len, props), default=0)
     formatters = {
-        "ExpiryTime": __format_utc_timestamp,
-        "RateLimitEndTime": __format_utc_timestamp,
+        "ExpiryTime": __format_boottime_timestamp,
+        "RateLimitEndTime": __format_boottime_timestamp,
     }
 
     for key, value in sorted(props.items()):
-        if key == "ExpiryTime" or key == "RateLimitEndTime":
-            utc_timestamp = __get_utc_from_boottime(value)
-            formatted = formatters.get(key, lambda x: x)(utc_timestamp)
-        else:
-            formatted = value
+        formatted = formatters.get(key, lambda x: x)(value)
         print("{:>{}}: {}".format(key, width, formatted))
 
 
