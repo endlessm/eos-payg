@@ -33,12 +33,15 @@ ERROR_DOMAIN = "com.endlessm.Payg1.Error"
 
 DBUS_PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 
+# Python 3.5 does not define time.CLOCK_BOOTTIME. linux/time.h has:
+#     #define CLOCK_BOOTTIME 7
+# FIXME: use time.CLOCK_BOOTTIME directly once we can have Python 3.7.
+# https://phabricator.endlessm.com/T25065
+CLOCK_BOOTTIME = getattr(time, 'CLOCK_BOOTTIME', 7)
+
 
 def __get_utc_from_boottime(timestamp):
-    #FIXME: Replace this with time.clock_gettime(time.CLOCK_BOOTTIME)
-    # once we have Python 3.7
-    # https://phabricator.endlessm.com/T25065
-    timestamp_delta = timestamp - time.clock_gettime(7)
+    timestamp_delta = timestamp - time.clock_gettime(CLOCK_BOOTTIME)
     return time.time() + timestamp_delta
 
 
