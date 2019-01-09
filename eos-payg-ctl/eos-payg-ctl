@@ -33,19 +33,36 @@ ERROR_DOMAIN = "com.endlessm.Payg1.Error"
 
 DBUS_PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 
-
-def __get_utc_from_boottime(timestamp):
-    #FIXME: Replace this with time.clock_gettime(time.CLOCK_BOOTTIME)
-    # once we have Python 3.7
-    # https://phabricator.endlessm.com/T25065
-    timestamp_delta = timestamp - time.clock_gettime(7)
-    return time.time() + timestamp_delta
+# Python 3.5 does not define time.CLOCK_BOOTTIME. linux/time.h has:
+#     #define CLOCK_BOOTTIME 7
+# FIXME: use time.CLOCK_BOOTTIME directly once we can have Python 3.7.
+# https://phabricator.endlessm.com/T25065
+CLOCK_BOOTTIME = getattr(time, 'CLOCK_BOOTTIME', 7)
 
 
-def __format_utc_timestamp(timestamp):
-    expiry_utc = dt.datetime.fromtimestamp(timestamp, tz=tz.tzutc())
-    expiry_local = expiry_utc.astimezone(tz.tzlocal())
-    return str(expiry_local)
+def __make_boottime_formatter():
+    '''Returns a function which formats a timestamp in units of CLOCK_BOOTTIME
+    as a human-readable date & time. This is implemented as a higher-order
+    function so the same origin point is used for both the properties of this
+    type; otherwise, if both ExpiryTime and RateLimitEndTime are 0, they would
+    show as fractionally different times.'''
+    now_boottime = time.clock_gettime(CLOCK_BOOTTIME)
+    now_utc = time.time()
+
+    def __format_boottime_timestamp(boottime_timestamp):
+        # Convert from CLOCK_BOOTTIME to seconds since the epoch
+        timestamp_delta = boottime_timestamp - now_boottime
+        utc_timestamp = now_utc + timestamp_delta
+
+        # Format that as a human-readable local time
+        expiry_utc = dt.datetime.fromtimestamp(utc_timestamp, tz=tz.tzutc())
+        expiry_local = expiry_utc.astimezone(tz.tzlocal())
+        return str(expiry_local)
+
+    return __format_boottime_timestamp
+
+
+__format_boottime_timestamp = __make_boottime_formatter()
 
 
 def __get_proxy(bus_address):
@@ -84,16 +101,12 @@ def command_status(proxy):
 
     width = max(map(len, props), default=0)
     formatters = {
-        "ExpiryTime": __format_utc_timestamp,
-        "RateLimitEndTime": __format_utc_timestamp,
+        "ExpiryTime": __format_boottime_timestamp,
+        "RateLimitEndTime": __format_boottime_timestamp,
     }
 
     for key, value in sorted(props.items()):
-        if key == "ExpiryTime" or key == "RateLimitEndTime":
-            utc_timestamp = __get_utc_from_boottime(value)
-            formatted = formatters.get(key, lambda x: x)(utc_timestamp)
-        else:
-            formatted = value
+        formatted = formatters.get(key, lambda x: x)(value)
         print("{:>{}}: {}".format(key, width, formatted))
 
 
