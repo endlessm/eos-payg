@@ -23,7 +23,6 @@ import datetime as dt
 import time
 import posix
 import sys
-import subprocess
 from dateutil import tz
 from gi.repository import GLib, Gio
 
@@ -39,13 +38,7 @@ def __get_utc_from_boottime(timestamp):
     #FIXME: Replace this with time.clock_gettime(time.CLOCK_BOOTTIME)
     # once we have Python 3.7
     # https://phabricator.endlessm.com/T25065
-    try:
-        current_boottime = int(subprocess.check_output('get-clock-boottime'))
-    except subprocess.CalledProcessError as e:
-        print("Error calling get-clock-boottime: {}".format(e.output), file=sys.stderr, flush=True)
-        raise SystemExit(1)
-
-    timestamp_delta = timestamp - current_boottime
+    timestamp_delta = timestamp - time.clock_gettime(7)
     return time.time() + timestamp_delta
 
 
