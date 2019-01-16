@@ -3,6 +3,7 @@ Section: misc
 Priority: optional
 Maintainer: Endless <support@endlessm.com>
 Standards-Version: 4.1.2
+X-Python3-Version: >= 3.7
 Build-Depends:
  debhelper (>= 10),
  dh-python,
