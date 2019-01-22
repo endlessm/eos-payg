@@ -1311,7 +1311,10 @@ file_load_delete_cb (GObject      *source_object,
     }
 
   if (error == NULL)
-    epg_multi_task_return_boolean (task, TRUE);
+    {
+      epg_multi_task_return_boolean (task, TRUE);
+      return;
+    }
 
   epg_multi_task_return_error (task, G_STRFUNC, g_error_copy (error));
 }
