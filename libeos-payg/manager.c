@@ -629,9 +629,16 @@ check_expired_cb (gpointer user_data)
 /* Set the #EpgManager:expiry-time to
  * `MIN (G_MAXUINT64, MAX (@now, #EpgManager:expiry-time) + @span)` and set
  * the #GSource expiry timer to the new expiry time. Everything is handled in
- * seconds. */
+ * seconds.
+ *
+ * @task, if provided, will have epg_multi_task_increment() called on it (and
+ * decremented in the callback of the state save). If you are going to kick off
+ * a state save soon after calling this, set @save_state to %FALSE to prevent
+ * redundant I/O. */
 static void
 set_expiry_time (EpgManager *self,
+                 GTask      *task,
+                 gboolean    save_state,
                  guint64     now_secs,
                  guint64     span_secs)
 {
@@ -676,7 +683,24 @@ set_expiry_time (EpgManager *self,
 
   if (old_expiry_time_secs != self->expiry_time_secs &&
       self->enabled)
-    g_object_notify (G_OBJECT (self), "expiry-time");
+    {
+      g_object_notify (G_OBJECT (self), "expiry-time");
+
+      if (save_state)
+        {
+          /* Kick off an asynchronous save.
+           *
+           * FIXME: pass self->cancellable; see comment in
+           * epg_manager_shutdown_async().
+           */
+          g_assert (self->pending_internal_save_state_calls < G_MAXUINT64);
+          self->pending_internal_save_state_calls++;
+          if (task != NULL)
+            epg_multi_task_increment (task);
+          epg_manager_save_state_async (EPG_PROVIDER (self), NULL,
+                                        internal_save_state_cb, task ? g_object_ref (task) : NULL);
+        }
+    }
 }
 
 /* Set the #EpgManager:expiry-time to be `MAX (@now, #EpgManager:expiry-time)`,
@@ -777,7 +801,7 @@ extend_expiry_time (EpgManager *self,
       g_assert_not_reached ();
     }
 
-  set_expiry_time (self, now_secs, span_secs);
+  set_expiry_time (self, NULL, FALSE, now_secs, span_secs);
 }
 
 static gint
@@ -914,9 +938,19 @@ internal_save_state_cb (GObject      *source_object,
   EpgManager *self = EPG_MANAGER (source_object);
   EpgProvider *provider = EPG_PROVIDER (self);
   g_autoptr(GError) local_error = NULL;
+  g_autoptr(GTask) task = NULL;
+
+  if (user_data != NULL)
+    task = G_TASK (user_data);
 
   if (!epg_manager_save_state_finish (provider, result, &local_error))
-    g_warning ("save_state failed: %s", local_error->message);
+    {
+      g_warning ("save_state failed: %s", local_error->message);
+      if (task != NULL)
+        epg_multi_task_return_error (task, G_STRFUNC, g_error_copy (local_error));
+    }
+  else if (task != NULL)
+    epg_multi_task_return_boolean (task, TRUE);
 
   g_return_if_fail (self->pending_internal_save_state_calls > 0);
   self->pending_internal_save_state_calls--;
@@ -1054,6 +1088,12 @@ file_load_cb (GObject      *source_object,
   guint64 now_secs = epg_clock_get_time (self->clock);
   guint64 wallclock_now_secs = epg_clock_get_wallclock_time (self->clock);
 
+  if (g_task_had_error (task))
+    {
+      g_set_error (&local_error, G_IO_ERROR, G_IO_ERROR_FAILED, "Refusing to execute callback on already failed task");
+      epg_multi_task_return_error (task, G_STRFUNC, g_steal_pointer (&local_error));
+      return;
+    }
 
   /* If the file is not found, we continue below, but with @data set to %NULL
    * and @data_len set to zero. */
@@ -1115,7 +1155,7 @@ file_load_cb (GObject      *source_object,
       if (data_len == 0)
         {
           /* No expiry time is set. Expire immediately. */
-          set_expiry_time (self, now_secs, 0);
+          set_expiry_time (self, task, TRUE, now_secs, 0);
         }
       else
         {
@@ -1138,7 +1178,7 @@ file_load_cb (GObject      *source_object,
            * want self->expiry_time_secs to be in terms of CLOCK_BOOTTIME, so
            * we're migrating here */
           wallclock_expiry_time_secs = get_guint64_from_bytes ((const guint8 *)data);
-          set_expiry_time (self, now_secs,
+          set_expiry_time (self, task, TRUE, now_secs,
                            (wallclock_expiry_time_secs > wallclock_now_secs) ? wallclock_expiry_time_secs - wallclock_now_secs : 0);
 
           /* Delete the file since we now use clock-time and expiry-seconds instead */
@@ -1152,7 +1192,7 @@ file_load_cb (GObject      *source_object,
       if (data_len == 0)
         {
           /* No expiry time is set. Expire immediately. */
-          set_expiry_time (self, now_secs, 0);
+          set_expiry_time (self, task, TRUE, now_secs, 0);
         }
       else
         {
@@ -1259,7 +1299,7 @@ file_load_cb (GObject      *source_object,
            * there's no way to know by how much) or the current time is wrong
            * (and NTP will fix it, see T24501). Let's just assume time stood
            * still. */
-          set_expiry_time (self, now_secs, self->last_save_expiry_secs);
+          set_expiry_time (self, task, TRUE, now_secs, self->last_save_expiry_secs);
         }
       else
         {
@@ -1267,21 +1307,10 @@ file_load_cb (GObject      *source_object,
            * was off. Consume the appropriate credit */
           guint64 unaccounted_time = wallclock_now_secs - self->last_save_time_secs;
           if (unaccounted_time > self->last_save_expiry_secs)
-            set_expiry_time (self, now_secs, 0);
+            set_expiry_time (self, task, TRUE, now_secs, 0);
           else
-            set_expiry_time (self, now_secs, self->last_save_expiry_secs - unaccounted_time);
+            set_expiry_time (self, task, TRUE, now_secs, self->last_save_expiry_secs - unaccounted_time);
         }
-
-      /* Kick off an asynchronous save. Otherwise an unclean shutdown would
-       * cause us to consume credit for the same time period again.
-       *
-       * FIXME: pass self->cancellable; see comment in
-       * epg_manager_shutdown_async().
-       */
-      g_assert (self->pending_internal_save_state_calls < G_MAXUINT64);
-      self->pending_internal_save_state_calls++;
-      epg_manager_save_state_async (EPG_PROVIDER (self), NULL,
-                                    internal_save_state_cb, NULL);
     }
 
   epg_multi_task_return_boolean (task, TRUE);
