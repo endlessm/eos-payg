@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+#
+# Copyright © 2019 Endless Solutions, Inc.
+#
+# This Source Code Form is subject to the terms of the Mozilla Public License,
+# v. 2.0. If a copy of the MPL was not distributed with this file, You can
+# obtain one at https://mozilla.org/MPL/2.0/.
+#
+# Alternatively, the contents of this file may be used under the terms of the
+# GNU Lesser General Public License Version 2.1 or later (the "LGPL"), in
+# which case the provisions of the LGPL are applicable instead of those above.
+# If you wish to allow use of your version of this file only under the terms
+# of the LGPL, and not to allow others to use your version of this file under
+# the terms of the MPL, indicate your decision by deleting the provisions
+# above and replace them with the notice and other provisions required by the
+# LGPL. If you do not delete the provisions above, a recipient may use your
+# version of this file under the terms of either the MPL or the LGPL.
+
+import argparse
+import csv
+import os
+import shutil
+import subprocess
+import sys
+from textwrap import dedent
+
+PERIODS = ['1d', '2d', '3d', '4d', '5d', '30d', '60d', '90d', '365d', 'infinite']
+
+def period_to_display_str(period):
+    if period == "infinite":
+        return "infinite"
+
+    days, _ = period.split("d")
+
+    if days == "1":
+        return "1 day"
+
+    return "{0} days".format(days)
+
+def key_to_filename(key):
+    return "{}.key".format(key)
+
+class CsvParseError(Exception):
+    pass
+
+def get_csv_rows(id_to_key_file):
+    rows = None
+    try:
+        with open(id_to_key_file, 'r') as f:
+            rows = list(csv.reader(f, quotechar='"'))
+    except OSError as ose:
+        raise CsvParseError("failed to read key file {}: {}".format(
+            id_to_key_file, ose))
+
+    return rows
+
+def acct_csv_get_id_to_key(id_to_key_file):
+    expected_col_len = 5
+    expected_key_min = 64
+    first_row = True
+    id_to_key = {}
+
+    rows = get_csv_rows(id_to_key_file)
+    for row in rows:
+        if first_row:
+            # normalize in case there are \r characters, etc.
+            header_norm = ",".join(row).strip()
+            header_expected = 'device_id,code1,code2,code3,key'
+            if header_norm != header_expected:
+                msg = '''\
+                Provided CSV invalid:
+                expected header:
+                    {}
+                got header:
+                    {}'''.format(header_expected, row)
+                raise CsvParseError(dedent(msg))
+
+            first_row = False
+        else:
+            col_len = len(row)
+            if col_len != expected_col_len:
+                raise CsvParseError('Provided CSV invalid: expected {} columns '
+                                    'but got {}'.format(expected_col_len, col_len))
+
+            key = row[-1]
+            key_len = len(key)
+            if key_len < expected_key_min:
+                raise CsvParseError('Provided CSV invalid: minimum key length '
+                                    '{} bytes but CSV contains a key of {} bytes'.format(
+                                        expected_key_min, key_len))
+
+        # we specifically want the last key for each device ID since there
+        # may be multiple entries for each device ID. Using a dict
+        # guarantees this.
+        id_to_key[row[0]] = row[-1]
+
+    # strip out an entry for the CSV header, if it exists
+    id_to_key.pop("device_id", None)
+
+    return id_to_key
+
+def write_time_codes(id_to_key, eos_payg_generate):
+    files_written = []
+    for id, key in id_to_key.items():
+        key_filename = key_to_filename(id)
+        with open(key_filename, 'w') as f:
+            f.write(key)
+
+        codes_by_period = []
+        for period in PERIODS:
+            generate_bin = 'eos-payg-generate-1'
+            if eos_payg_generate:
+                generate_bin = eos_payg_generate
+
+            output = subprocess.run([generate_bin, key_filename, period],
+                                    stdout=subprocess.PIPE, check=True).stdout.decode('utf-8')
+            # prepend with a single quote to force Google Spreadsheets to treat
+            # every cell as a string, even if the default "convert text to
+            # numbers" option is chosen.
+            #
+            # This is needed to ensure leading zeros appear in the spreadsheet
+            # since users need to enter those as part of the given time code.
+            codes = ["'{}".format(code) for code in output.splitlines()]
+
+            codes_by_period.append(codes)
+
+        # rotate the matrix so instead of [1d, 1d, ...], [2d, 2d, ...], ...,
+        # we get: [1d, 2d, ...], ...
+        zipped = zip(*codes_by_period)
+
+        csv_filename = "{0}.csv".format(id)
+        with open(csv_filename, 'w', newline='') as csvfile:
+            csv_writer = csv.writer(csvfile)
+            headers = [period_to_display_str(period) for period in PERIODS]
+            csv_writer.writerow(headers)
+
+            for row in list(zipped):
+                csv_writer.writerow(row)
+        files_written.append(csv_filename)
+
+    return files_written
+
+def main(acct_key_csv_file, eos_payg_generate):
+    try:
+        id_to_key = acct_csv_get_id_to_key(acct_key_csv_file)
+    except CsvParseError as cpe:
+        print(cpe, file=sys.stderr)
+        sys.exit(1)
+
+    files_written = write_time_codes(id_to_key, eos_payg_generate)
+
+    print('Created CSV files:')
+    for f in files_written:
+        print(f)
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description='generate time codes for private keys in bulk',
+        formatter_class=argparse.RawTextHelpFormatter)
+    help_msg = '''\
+    a file formatted as:
+
+    device_id,code1,code2,code3,key
+    DEVICE_ID_1,CODE_1,CODE_2,CODE_2,KEY
+    ...
+
+    where:
+
+    DEVICE_ID: 8 hex digit device ID that must be stable for a
+               given device
+    CODE_N:    a temporary code for the given key
+    KEY:       a private key to be used to generate time codes
+               for this device. This may be quoted with double
+               quotes and span multiple lines.
+    '''
+    parser.add_argument('acct_key_csv_file', metavar='ACCT_KEY_CSV_FILE',
+                        help=dedent(help_msg))
+    parser.add_argument('--eos-payg-generate', help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
+    main(args.acct_key_csv_file, args.eos_payg_generate)
