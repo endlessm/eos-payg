@@ -440,6 +440,8 @@ test_manager_save_error (Fixture *fixture,
 
   /* Sabotage any future attempts to save state. */
   remove_path (fixture->key_path);
+  remove_path (fixture->clock_time_path);
+  remove_path (fixture->expiry_seconds_path);
   remove_path (fixture->tmp_path);
 
   if (apply_code)
