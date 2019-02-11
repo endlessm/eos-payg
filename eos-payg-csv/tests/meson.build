@@ -37,7 +37,7 @@ foreach program: test_programs
     )
     install_data(
       main,
-      files('short-key.csv', 'valid.csv', 'wrong-columns.csv'),
+      files('short-key.csv', 'valid-2-keys-dupes.csv', 'wrong-columns.csv'),
       install_dir: installed_tests_metadir,
       install_mode: 'rw-r--r--',
     )
