@@ -49,7 +49,7 @@ Depends:
  ${misc:Depends},
  ${shlibs:Depends},
 Description: Pay As You Go Code Generator
- This package contains a utility to generate pay as you go codes.
+ This package contains utilities to generate pay as you go codes.
 
 Package: eos-payg-generate-tests
 Section: misc
@@ -60,9 +60,9 @@ Depends:
  ${python3:Depends},
  ${shlibs:Depends},
 Description: Pay As You Go Code Generator - tests
- This package contains a utility to generate pay as you go codes.
+ This package contains utilities to generate pay as you go codes.
  .
- This package contains unit tests for the utility.
+ This package contains unit tests for the utilities.
 
 Package: libeos-payg-1-dev
 Section: misc
