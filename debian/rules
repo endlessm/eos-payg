@@ -11,6 +11,13 @@ override_dh_auto_configure:
 		-Ddefault_library=static \
 		$(NULL)
 
+# Remove LD_PRELOAD so we don't run with fakeroot. libgsystemservice's tests
+# use GTestDBus, which spawns a new dbus-daemon, which tries to raise its file
+# descriptor limit to 65536 if its uid appears to be 0, which fails because it
+# is not *actually* root. (This workaround is taken from the GLib packaging.)
+override_dh_auto_test:
+	env -u LD_PRELOAD dh_auto_test
+
 # Don't start the services on install
 override_dh_systemd_start:
 	dh_systemd_start -peos-paygd --no-start eos-paygd.service
