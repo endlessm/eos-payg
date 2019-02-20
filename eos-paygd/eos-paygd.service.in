@@ -12,13 +12,13 @@ User=@DAEMON_USER@
 
 # Sandboxing
 CapabilityBoundingSet=
+DevicePolicy=closed
 Environment=GIO_USE_VFS=local
 Environment=GVFS_DISABLE_FUSE=1
 Environment=GVFS_REMOTE_VOLUME_MONITOR_IGNORE=1
 Environment=GSETTINGS_BACKEND=memory
 MemoryDenyWriteExecute=yes
 NoNewPrivileges=yes
-PrivateDevices=yes
 PrivateNetwork=yes
 PrivateTmp=yes
 PrivateUsers=yes
