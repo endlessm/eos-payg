@@ -271,6 +271,30 @@ epg_provider_shutdown_finish (EpgProvider   *self,
 }
 
 /**
+ * epg_provider_wallclock_time_changed:
+ * @self: an #EpgProvider
+ * @delta: the amount by which the clock changed in seconds, which can be
+ * positive or negative
+ *
+ * Notify the provider of a discontinous change to the system clock (e.g. by
+ * the user or by NTP) so state can be saved if necessary.
+ *
+ * Since: 0.2.2
+ */
+void
+epg_provider_wallclock_time_changed (EpgProvider   *self,
+                                     gint64         delta)
+{
+  g_return_if_fail (EPG_IS_PROVIDER (self));
+
+  EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
+
+  g_assert (iface->wallclock_time_changed != NULL);
+
+  return iface->wallclock_time_changed (self, delta);
+}
+
+/**
  * epg_provider_get_expiry_time:
  * @self: a #EpgProvider
  *

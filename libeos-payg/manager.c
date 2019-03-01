@@ -78,6 +78,9 @@ static gboolean    epg_manager_shutdown_finish (EpgProvider          *provider,
                                                 GAsyncResult         *result,
                                                 GError              **error);
 
+static void        epg_manager_wallclock_time_changed (EpgProvider *provider,
+                                                       gint64       delta);
+
 static void        internal_save_state_cb (GObject      *source_object,
                                            GAsyncResult *result,
                                            gpointer      user_data);
@@ -267,6 +270,7 @@ epg_manager_provider_iface_init (gpointer g_iface,
   iface->clear_code = epg_manager_clear_code;
   iface->shutdown_async = epg_manager_shutdown_async;
   iface->shutdown_finish = epg_manager_shutdown_finish;
+  iface->wallclock_time_changed = epg_manager_wallclock_time_changed;
   iface->get_expiry_time = epg_manager_get_expiry_time;
   iface->get_enabled = epg_manager_get_enabled;
   iface->get_rate_limit_end_time = epg_manager_get_rate_limit_end_time;
@@ -1574,6 +1578,36 @@ epg_manager_shutdown_finish (EpgProvider   *provider,
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   return g_task_propagate_boolean (G_TASK (result), error);
+}
+
+static void
+epg_manager_wallclock_time_changed (EpgProvider *provider,
+                                    gint64       delta)
+{
+  EpgManager *self = EPG_MANAGER (provider);
+
+  g_return_if_fail (EPG_IS_MANAGER (self));
+
+  if (delta == 0)
+    return;
+
+  /* Consume credit for any positive delta, because it might mean we
+   * miscalculated the consumption of credit at startup. */
+  if (delta > 0)
+    {
+      guint64 now_secs = epg_clock_get_time (self->clock);
+      set_expiry_time (self, NULL, FALSE, now_secs, (guint64)delta);
+    }
+
+  /* Kick off an asynchronous save.
+   *
+   * FIXME: pass self->cancellable; see comment in
+   * epg_manager_shutdown_async().
+   */
+  g_assert (self->pending_internal_save_state_calls < G_MAXUINT64);
+  self->pending_internal_save_state_calls++;
+  epg_manager_save_state_async (provider, NULL,
+                                internal_save_state_cb, NULL);
 }
 
 static guint64
