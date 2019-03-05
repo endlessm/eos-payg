@@ -29,6 +29,8 @@ sysconfdir = join_paths(prefix, get_option('sysconfdir'))
 pkglibdir = join_paths(libdir, eos_payg_api_name)
 pluginsdir = join_paths(pkglibdir, 'plugins')
 
+cc = meson.get_compiler('c')
+
 config_h = configuration_data()
 config_h.set_quoted('DATADIR', datadir)
 config_h.set_quoted('GETTEXT_PACKAGE', meson.project_name())
@@ -37,6 +39,7 @@ config_h.set_quoted('LOCALSTATEDIR', localstatedir)
 config_h.set_quoted('PREFIX', prefix)
 config_h.set_quoted('SYSCONFDIR', sysconfdir)
 config_h.set_quoted('PLUGINSDIR', pluginsdir)
+config_h.set('SIZEOF_TIME_T', cc.sizeof('time_t', prefix : '#include <sys/time.h>'))
 configure_file(
   output: 'config.h',
   configuration: config_h,

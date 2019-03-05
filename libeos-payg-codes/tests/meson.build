@@ -45,5 +45,6 @@ foreach program: test_programs
     program[0],
     exe,
     env: envs,
+    suite: ['eos-payg'],
   )
 endforeach
