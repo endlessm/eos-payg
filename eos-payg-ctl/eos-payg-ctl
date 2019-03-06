@@ -33,12 +33,6 @@ ERROR_DOMAIN = "com.endlessm.Payg1.Error"
 
 DBUS_PROPERTIES_INTERFACE = "org.freedesktop.DBus.Properties"
 
-# Python 3.5 does not define time.CLOCK_BOOTTIME. linux/time.h has:
-#     #define CLOCK_BOOTTIME 7
-# FIXME: use time.CLOCK_BOOTTIME directly once we can have Python 3.7.
-# https://phabricator.endlessm.com/T25065
-CLOCK_BOOTTIME = getattr(time, 'CLOCK_BOOTTIME', 7)
-
 
 def __make_boottime_formatter():
     '''Returns a function which formats a timestamp in units of CLOCK_BOOTTIME
@@ -46,7 +40,7 @@ def __make_boottime_formatter():
     function so the same origin point is used for both the properties of this
     type; otherwise, if both ExpiryTime and RateLimitEndTime are 0, they would
     show as fractionally different times.'''
-    now_boottime = time.clock_gettime(CLOCK_BOOTTIME)
+    now_boottime = time.clock_gettime(time.CLOCK_BOOTTIME)
     now_utc = time.time()
 
     def __format_boottime_timestamp(boottime_timestamp):
