@@ -6,3 +6,9 @@ Depends:
  libeos-payg-1-tests,
  libeos-payg-codes-1-tests,
  libeos-payg-helper-1-tests,
+
+Tests: gnome-desktop-testing-root
+Depends:
+ gnome-desktop-testing,
+ libeos-payg-1-tests,
+Restrictions: needs-root
