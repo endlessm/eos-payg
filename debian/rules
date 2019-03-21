@@ -9,6 +9,7 @@ override_dh_auto_configure:
 		-- \
 		-Dinstalled_tests=true \
 		-Ddefault_library=static \
+		-Dtests=unsafe
 		$(NULL)
 
 # Remove LD_PRELOAD so we don't run with fakeroot. libgsystemservice's tests

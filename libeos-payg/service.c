@@ -29,6 +29,7 @@
 #include <libeos-payg/provider-loader.h>
 #include <libeos-payg/resources.h>
 #include <libeos-payg/service.h>
+#include <libeos-payg/clock-jump-source.h>
 #include <libeos-payg-codes/codes.h>
 #include <libgsystemservice/config-file.h>
 #include <locale.h>
@@ -81,6 +82,12 @@ struct _EpgService
    * matching call to gss_service_release().
    */
   gboolean holding;
+
+  /* A GSource to detect discontinous clock changes, and the pre-jump clock
+   * values so the delta can be calculated */
+  GSource *source; /* (owned) */
+  gint64 clock_realtime_secs_v0;
+  gint64 clock_boottime_secs_v0;
 };
 
 G_DEFINE_TYPE (EpgService, epg_service, GSS_TYPE_SERVICE)
@@ -119,6 +126,7 @@ epg_service_dispose (GObject *object)
 
   g_clear_object (&self->manager_service);
   g_clear_object (&self->provider);
+  g_clear_object (&self->source);
   g_clear_pointer (&self->config_file_path, g_free);
 
   /* Chain up to the parent class */
@@ -254,6 +262,40 @@ manager_new_cb (GObject      *source_object,
   epg_service_startup_complete (self, task, g_steal_pointer (&provider));
 }
 
+static time_t
+get_clock_seconds (int clockid)
+{
+  struct timespec ts;
+  if (G_UNLIKELY (clock_gettime (clockid, &ts) != 0))
+    g_error ("clock_gettime() failed for clockid %d: %s", clockid, g_strerror (errno));
+  return ts.tv_sec;
+}
+
+static gboolean
+clock_jump_cb (gpointer user_data)
+{
+  EpgService *self = EPG_SERVICE (user_data);
+  gint64 clock_realtime_secs_v1;
+  gint64 clock_boottime_secs_v1;
+  gint64 clock_jump_delta;
+
+  clock_realtime_secs_v1 = get_clock_seconds (CLOCK_REALTIME);
+  clock_boottime_secs_v1 = get_clock_seconds (CLOCK_BOOTTIME);
+
+  clock_jump_delta = ((clock_realtime_secs_v1 - self->clock_realtime_secs_v0) -
+                      (clock_boottime_secs_v1 - self->clock_boottime_secs_v0));
+  if (clock_jump_delta != 0)
+    {
+      g_debug ("Detected system clock jump of %" G_GINT64_FORMAT " seconds", clock_jump_delta);
+      epg_provider_wallclock_time_changed (self->provider, clock_jump_delta);
+    }
+
+  self->clock_realtime_secs_v0 = clock_realtime_secs_v1;
+  self->clock_boottime_secs_v0 = clock_boottime_secs_v1;
+
+  return G_SOURCE_CONTINUE;
+}
+
 /**
  * epg_service_startup_complete:
  * @self: an #EpgService
@@ -261,7 +303,9 @@ manager_new_cb (GObject      *source_object,
  * @provider: (transfer full): a non-%NULL provider
  *
  * Completes the startup process, registering @provider on the bus and
- * making @task return.
+ * making @task return. This is also where we create a timer that will inform
+ * us of any discontinuous changes to the system clock (so we can inform the
+ * provider).
  */
 static void
 epg_service_startup_complete (EpgService  *self,
@@ -269,9 +313,24 @@ epg_service_startup_complete (EpgService  *self,
                               EpgProvider *provider)
 {
   g_autoptr(GError) local_error = NULL;
+  g_autoptr(GSource) clock_jump_source = NULL;
 
   g_assert (provider != NULL);
   self->provider = g_steal_pointer (&provider);
+
+  self->clock_realtime_secs_v0 = get_clock_seconds (CLOCK_REALTIME);
+  self->clock_boottime_secs_v0 = get_clock_seconds (CLOCK_BOOTTIME);
+
+  self->source = epg_clock_jump_source_new (&local_error);
+  if (self->source == NULL)
+    {
+      g_warning ("Error creating EpgClockJumpSource: %s", local_error->message);
+    }
+  else
+    {
+      g_source_set_callback (self->source, clock_jump_cb, self, NULL);
+      g_source_attach (self->source, NULL);
+    }
 
   /* Create our D-Bus service. */
   GDBusConnection *connection = gss_service_get_dbus_connection (GSS_SERVICE (self));

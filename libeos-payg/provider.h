@@ -48,6 +48,9 @@ struct _EpgProviderInterface
                                       GAsyncResult  *result,
                                       GError       **error);
 
+  void            (*wallclock_time_changed)  (EpgProvider *self,
+                                              gint64       delta);
+
   guint64         (*get_expiry_time)         (EpgProvider *self);
   gboolean        (*get_enabled)             (EpgProvider *self);
   guint64         (*get_rate_limit_end_time) (EpgProvider *self);
@@ -69,6 +72,9 @@ void            epg_provider_shutdown_async  (EpgProvider         *self,
 gboolean        epg_provider_shutdown_finish (EpgProvider   *self,
                                               GAsyncResult  *result,
                                               GError       **error);
+
+void            epg_provider_wallclock_time_changed  (EpgProvider *self,
+                                                      gint64       delta);
 
 guint64         epg_provider_get_expiry_time         (EpgProvider *self);
 gboolean        epg_provider_get_enabled             (EpgProvider *self);

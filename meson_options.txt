@@ -5,6 +5,13 @@ option(
   description: 'username to run the payg daemon as',
 )
 option(
+  'tests',
+  type: 'combo',
+  choices: ['safe', 'unsafe'],
+  value: 'safe',
+  description: 'enable unsafe tests with =unsafe'
+)
+option(
   'installed_tests',
   type: 'boolean',
   value: false,
