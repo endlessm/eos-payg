@@ -126,7 +126,14 @@ epg_service_dispose (GObject *object)
 
   g_clear_object (&self->manager_service);
   g_clear_object (&self->provider);
-  g_clear_object (&self->source);
+
+  if (self->source != NULL)
+    {
+      g_source_destroy (self->source);
+      g_source_unref (self->source);
+      self->source = NULL;
+    }
+
   g_clear_pointer (&self->config_file_path, g_free);
 
   /* Chain up to the parent class */
