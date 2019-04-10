@@ -155,18 +155,23 @@ epg_provider_default_init (EpgProviderInterface *iface)
  * epg_provider_add_code:
  * @self: an #EpgProvider
  * @code_str: code to verify and add
+ * @time_added: return location for the span of seconds added by code_str.
  * @error: return location for a #GError
  *
  * Verify and add the given @code_str. This checks that @code_str is valid, and
  * has not been used already. If so, it will add the time period given in the
  * @code_str to #EpgProvider:expiry-time (or to the current time if
- * #EpgProvider:expiry-time is in the past). If @code_str fails verification or
- * cannot be added, an error will be returned.
+ * #EpgProvider:expiry-time is in the past). On success, @time_added will be
+ * populated by the span of seconds added by @code_str. If @code_str fails
+ * verification or cannot be added, an error will be returned.
  *
  * Calls to this function may be rate limited: if too many attempts are made within
  * a given time period, %EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS will be returned
  * until that period expires. The rate limiting history is reset on a successful
- * verification of a code.
+ * verification of a code. 
+ *
+ * @time_added is signed because some implementations can reduce the available credit
+ * when you add a new code.
  *
  * Returns: %TRUE on success, %FALSE otherwise
  * Since: 0.2.0
@@ -174,15 +179,17 @@ epg_provider_default_init (EpgProviderInterface *iface)
 gboolean
 epg_provider_add_code   (EpgProvider  *self,
                          const gchar  *code_str,
+                         gint64       *time_added,
                          GError      **error)
 {
   g_return_val_if_fail (EPG_IS_PROVIDER (self), FALSE);
+  g_return_val_if_fail (time_added != NULL, FALSE);
 
   EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
 
   g_assert (iface->add_code != NULL);
 
-  return iface->add_code (self, code_str, error);
+  return iface->add_code (self, code_str, time_added, error);
 }
 
 /**
