@@ -1601,6 +1601,11 @@ epg_manager_wallclock_time_changed (EpgProvider *provider,
   if (delta > 0)
     {
       guint64 now_secs = epg_clock_get_time (self->clock);
+
+      /* FIXME: This actually extends the expiration rather than reducing it
+       * but the Endless backend is basically deprecated anyway in favor of
+       * Angaza.
+       */
       set_expiry_time (self, NULL, FALSE, now_secs, (guint64)delta);
     }
 
