@@ -3,13 +3,17 @@
 # This file is distributed under the same license as the eos-payg package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# Muha Aliss <muhaaliss@gmail.com>, 2019
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2018-04-03 16:11+0200\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: 2018-04-03 14:11+0000\n"
+"Last-Translator: Muha Aliss <muhaaliss@gmail.com>, 2019\n"
 "Language-Team: Turkish (https://www.transifex.com/endless-os/teams/9016/tr/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -19,120 +23,120 @@ msgstr ""
 
 #: eos-payg-generate/main.c:49
 msgid "5 seconds"
-msgstr ""
+msgstr "5 saniye"
 
 #: eos-payg-generate/main.c:50
 msgid "1 minute"
-msgstr ""
+msgstr "1 dakika"
 
 #: eos-payg-generate/main.c:51
 msgid "5 minutes"
-msgstr ""
+msgstr "5 dakika"
 
 #: eos-payg-generate/main.c:52
 msgid "30 minutes"
-msgstr ""
+msgstr "30 dakika"
 
 #: eos-payg-generate/main.c:52
 msgid "1 hour"
-msgstr ""
+msgstr "1 saat"
 
 #: eos-payg-generate/main.c:54
 msgid "8 hours"
-msgstr ""
+msgstr "8 saat"
 
 #: eos-payg-generate/main.c:53
 msgid "1 day"
-msgstr ""
+msgstr "1 gün"
 
 #: eos-payg-generate/main.c:54
 msgid "2 days"
-msgstr ""
+msgstr "2 gün"
 
 #: eos-payg-generate/main.c:55
 msgid "3 days"
-msgstr ""
+msgstr "3 gün"
 
 #: eos-payg-generate/main.c:56
 msgid "4 days"
-msgstr ""
+msgstr "4 gün"
 
 #: eos-payg-generate/main.c:57
 msgid "5 days"
-msgstr ""
+msgstr "5 gün"
 
 #: eos-payg-generate/main.c:58
 msgid "6 days"
-msgstr ""
+msgstr "6 gün"
 
 #: eos-payg-generate/main.c:59
 msgid "7 days"
-msgstr ""
+msgstr "7 gün"
 
 #: eos-payg-generate/main.c:60
 msgid "8 days"
-msgstr ""
+msgstr "8 gün"
 
 #: eos-payg-generate/main.c:61
 msgid "9 days"
-msgstr ""
+msgstr "9 gün"
 
 #: eos-payg-generate/main.c:62
 msgid "10 days"
-msgstr ""
+msgstr "10 gün"
 
 #: eos-payg-generate/main.c:63
 msgid "11 days"
-msgstr ""
+msgstr "11 gün"
 
 #: eos-payg-generate/main.c:64
 msgid "12 days"
-msgstr ""
+msgstr "12 gün"
 
 #: eos-payg-generate/main.c:65
 msgid "13 days"
-msgstr ""
+msgstr "13 gün"
 
 #: eos-payg-generate/main.c:66
 msgid "14 days"
-msgstr ""
+msgstr "14 gün"
 
 #: eos-payg-generate/main.c:67
 msgid "30 days"
-msgstr ""
+msgstr "30 gün"
 
 #: eos-payg-generate/main.c:68
 msgid "60 days"
-msgstr ""
+msgstr "60 gün"
 
 #: eos-payg-generate/main.c:69
 msgid "90 days"
-msgstr ""
+msgstr "90 gün"
 
 #: eos-payg-generate/main.c:70
 msgid "120 days"
-msgstr ""
+msgstr "120 gün"
 
 #: eos-payg-generate/main.c:71
 msgid "365 days"
-msgstr ""
+msgstr "365 gün"
 
 #: eos-payg-generate/main.c:72
 msgid "Infinite"
-msgstr ""
+msgstr "Sınırsız"
 
 #: eos-payg-generate/main.c:94
 #, c-format
 msgid "Invalid period ‘%s’."
-msgstr ""
+msgstr "Geçersiz süre %s"
 
 #: eos-payg-generate/main.c:118
 msgid "Only print error messages"
-msgstr ""
+msgstr "Sadece hata mesajlarını yazdır"
 
 #: eos-payg-generate/main.c:120
 msgid "List the available periods"
-msgstr ""
+msgstr "Uygun dönemleri listele"
 
 #: eos-payg-generate/main.c:127
 msgid "KEY-FILENAME PERIOD [COUNTER]"
@@ -150,7 +154,7 @@ msgstr ""
 
 #: eos-payg-generate/main.c:145
 msgid "Available periods:"
-msgstr ""
+msgstr "Kullanılabilir dönemler:"
 
 #: eos-payg-generate/main.c:163
 msgid "A KEY-FILENAME and PERIOD are required"
@@ -173,7 +177,7 @@ msgstr ""
 #: libeos-payg-codes/codes.c:182
 #, c-format
 msgid "Invalid code %s."
-msgstr ""
+msgstr "Geçersiz kod %s."
 
 #: libeos-payg-codes/codes.c:305
 #, c-format
@@ -182,7 +186,7 @@ msgstr ""
 
 #: libeos-payg-codes/codes.c:372
 msgid "Codes must be 8 digits long."
-msgstr ""
+msgstr "Kodlar 8 rakam uzunluğunda olmalıdır."
 
 #: libeos-payg/manager.c:391
 msgid "Pay as you go is disabled on this computer."
@@ -190,7 +194,7 @@ msgstr ""
 
 #: libeos-payg/manager.c:448
 msgid "Too many invalid codes entered recently; please wait"
-msgstr ""
+msgstr "Son zamanlarda çok fazla geçersiz kod girildi; lütfen bekleyin"
 
 #: libeos-payg/manager.c:488
 msgid "This pay as you go code has already been used."

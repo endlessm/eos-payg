@@ -3,13 +3,16 @@
 # This file is distributed under the same license as the eos-payg package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
+# Translators:
+# XorgMC <xorgmc@gmail.com>, 2018
+# 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2018-04-03 16:11+0200\n"
-"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"PO-Revision-Date: 2018-04-03 14:11+0000\n"
 "Last-Translator: XorgMC <xorgmc@gmail.com>, 2018\n"
 "Language-Team: German (https://www.transifex.com/endless-os/teams/9016/de/)\n"
 "MIME-Version: 1.0\n"
