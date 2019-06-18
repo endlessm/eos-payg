@@ -76,6 +76,8 @@ typedef enum
   PROP_ENABLED,
   PROP_RATE_LIMIT_END_TIME,
   PROP_CODE_FORMAT,
+  PROP_CODE_FORMAT_PREFIX,
+  PROP_CODE_FORMAT_SUFFIX,
   PROP_CLOCK,
 } EpgTestProviderProperty;
 
@@ -100,6 +102,8 @@ epg_test_provider_class_init (EpgTestProviderClass *klass)
   g_object_class_override_property (object_class, PROP_ENABLED, "enabled");
   g_object_class_override_property (object_class, PROP_RATE_LIMIT_END_TIME, "rate-limit-end-time");
   g_object_class_override_property (object_class, PROP_CODE_FORMAT, "code-format");
+  g_object_class_override_property (object_class, PROP_CODE_FORMAT_PREFIX, "code-format-prefix");
+  g_object_class_override_property (object_class, PROP_CODE_FORMAT_SUFFIX, "code-format-suffix");
   g_object_class_override_property (object_class, PROP_CLOCK, "clock");
 }
 
@@ -128,6 +132,8 @@ epg_test_provider_provider_iface_init (gpointer g_iface,
   iface->get_rate_limit_end_time = epg_test_provider_get_rate_limit_end_time;
   iface->get_clock = epg_test_provider_get_clock;
   iface->code_format = "";
+  iface->code_format_prefix = "";
+  iface->code_format_suffix = "";
 }
 
 static void
@@ -158,6 +164,12 @@ epg_test_provider_get_property (GObject    *object,
     case PROP_CODE_FORMAT:
       g_value_set_static_string (value, epg_provider_get_code_format (provider));
       break;
+    case PROP_CODE_FORMAT_PREFIX:
+      g_value_set_static_string (value, epg_provider_get_code_format_prefix (provider));
+      break;
+    case PROP_CODE_FORMAT_SUFFIX:
+      g_value_set_static_string (value, epg_provider_get_code_format_suffix (provider));
+      break;
     case PROP_CLOCK:
       g_value_set_object (value, epg_provider_get_clock (provider));
       break;
@@ -180,6 +192,14 @@ epg_test_provider_set_property (GObject      *object,
     case PROP_EXPIRY_TIME:
     case PROP_RATE_LIMIT_END_TIME:
     case PROP_CODE_FORMAT:
+      /* Read only. */
+      g_assert_not_reached ();
+      break;
+    case PROP_CODE_FORMAT_PREFIX:
+      /* Read only. */
+      g_assert_not_reached ();
+      break;
+    case PROP_CODE_FORMAT_SUFFIX:
       /* Read only. */
       g_assert_not_reached ();
       break;

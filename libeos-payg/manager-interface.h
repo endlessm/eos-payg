@@ -131,12 +131,32 @@ static const GDBusPropertyInfo manager_interface_code_format =
   NULL,  /* annotations */
 };
 
+static const GDBusPropertyInfo manager_interface_code_format_prefix =
+{
+  -1,  /* ref count */
+  (gchar *) "CodeFormatPrefix",
+  (gchar *) "s",
+  G_DBUS_PROPERTY_INFO_FLAGS_READABLE,
+  NULL,  /* annotations */
+};
+
+static const GDBusPropertyInfo manager_interface_code_format_suffix =
+{
+  -1,  /* ref count */
+  (gchar *) "CodeFormatSuffix",
+  (gchar *) "s",
+  G_DBUS_PROPERTY_INFO_FLAGS_READABLE,
+  NULL,  /* annotations */
+};
+
 static const GDBusPropertyInfo *manager_interface_properties[] =
 {
   &manager_interface_expiry_time,
   &manager_interface_enabled,
   &manager_interface_rate_limit_end_time,
   &manager_interface_code_format,
+  &manager_interface_code_format_prefix,
+  &manager_interface_code_format_suffix,
   NULL,
 };
 

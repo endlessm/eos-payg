@@ -121,6 +121,40 @@ epg_provider_default_init (EpgProviderInterface *iface)
   g_object_interface_install_property (iface, pspec);
 
   /**
+   * EpgProvider:code-format-prefix:
+   *
+   * A gchar representing the expected prefix of a format of codes expected by
+   * epg_provider_add_code() on this provider.
+   *
+   * This property is constant once the provider is initialized.
+   *
+   * Since: 0.2.2
+   */
+  pspec =
+      g_param_spec_string ("code-format-prefix", "Code Format Prefix",
+                           "The prefix of the format code expected by this provider",
+                           "",
+                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+  g_object_interface_install_property (iface, pspec);
+
+  /**
+   * EpgProvider:code-format:
+   *
+   * A gchar representing the expected suffix of a format of codes expected by
+   * epg_provider_add_code() on this provider.
+   *
+   * This property is constant once the provider is initialized.
+   *
+   * Since: 0.2.2
+   */
+  pspec =
+      g_param_spec_string ("code-format-suffix", "Code Format Suffix",
+                           "The suffix of the format code expected by this provider",
+                           "",
+                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+  g_object_interface_install_property (iface, pspec);
+
+  /**
    * EpgProvider:clock:
    *
    * Clock used to get the time and create timeout #GSource objects.
@@ -385,6 +419,48 @@ epg_provider_get_code_format (EpgProvider *self)
   g_assert (iface->code_format != NULL);
 
   return iface->code_format;
+}
+
+/**
+ * epg_provider_get_code_format_prefix:
+ * @self: a #EpgProvider
+ *
+ * Get the value of #EpgProvider:code-format-prefix
+ *
+ * Returns: the prefix of the code-format expected by this provider
+ * Since: 0.2.2
+ */
+const gchar *
+epg_provider_get_code_format_prefix (EpgProvider *self)
+{
+  g_return_val_if_fail (EPG_IS_PROVIDER (self), NULL);
+
+  EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
+
+  g_return_val_if_fail (iface->code_format_prefix == NULL, "");
+
+  return iface->code_format_prefix;
+}
+
+/**
+ * epg_provider_get_code_format_suffix:
+ * @self: a #EpgProvider
+ *
+ * Get the value of #EpgProvider:code-format-suffix
+ *
+ * Returns: the suffix of the code-format expected by this provider
+ * Since: 0.2.2
+ */
+const gchar *
+epg_provider_get_code_format_suffix (EpgProvider *self)
+{
+  g_return_val_if_fail (EPG_IS_PROVIDER (self), NULL);
+
+  EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
+
+  g_return_val_if_fail (iface->code_format_suffix == NULL, "");
+
+  return iface->code_format_suffix;
 }
 
 /**
