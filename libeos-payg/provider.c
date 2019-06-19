@@ -437,9 +437,10 @@ epg_provider_get_code_format_prefix (EpgProvider *self)
 
   EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
 
-  g_return_val_if_fail (iface->code_format_prefix != NULL, "");
+  if (iface->code_format_prefix != NULL)
+    return iface->code_format_prefix;
 
-  return iface->code_format_prefix;
+  return "";
 }
 
 /**
@@ -458,9 +459,10 @@ epg_provider_get_code_format_suffix (EpgProvider *self)
 
   EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
 
-  g_return_val_if_fail (iface->code_format_suffix != NULL, "");
+  if (iface->code_format_suffix != NULL)
+    return iface->code_format_suffix;
 
-  return iface->code_format_suffix;
+  return "";
 }
 
 /**
