@@ -274,6 +274,36 @@ get_code_format (Fixture *fixture)
   return g_steal_pointer (&regex);
 }
 
+/* test_code_format_prefix:
+ *
+ * Tests that the :code-format-prefix is properly returned.
+ */
+static void
+test_manager_code_format_prefix (Fixture *fixture,
+                                 gconstpointer data)
+{
+  manager_new (fixture);
+
+  const gchar *code_format_prefix = epg_provider_get_code_format_prefix (fixture->provider);
+
+  g_assert_cmpstr (code_format_prefix, ==, "");
+}
+
+/* test_code_format_suffix:
+ *
+ * Tests that the :code-format-suffix is properly returned.
+ */
+static void
+test_manager_code_format_suffix (Fixture *fixture,
+                                 gconstpointer data)
+{
+  manager_new (fixture);
+
+  const gchar *code_format_suffix = epg_provider_get_code_format_suffix (fixture->provider);
+
+  g_assert_cmpstr (code_format_suffix, ==, "");
+}
+
 /* test_manager_code_format_matches:
  * @data: const gchar *
  *
@@ -844,6 +874,8 @@ main (int    argc,
   T ("/manager/extend-expiry", test_manager_extend_expiry, NULL);
   T ("/manager/add-save-reload", test_manager_add_save_reload, NULL);
   T ("/manager/add-infinite", test_manager_add_infinite_code, NULL);
+  T ("/manager/get-code-format-prefix", test_manager_code_format_prefix, NULL);
+  T ("/manager/get-code-format-suffix", test_manager_code_format_suffix, NULL);
   T ("/manager/error/malformed", test_manager_error_malformed, NULL);
   T ("/manager/error/reused", test_manager_error_reused, NULL);
   T ("/manager/error/rate-limit", test_manager_error_rate_limit, NULL);

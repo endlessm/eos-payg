@@ -115,6 +115,20 @@ static GVariant *epg_manager_service_manager_get_code_format (EpgManagerService 
                                                               const gchar           *property_name,
                                                               GDBusMethodInvocation *invocation);
 
+static GVariant *epg_manager_service_manager_get_code_format_prefix (EpgManagerService     *self,
+                                                                     GDBusConnection       *connection,
+                                                                     const gchar           *sender,
+                                                                     const gchar           *interface_name,
+                                                                     const gchar           *property_name,
+                                                                     GDBusMethodInvocation *invocation);
+
+static GVariant *epg_manager_service_manager_get_code_format_suffix (EpgManagerService     *self,
+                                                                     GDBusConnection       *connection,
+                                                                     const gchar           *sender,
+                                                                     const gchar           *interface_name,
+                                                                     const gchar           *property_name,
+                                                                     GDBusMethodInvocation *invocation);
+
 static void expired_cb (EpgProvider *provider,
                         gpointer     user_data);
 static void notify_cb  (GObject    *obj,
@@ -596,6 +610,10 @@ manager_properties[] =
       epg_manager_service_manager_get_rate_limit_end_time, NULL  /* read-only */ },
     { "com.endlessm.Payg1", "CodeFormat", "code-format",
       epg_manager_service_manager_get_code_format, NULL  /* read-only */ },
+    { "com.endlessm.Payg1", "CodeFormatPrefix", "code-format-prefix",
+      epg_manager_service_manager_get_code_format_prefix, NULL  /* read-only */ },
+    { "com.endlessm.Payg1", "CodeFormatSuffix", "code-format-suffix",
+      epg_manager_service_manager_get_code_format_suffix, NULL  /* read-only */ },
   };
 
 G_STATIC_ASSERT (G_N_ELEMENTS (manager_properties) ==
@@ -825,6 +843,28 @@ epg_manager_service_manager_get_code_format (EpgManagerService     *self,
                                              GDBusMethodInvocation *invocation)
 {
   return g_variant_new_string (epg_provider_get_code_format (self->provider));
+}
+
+static GVariant *
+epg_manager_service_manager_get_code_format_prefix (EpgManagerService     *self,
+                                                    GDBusConnection       *connection,
+                                                    const gchar           *sender,
+                                                    const gchar           *interface_name,
+                                                    const gchar           *property_name,
+                                                    GDBusMethodInvocation *invocation)
+{
+  return g_variant_new_string (epg_provider_get_code_format_prefix (self->provider));
+}
+
+static GVariant *
+epg_manager_service_manager_get_code_format_suffix (EpgManagerService     *self,
+                                                    GDBusConnection       *connection,
+                                                    const gchar           *sender,
+                                                    const gchar           *interface_name,
+                                                    const gchar           *property_name,
+                                                    GDBusMethodInvocation *invocation)
+{
+  return g_variant_new_string (epg_provider_get_code_format_suffix (self->provider));
 }
 
 static void
