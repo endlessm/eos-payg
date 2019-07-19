@@ -25,7 +25,18 @@
 #include <libeos-payg/service.h>
 #include <signal.h>
 #include <systemd/sd-daemon.h>
+#include <linux/reboot.h>
+#include <sys/reboot.h>
 
+/* Force a poweroff in situations where we are not able to enforce PAYG */
+static gboolean
+sync_and_poweroff (gpointer user_data)
+{
+    g_warning ("bcsn: Forcing poweroff now!");
+    sync ();
+    reboot (LINUX_REBOOT_CMD_POWER_OFF);
+    return FALSE;
+}
 
 int
 main (int   argc,
@@ -36,7 +47,15 @@ main (int   argc,
   int sd_notify_ret;
   gboolean backward_compat_mode = FALSE;
 
-  if (access ("/etc/initrd-release", F_OK) < 0)
+  /* If eos-paygd is running from the initramfs, change the process name so
+   * that it survives the pivot to the final root filesystem. This is an
+   * (ab)use of the functionality systemd has to support storage daemons needed
+   * for mounting/unmounting the root filesystem. See
+   * https://phabricator.endlessm.com/T27037
+   */
+  if (access ("/etc/initrd-release", F_OK) >= 0)
+    argv[0][0] = '@';
+  else
     {
       /* To support existing deployments which use grub and can't be OTA
        * updated to Phase 4 PAYG security, we have to support running from the
