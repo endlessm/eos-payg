@@ -46,6 +46,7 @@ main (int   argc,
   g_autoptr(EpgService) service = NULL;
   int sd_notify_ret;
   gboolean backward_compat_mode = FALSE;
+  guint timeout_id;
 
   /* If eos-paygd is running from the initramfs, change the process name so
    * that it survives the pivot to the final root filesystem. This is an
@@ -74,6 +75,34 @@ main (int   argc,
         g_warning ("sd_notify() failed with code %d", -sd_notify_ret);
       else if (sd_notify_ret == 0)
         g_warning ("sd_notify() failed due to unset $NOTIFY_SOCKET");
+
+      /* Wait for the pivot to the final root so we can connect to the D-Bus
+       * daemon, but timeout after 10 minutes; otherwise we could be fooled into
+       * waiting forever. If the timeout were shorter it would make debugging the
+       * initramfs difficult. */
+      timeout_id = g_timeout_add_seconds (10 * 60, sync_and_poweroff, NULL);
+      while (access ("/etc/initrd-release", F_OK) >= 0)
+        g_usleep (G_USEC_PER_SEC / 5);
+      g_source_remove (timeout_id);
+
+      /* Wait up to 20 minutes for the system D-Bus daemon to be started. A
+       * shorter timeout would mean risking putting systems in an infinite boot
+       * loop; in the past we've had long running operations like migrations of
+       * flatpaks occur during a reboot. */
+      timeout_id = g_timeout_add_seconds (20 * 60, sync_and_poweroff, NULL);
+      while (TRUE)
+        {
+          g_autoptr(GDBusConnection) bus_connection = g_bus_get_sync (G_BUS_TYPE_SYSTEM, NULL, &error);
+          if (bus_connection == NULL)
+            {
+              g_debug ("Error connecting to system bus, will retry: %s", error->message);
+              g_clear_error (&error);
+              g_usleep (G_USEC_PER_SEC);
+            }
+          else
+            break;
+        }
+      g_source_remove (timeout_id);
     }
 
   /* Set up a D-Bus service and run until we are killed. */
