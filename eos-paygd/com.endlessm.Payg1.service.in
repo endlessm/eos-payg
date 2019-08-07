@@ -1,5 +1,0 @@
-[D-BUS Service]
-Name=com.endlessm.Payg1
-Exec=@libexecdir@/eos-paygd1
-User=@DAEMON_USER@
-SystemdService=eos-paygd.service

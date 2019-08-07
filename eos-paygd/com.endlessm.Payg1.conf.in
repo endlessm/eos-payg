@@ -5,7 +5,7 @@
 
 <busconfig>
   <!-- Allow the daemon to own its name. -->
-  <policy user="@DAEMON_USER@">
+  <policy user="root">
     <allow own="com.endlessm.Payg1"/>
   </policy>
 

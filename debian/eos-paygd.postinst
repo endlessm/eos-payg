@@ -1,8 +1,0 @@
-#!/bin/sh
-set -e
-
-if [ "$1" = configure ]; then
-    systemd-sysusers /usr/lib/sysusers.d/eos-paygd.conf
-fi
-
-#DEBHELPER#

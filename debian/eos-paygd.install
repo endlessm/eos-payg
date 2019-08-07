@@ -1,8 +1,8 @@
 lib/systemd/system/eos-paygd.service
+lib/systemd/system/eos-paygd-2.service
 usr/lib/*/eos-payg-1/libeos-payg-1.so
 usr/lib/*/eos-paygd1
-usr/lib/sysusers.d/eos-paygd.conf
 usr/share/dbus-1/system.d/com.endlessm.Payg1.conf
-usr/share/dbus-1/system-services/com.endlessm.Payg1.service
 usr/share/man/man5/eos-payg.conf.5*
 usr/share/man/man8/eos-paygd.8*
+usr/lib/dracut/modules.d/50eos-payg/module-setup.sh

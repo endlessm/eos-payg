@@ -21,7 +21,7 @@ override_dh_auto_test:
 
 # Don't start the services on install
 override_dh_systemd_start:
-	dh_systemd_start -peos-paygd --no-start eos-paygd.service
+	dh_systemd_start -peos-paygd --no-start eos-paygd.service eos-paygd-2.service
 
 override_dh_missing:
 	dh_missing --fail-missing

@@ -429,6 +429,7 @@ epg_service_new (void)
                        "bus-type", G_BUS_TYPE_SYSTEM,
                        "service-id", "com.endlessm.Payg1",
                        "inactivity-timeout", 30000  /* ms */,
+                       "allow-root", TRUE, /* https://phabricator.endlessm.com/T27037 */
                        "translation-domain", GETTEXT_PACKAGE,
                        "parameter-string", _("— verify top-up codes and monitor time remaining"),
                        "summary", _("Verify inputted top-up codes and "

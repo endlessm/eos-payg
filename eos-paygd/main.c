@@ -24,6 +24,7 @@
 #include <libgsystemservice/service.h>
 #include <libeos-payg/service.h>
 #include <signal.h>
+#include <systemd/sd-daemon.h>
 
 
 int
@@ -32,6 +33,29 @@ main (int   argc,
 {
   g_autoptr(GError) error = NULL;
   g_autoptr(EpgService) service = NULL;
+  int sd_notify_ret;
+  gboolean backward_compat_mode = FALSE;
+
+  if (access ("/etc/initrd-release", F_OK) < 0)
+    {
+      /* To support existing deployments which use grub and can't be OTA
+       * updated to Phase 4 PAYG security, we have to support running from the
+       * root filesystem and in that case not use any features that are
+       * unsupported on those grub systems, like state data encryption.
+       * https://phabricator.endlessm.com/T27524 */
+      g_debug ("eos-paygd running from root filesystem, entering backward compat mode");
+      backward_compat_mode = TRUE;
+    }
+
+  if (!backward_compat_mode)
+    {
+      /* Let systemd know it's okay to proceed to pivot to the final root */
+      sd_notify_ret = sd_notify (0, "READY=1");
+      if (sd_notify_ret < 0)
+        g_warning ("sd_notify() failed with code %d", -sd_notify_ret);
+      else if (sd_notify_ret == 0)
+        g_warning ("sd_notify() failed due to unset $NOTIFY_SOCKET");
+    }
 
   /* Set up a D-Bus service and run until we are killed. */
   service = epg_service_new ();

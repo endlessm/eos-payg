@@ -19,9 +19,10 @@ tracks the expiry time of the current pay as you go code, and signals to lock
 the system when that expiry time is reached. It allows new pay as you go codes
 to be verified and added, causing the expiry time to be extended.
 .PP
-\fBeos\-paygd\fP is designed to be run by \fBsystemd\fP(1), being
-D\-Bus activated. There should be no need to run \fBeos\-paygd\fP
-manually. Use the gnome\-shell UI to add codes to extend the expiry time.
+\fBeos\-paygd\fP is designed to be run by \fBsystemd\fP(1), and is started
+in the initramfs so that its integrity is verified by Secure Boot. There
+should be no need to run \fBeos\-paygd\fP manually. Use the gnome\-shell UI to
+add codes to extend the expiry time.
 .\"
 .SH OPTIONS
 .IX Header "OPTIONS"
@@ -72,8 +73,7 @@ The D\-Bus name for \fBeos\-paygd\fP was not available.
 .\"
 .IP "3" 4
 .IX Item "3"
-\fBeos\-paygd\fP was run in an inappropriate environment, for example
-as the root user.
+\fBeos\-paygd\fP was run in an inappropriate environment.
 .\"
 .SH "FILES"
 .IX Header "FILES"
