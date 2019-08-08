@@ -67,6 +67,11 @@ main (int   argc,
       backward_compat_mode = TRUE;
     }
 
+  /* Do some partial initialization before the root pivot. See
+   * https://phabricator.endlessm.com/T27054 */
+  service = epg_service_new ();
+  epg_service_secure_init_sync (service, NULL);
+
   if (!backward_compat_mode)
     {
       /* Let systemd know it's okay to proceed to pivot to the final root */
@@ -106,7 +111,6 @@ main (int   argc,
     }
 
   /* Set up a D-Bus service and run until we are killed. */
-  service = epg_service_new ();
   gss_service_run (GSS_SERVICE (service), argc, argv, &error);
 
   if (error != NULL)
