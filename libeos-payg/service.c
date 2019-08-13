@@ -408,8 +408,18 @@ manager_new_cb (GObject      *source_object,
       return;
     }
 
-  epg_service_set_provider (self, g_steal_pointer (&provider));
-  epg_service_startup_complete (self, task);
+  if (!epg_provider_get_enabled (provider))
+    {
+      /* Neither Endless nor 3rd party PAYG has been provisioned */
+      g_debug ("No PAYG providers are enabled, exiting");
+      g_task_return_boolean (task, TRUE);
+      gss_service_exit (GSS_SERVICE (self), NULL, 0);
+    }
+  else
+    {
+      epg_service_set_provider (self, g_steal_pointer (&provider));
+      epg_service_startup_complete (self, task);
+    }
 }
 
 /**
