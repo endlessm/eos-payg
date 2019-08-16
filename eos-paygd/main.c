@@ -21,12 +21,16 @@
 
 #include <glib.h>
 #include <glib/gi18n.h>
+#include <glib/gstdio.h>
 #include <libgsystemservice/service.h>
 #include <libeos-payg/service.h>
 #include <signal.h>
 #include <systemd/sd-daemon.h>
 #include <linux/reboot.h>
 #include <sys/reboot.h>
+#include <glob.h>
+#include <fcntl.h>
+#include <errno.h>
 
 /* Force a poweroff in situations where we are not able to enforce PAYG */
 static gboolean
@@ -38,13 +42,69 @@ sync_and_poweroff (gpointer user_data)
     return FALSE;
 }
 
+static void
+allow_writing_to_boot_partition (gboolean allow_write)
+{
+  glob_t globbuf = { 0 };
+  int ret = glob ("/dev/mmcblk*boot0", 0, NULL, &globbuf);
+  switch (ret)
+    {
+      case 0: /* success */
+        g_debug ("%s: glob matched", G_STRFUNC);
+        for (gsize i = globbuf.gl_offs; i < globbuf.gl_pathc; i++)
+          {
+            g_autofree char *mmcblkx = g_path_get_basename (globbuf.gl_pathv[i]);
+            g_autofree char *force_ro_path = g_build_filename ("/sys/block", mmcblkx, "force_ro", NULL);
+            uint32_t flags = O_SYNC | O_CLOEXEC | O_WRONLY;
+            int fd = open (force_ro_path, flags);
+            if (fd == -1)
+              g_warning ("%s: Error opening %s: %m", G_STRFUNC, force_ro_path);
+            else
+              {
+                g_autoptr(GError) error = NULL;
+
+                while (TRUE)
+                  {
+                    int bytes_written = write (fd, allow_write ? "0" : "1", 1);
+                    if (bytes_written == -1)
+                      {
+                        int saved_errno = errno;
+                        if (saved_errno == EINTR)
+                          continue;
+
+                        g_warning ("%s: Error writing to %s: %s", G_STRFUNC,
+                                   force_ro_path, g_strerror (saved_errno));
+                      }
+                    else if (bytes_written == 0)
+                      g_warning ("%s: write() reported writing zero bytes", G_STRFUNC);
+
+                    break;
+                  }
+
+                if (!g_close (fd, &error))
+                  g_warning ("%s: failed to close file descriptor: %s", G_STRFUNC, error->message);
+              }
+          }
+        break;
+
+      case GLOB_NOMATCH: /* benign failure */
+        g_debug ("%s: no matches for glob", G_STRFUNC);
+        break;
+
+      default: /* actual, unexpected failure */
+        g_warning ("%s: glob() failed with code %i", G_STRFUNC, ret);
+        break;
+    }
+  globfree (&globbuf);
+}
+
 int
 main (int   argc,
       char *argv[])
 {
   g_autoptr(GError) error = NULL;
   g_autoptr(EpgService) service = NULL;
-  int sd_notify_ret;
+  int ret, sd_notify_ret;
   gboolean backward_compat_mode = FALSE;
   guint timeout_id;
 
@@ -66,6 +126,12 @@ main (int   argc,
       g_debug ("eos-paygd running from root filesystem, entering backward compat mode");
       backward_compat_mode = TRUE;
     }
+
+  /* Allow writes to /dev/mmcblk?boot0. This requires writing to a special file
+   * as documented in
+   * https://github.com/torvalds/linux/blob/master/Documentation/driver-api/mmc/mmc-dev-parts.rst
+   */
+  allow_writing_to_boot_partition (TRUE);
 
   /* Do some partial initialization before the root pivot. See
    * https://phabricator.endlessm.com/T27054 */
@@ -125,8 +191,9 @@ main (int   argc,
       code = error->code;
       g_assert (code != 0);
 
-      return code;
+      ret = code;
     }
 
-  return 0;
+  allow_writing_to_boot_partition (FALSE);
+  return ret;
 }
