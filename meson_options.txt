@@ -1,10 +1,4 @@
 option(
-  'payg_daemon_user',
-  type: 'string',
-  value: 'eos-paygd',
-  description: 'username to run the payg daemon as',
-)
-option(
   'tests',
   type: 'combo',
   choices: ['safe', 'unsafe'],

@@ -13,6 +13,7 @@ Build-Depends:
  libsystemd-dev,
  meson,
  python3-dbusmock,
+ dracut,
 
 Package: eos-paygd
 Section: misc
@@ -21,6 +22,7 @@ Multi-arch: same
 Depends:
  eos-payg-data (= ${source:Version}),
  systemd (>= 235),
+ dracut,
  ${misc:Depends},
  ${shlibs:Depends},
 Description: Pay As You Go Daemon

@@ -165,11 +165,140 @@ static void manager_new_cb (GObject      *source_object,
                             GAsyncResult *result,
                             gpointer      user_data);
 static void epg_service_startup_complete (EpgService  *self,
-                                          GTask       *task,
-                                          EpgProvider *provider);
+                                          GTask       *task);
 static void provider_notify_enabled_cb (GObject    *object,
                                         GParamSpec *param_spec,
                                         gpointer    user_data);
+
+static void
+async_result_cb (GObject      *obj,
+                 GAsyncResult *result,
+                 gpointer      user_data)
+{
+  GAsyncResult **result_out = user_data;
+
+  *result_out = g_object_ref (result);
+}
+
+static time_t
+get_clock_seconds (int clockid)
+{
+  struct timespec ts;
+  if (G_UNLIKELY (clock_gettime (clockid, &ts) != 0))
+    g_error ("clock_gettime() failed for clockid %d: %s", clockid, g_strerror (errno));
+  return ts.tv_sec;
+}
+
+static gboolean
+clock_jump_cb (gpointer user_data)
+{
+  EpgService *self = EPG_SERVICE (user_data);
+  gint64 clock_realtime_secs_v1;
+  gint64 clock_boottime_secs_v1;
+  gint64 clock_jump_delta;
+
+  clock_realtime_secs_v1 = get_clock_seconds (CLOCK_REALTIME);
+  clock_boottime_secs_v1 = get_clock_seconds (CLOCK_BOOTTIME);
+
+  clock_jump_delta = ((clock_realtime_secs_v1 - self->clock_realtime_secs_v0) -
+                      (clock_boottime_secs_v1 - self->clock_boottime_secs_v0));
+  if (clock_jump_delta != 0)
+    {
+      g_debug ("Detected system clock jump of %" G_GINT64_FORMAT " seconds", clock_jump_delta);
+      epg_provider_wallclock_time_changed (self->provider, clock_jump_delta);
+    }
+
+  self->clock_realtime_secs_v0 = clock_realtime_secs_v1;
+  self->clock_boottime_secs_v0 = clock_boottime_secs_v1;
+
+  return G_SOURCE_CONTINUE;
+}
+
+static void
+_init_clock_jump_detection (EpgService *self)
+{
+  g_autoptr(GError) local_error = NULL;
+
+  g_assert (self->provider != NULL);
+
+  self->clock_realtime_secs_v0 = get_clock_seconds (CLOCK_REALTIME);
+  self->clock_boottime_secs_v0 = get_clock_seconds (CLOCK_BOOTTIME);
+
+  self->source = epg_clock_jump_source_new (&local_error);
+  if (self->source == NULL)
+    {
+      g_warning ("Error creating EpgClockJumpSource: %s", local_error->message);
+    }
+  else
+    {
+      g_source_set_callback (self->source, clock_jump_cb, self, NULL);
+      g_source_attach (self->source, NULL);
+    }
+}
+
+static void
+epg_service_set_provider (EpgService *self,
+                          EpgProvider *provider) /* transfer full */
+{
+  g_assert (EPG_IS_SERVICE (self));
+  g_assert (EPG_IS_PROVIDER (provider));
+
+  self->provider = provider;
+  _init_clock_jump_detection (self);
+}
+
+/**
+ * epg_service_secure_init_sync:
+ * @self: an #EpgService
+ * @cancellable: a #GCancellable
+ *
+ * This function must be executed before gss_service_run(), and does any
+ * initialization which requires a secure environment (such as a signed
+ * initramfs). For example, this loads .so files of #EpgProvider
+ * implementations and reads the system clock so we can inform providers of any
+ * discontinuous changes to the clock.
+ *
+ * In contrast to this, gss_service_run() may be executed in the context of the
+ * primary root filesystem, which is not trusted since it may be modified by
+ * the user.
+ *
+ * For backwards compatibility, epg_service_secure_init_sync() can also be
+ * executed in the context of the primary root filesystem. In that case it will
+ * still initialize providers, but without the same security guarantees.
+ */
+void
+epg_service_secure_init_sync (EpgService   *self,
+                              GCancellable *cancellable)
+{
+  g_autoptr(EpgProviderLoader) loader = NULL;
+  g_autoptr(GAsyncResult) load_result = NULL;
+  g_autoptr(EpgProvider) provider = NULL;
+  g_autoptr(GSource) clock_jump_source = NULL;
+  g_autoptr(GError) local_error = NULL;
+
+  g_return_if_fail (EPG_IS_SERVICE (self));
+
+  loader = epg_provider_loader_new (NULL);
+  epg_provider_loader_get_first_enabled_async (loader, cancellable,
+                                               async_result_cb,
+                                               &load_result);
+
+  while (load_result == NULL)
+    g_main_context_iteration (NULL, TRUE);
+
+  provider = epg_provider_loader_get_first_enabled_finish (loader, load_result, &local_error);
+  if (local_error != NULL)
+    {
+      g_warning ("%s: Failed to load external providers: %s",
+                 G_STRFUNC, local_error->message);
+      /* This isn't a fatal error; we will just fall back to using #EpgManager
+       * in epg_service_startup_async() */
+      return;
+    }
+
+  g_assert (provider != NULL);
+  epg_service_set_provider (self, g_steal_pointer (&provider));
+}
 
 static void
 epg_service_startup_async (GssService          *service,
@@ -177,9 +306,21 @@ epg_service_startup_async (GssService          *service,
                            GAsyncReadyCallback  callback,
                            gpointer             user_data)
 {
-  g_autoptr(GTask) task = g_task_new (service, cancellable, callback, user_data);
+  EpgService *self = EPG_SERVICE (service);
+  g_autoptr(GTask) task = g_task_new (self, cancellable, callback, user_data);
   g_task_set_source_tag (task, epg_service_startup_async);
 
+  /* Check if a provider was found in epg_service_secure_init_sync() */
+  if (self->provider != NULL)
+    {
+      epg_service_startup_complete (self, task);
+      return;
+    }
+
+  /* Some deployments are using an external provider (Angaza) with state stored
+   * on the main filesystem, which would not have been found in
+   * epg_service_secure_init_sync(). So we need to try
+   * epg_provider_loader_get_first_enabled_async() again here. */
   g_autoptr(EpgProviderLoader) loader = epg_provider_loader_new (NULL);
   epg_provider_loader_get_first_enabled_async (loader, cancellable,
                                                provider_get_first_enabled_cb,
@@ -200,7 +341,8 @@ provider_get_first_enabled_cb (GObject      *source_object,
   provider = epg_provider_loader_get_first_enabled_finish (loader, result, &local_error);
   if (provider != NULL)
     {
-      epg_service_startup_complete (self, task, g_steal_pointer (&provider));
+      epg_service_set_provider (self, g_steal_pointer (&provider));
+      epg_service_startup_complete (self, task);
       return;
     }
   else if (local_error != NULL)
@@ -266,78 +408,35 @@ manager_new_cb (GObject      *source_object,
       return;
     }
 
-  epg_service_startup_complete (self, task, g_steal_pointer (&provider));
-}
-
-static time_t
-get_clock_seconds (int clockid)
-{
-  struct timespec ts;
-  if (G_UNLIKELY (clock_gettime (clockid, &ts) != 0))
-    g_error ("clock_gettime() failed for clockid %d: %s", clockid, g_strerror (errno));
-  return ts.tv_sec;
-}
-
-static gboolean
-clock_jump_cb (gpointer user_data)
-{
-  EpgService *self = EPG_SERVICE (user_data);
-  gint64 clock_realtime_secs_v1;
-  gint64 clock_boottime_secs_v1;
-  gint64 clock_jump_delta;
-
-  clock_realtime_secs_v1 = get_clock_seconds (CLOCK_REALTIME);
-  clock_boottime_secs_v1 = get_clock_seconds (CLOCK_BOOTTIME);
-
-  clock_jump_delta = ((clock_realtime_secs_v1 - self->clock_realtime_secs_v0) -
-                      (clock_boottime_secs_v1 - self->clock_boottime_secs_v0));
-  if (clock_jump_delta != 0)
+  if (!epg_provider_get_enabled (provider))
     {
-      g_debug ("Detected system clock jump of %" G_GINT64_FORMAT " seconds", clock_jump_delta);
-      epg_provider_wallclock_time_changed (self->provider, clock_jump_delta);
+      /* Neither Endless nor 3rd party PAYG has been provisioned */
+      g_debug ("No PAYG providers are enabled, exiting");
+      g_task_return_boolean (task, TRUE);
+      gss_service_exit (GSS_SERVICE (self), NULL, 0);
     }
-
-  self->clock_realtime_secs_v0 = clock_realtime_secs_v1;
-  self->clock_boottime_secs_v0 = clock_boottime_secs_v1;
-
-  return G_SOURCE_CONTINUE;
+  else
+    {
+      epg_service_set_provider (self, g_steal_pointer (&provider));
+      epg_service_startup_complete (self, task);
+    }
 }
 
 /**
  * epg_service_startup_complete:
  * @self: an #EpgService
  * @task: (transfer none): an epg_service_startup_async() task
- * @provider: (transfer full): a non-%NULL provider
  *
- * Completes the startup process, registering @provider on the bus and
- * making @task return. This is also where we create a timer that will inform
- * us of any discontinuous changes to the system clock (so we can inform the
- * provider).
+ * Completes the startup process, registering @self->provider on the bus and
+ * making @task return.
  */
 static void
 epg_service_startup_complete (EpgService  *self,
-                              GTask       *task,
-                              EpgProvider *provider)
+                              GTask       *task)
 {
   g_autoptr(GError) local_error = NULL;
-  g_autoptr(GSource) clock_jump_source = NULL;
 
-  g_assert (provider != NULL);
-  self->provider = g_steal_pointer (&provider);
-
-  self->clock_realtime_secs_v0 = get_clock_seconds (CLOCK_REALTIME);
-  self->clock_boottime_secs_v0 = get_clock_seconds (CLOCK_BOOTTIME);
-
-  self->source = epg_clock_jump_source_new (&local_error);
-  if (self->source == NULL)
-    {
-      g_warning ("Error creating EpgClockJumpSource: %s", local_error->message);
-    }
-  else
-    {
-      g_source_set_callback (self->source, clock_jump_cb, self, NULL);
-      g_source_attach (self->source, NULL);
-    }
+  g_assert (self->provider != NULL);
 
   /* Create our D-Bus service. */
   GDBusConnection *connection = gss_service_get_dbus_connection (GSS_SERVICE (self));
@@ -384,15 +483,6 @@ provider_notify_enabled_cb (GObject    *object,
 }
 
 static void
-async_result_cb (GObject      *source_object,
-                 GAsyncResult *result,
-                 gpointer      user_data)
-{
-  GAsyncResult **result_out = user_data;
-  *result_out = g_object_ref (result);
-}
-
-static void
 epg_service_shutdown (GssService *service)
 {
   EpgService *self = EPG_SERVICE (service);
@@ -428,7 +518,8 @@ epg_service_new (void)
   return g_object_new (EPG_TYPE_SERVICE,
                        "bus-type", G_BUS_TYPE_SYSTEM,
                        "service-id", "com.endlessm.Payg1",
-                       "inactivity-timeout", 30000  /* ms */,
+                       "inactivity-timeout", 0,  /* never timeout */
+                       "allow-root", TRUE, /* https://phabricator.endlessm.com/T27037 */
                        "translation-domain", GETTEXT_PACKAGE,
                        "parameter-string", _("— verify top-up codes and monitor time remaining"),
                        "summary", _("Verify inputted top-up codes and "

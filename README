@@ -12,6 +12,12 @@ alternative code management backends.
 
 All the library APIs are currently unstable and are likely to change wildly.
 
+**NOTE**: eos-paygd has two modes it can run in: (1) when run from the
+initramfs, it uses Phase 4+ PAYG security features, and assumes that it's
+running from a payg image, and (2) when run from the primary root filesystem,
+it does not use the advanced security features and assumes it's running on a
+Phase 2 PAYG system or a non-PAYG system.
+
 Dependencies
 ============
 

@@ -30,4 +30,7 @@ G_DECLARE_FINAL_TYPE (EpgService, epg_service, EPG, SERVICE, GssService)
 
 EpgService *epg_service_new (void);
 
+void        epg_service_secure_init_sync (EpgService   *self,
+                                          GCancellable *cancellable);
+
 G_END_DECLS

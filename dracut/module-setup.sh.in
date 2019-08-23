@@ -1,4 +1,5 @@
-# Copyright © 2018 Endless Mobile, Inc.
+#!/bin/bash
+# Copyright © 2019 Endless Mobile, Inc.
 #
 # This Source Code Form is subject to the terms of the Mozilla Public License,
 # v. 2.0. If a copy of the MPL was not distributed with this file, You can
@@ -13,6 +14,19 @@
 # above and replace them with the notice and other provisions required by the
 # LGPL. If you do not delete the provisions above, a recipient may use your
 # version of this file under the terms of either the MPL or the LGPL.
-#
-# Type Name ID GECOS
-u @DAEMON_USER@ - "Endless Pay As You Go Daemon"
+
+check() {
+    return 0
+}
+
+depends() {
+    echo systemd
+}
+
+install() {
+    inst @libexecdir@/eos-paygd1
+    inst_simple "${systemdsystemunitdir}/eos-paygd-2.service"
+    mkdir -p "${initdir}${systemdsystemconfdir}/basic.target.wants"
+    ln_r "${systemdsystemunitdir}/eos-paygd-2.service" \
+        "${systemdsystemconfdir}/basic.target.wants/eos-paygd-2.service"
+}

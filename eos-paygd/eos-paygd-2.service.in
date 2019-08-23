@@ -1,14 +1,23 @@
 [Unit]
 Description=Pay As You Go Daemon
 Documentation=man:eos-paygd(8)
-# Only run on Phase 2 PAYG systems
-ConditionKernelCommandLine=!eospayg
-Before=systemd-user-sessions.service
+# We don't want default dependencies since we want Before=basic.target
+DefaultDependencies=no
+# Only run from initrd
+ConditionPathExists=/etc/initrd-release
+# Only run on Phase 4 systems
+ConditionKernelCommandLine=eospayg
+# Don't complete boot without this running
+FailureAction=poweroff
+# Start early to reduce the chance the user is dropped to a shell before we've started
+After=sysinit.target
+Before=basic.target
+Conflicts=shutdown.target
 
 [Service]
 ExecStart=@libexecdir@/eos-paygd1
-Type=dbus
-BusName=com.endlessm.Payg1
+# Type=dbus would make sense except that D-Bus isn't available in the initrd
+Type=notify
 NotifyAccess=main
 # We must be root to avoid systemd's post-root-pivot killing spree
 # and to make the eMMC boot partition writable
@@ -32,7 +41,8 @@ PrivateUsers=yes
 ProtectControlGroups=yes
 ProtectHome=yes
 ProtectKernelModules=yes
-ProtectKernelTunables=yes
+# ProtectKernelTunables=yes would keep us from writing to /sys/block/mmcblk0boot0/force_ro
+ProtectKernelTunables=no
 ProtectSystem=strict
 StateDirectory=eos-payg
 StateDirectoryMode=0700
@@ -41,6 +51,3 @@ RestrictRealtime=yes
 SystemCallErrorNumber=EPERM
 SystemCallFilter=~@clock @cpu-emulation @debug @keyring @module @mount @obsolete @privileged @raw-io @resources
 SystemCallArchitectures=native
-
-[Install]
-WantedBy=multi-user.target
