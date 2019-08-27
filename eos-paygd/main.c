@@ -104,7 +104,8 @@ main (int   argc,
 {
   g_autoptr(GError) error = NULL;
   g_autoptr(EpgService) service = NULL;
-  int ret, sd_notify_ret;
+  g_autoptr(GFile) state_dir = NULL;
+  int ret, sd_notify_ret, system_ret;
   gboolean backward_compat_mode = FALSE;
   guint timeout_id;
 
@@ -174,6 +175,22 @@ main (int   argc,
             break;
         }
       g_source_remove (timeout_id);
+    }
+
+  /* Technically this existence check is racy but no other process should be
+   * accessing this path
+   */
+  state_dir = g_file_new_for_path ("/var/lib/eos-payg");
+  if (g_file_query_exists (state_dir, NULL))
+    {
+      /* Change the ownership of the state directory recursively (systems
+       * provisioned before 3.7.0 have it owned by eos-paygd). This isn't strictly
+       * necessary since root can write to it either way, but we don't want some
+       * other user owning it if the UID is recycled.
+       */
+      system_ret = system ("/bin/chown -R root:root /var/lib/eos-payg");
+      if (system_ret == -1 || !WIFEXITED (system_ret) || WEXITSTATUS (system_ret) != 0)
+        g_warning ("chown of /var/lib/eos-payg failed");
     }
 
   /* Set up a D-Bus service and run until we are killed. */
