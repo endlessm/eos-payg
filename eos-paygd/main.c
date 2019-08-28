@@ -210,6 +210,8 @@ main (int   argc,
 
       ret = code;
     }
+  else
+    ret = 0;
 
   allow_writing_to_boot_partition (FALSE);
   return ret;
