@@ -35,6 +35,7 @@ libeos_payg_deps = [
   dependency('glib-2.0', version: '>= 2.54'),
   dependency('gobject-2.0', version: '>= 2.54'),
   dependency('libpeas-1.0'),
+  dependency('efivar'),
   libeos_payg_codes_dep,
   libgsystemservice_dep,
 ]

@@ -33,6 +33,7 @@
 #include <libeos-payg-codes/codes.h>
 #include <libgsystemservice/config-file.h>
 #include <locale.h>
+#include <efivar.h>
 
 
 /* Paths to the various places the config file could be loaded from. */
@@ -40,6 +41,26 @@
 #define USR_LOCAL_SHARE_CONFIG_FILE_PATH PREFIX "/local/share/eos-payg/eos-payg.conf"
 #define USR_SHARE_CONFIG_FILE_PATH DATADIR "/eos-payg/eos-payg.conf"
 
+/* The GUID for the EOSPAYG_active EFI variable */
+#define EOSPAYG_ACTIVE_GUID EFI_GUID(0xd89c3871, 0xae0c, 0x4fc5, 0xa409, 0xdc, 0x71, 0x7a, 0xee, 0x61, 0xe7)
+
+static const GDBusErrorEntry epg_service_error_entries[] = {
+  { EPG_SERVICE_ERROR_NO_PROVIDER, "com.endlessm.Payg1.Error.NoProvider" },
+};
+
+/* Ensure that every error code has an associated D-Bus error name */
+G_STATIC_ASSERT (G_N_ELEMENTS (epg_service_error_entries) == EPG_SERVICE_ERROR_LAST + 1);
+
+GQuark
+epg_service_error_quark (void)
+{
+  static volatile gsize quark_volatile = 0;
+  g_dbus_error_register_error_domain ("epg-service-error-quark",
+                                      &quark_volatile,
+                                      epg_service_error_entries,
+                                      G_N_ELEMENTS (epg_service_error_entries));
+  return (GQuark) quark_volatile;
+}
 
 static void epg_service_dispose (GObject *object);
 
@@ -88,6 +109,9 @@ struct _EpgService
   GSource *source; /* (owned) */
   gint64 clock_realtime_secs_v0;
   gint64 clock_boottime_secs_v0;
+
+  /* Whether the EOSPAYG_active EFI variable is set */
+  gboolean eospayg_active_efivar;
 };
 
 G_DEFINE_TYPE (EpgService, epg_service, GSS_TYPE_SERVICE)
@@ -278,6 +302,10 @@ epg_service_secure_init_sync (EpgService   *self,
 
   g_return_if_fail (EPG_IS_SERVICE (self));
 
+  /* Read EFI variable(s) before the root pivot */
+  self->eospayg_active_efivar = (efi_get_variable_exists (EOSPAYG_ACTIVE_GUID, "EOSPAYG_active") == 0);
+
+  /* Look for enabled PAYG providers */
   loader = epg_provider_loader_new (NULL);
   epg_provider_loader_get_first_enabled_async (loader, cancellable,
                                                async_result_cb,
@@ -296,8 +324,14 @@ epg_service_secure_init_sync (EpgService   *self,
       return;
     }
 
-  g_assert (provider != NULL);
-  epg_service_set_provider (self, g_steal_pointer (&provider));
+  /* We may not find any providers because PAYG is not enabled, or because
+   * file-backed state is being used, which will only be found after the root
+   * pivot.
+   */
+  if (provider == NULL)
+    g_debug ("%s: No enabled providers found pre-root-pivot");
+  else
+    epg_service_set_provider (self, g_steal_pointer (&provider));
 }
 
 static void
@@ -350,6 +384,19 @@ provider_get_first_enabled_cb (GObject      *source_object,
       g_warning ("%s: Failed to load external providers: %s",
                  G_STRFUNC, local_error->message);
       g_clear_error (&local_error);
+    }
+
+  /* If the EFI variable EOSPAYG_active is set one of the external providers
+   * should have been enabled, so error out otherwise. It would not be safe to
+   * fall back to the unsecure #EpgManager but keep it for backward
+   * compatibility with Phase 1 systems.
+   */
+  if (self->eospayg_active_efivar)
+    {
+      local_error = g_error_new (EPG_SERVICE_ERROR, EPG_SERVICE_ERROR_NO_PROVIDER,
+                                 "No PAYG provider is enabled, despite PAYG being active");
+      g_task_return_error (task, g_steal_pointer (&local_error));
+      return;
     }
 
   /* No enabled provider plugin; fall back to #EpgManager. */
