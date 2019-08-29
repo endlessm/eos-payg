@@ -198,17 +198,27 @@ main (int   argc,
 
   if (error != NULL)
     {
-      int code;
-
-      if (g_error_matches (error,
-                           GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
-        raise (gss_service_get_exit_signal (GSS_SERVICE (service)));
-
-      g_printerr ("%s: %s\n", argv[0], error->message);
-      code = error->code;
-      g_assert (code != 0);
-
-      ret = code;
+      if (g_error_matches (error, EPG_SERVICE_ERROR, EPG_SERVICE_ERROR_NO_PROVIDER))
+        {
+          /* This could mean the PAYG data has been erased; force a poweroff
+           * after 10 minutes. See https://phabricator.endlessm.com/T27581
+           */
+          g_printerr ("%s: %s\n", argv[0], error->message);
+          timeout_id = g_timeout_add_seconds (10 * 60, sync_and_poweroff, NULL);
+          while (TRUE)
+            g_main_context_iteration (NULL, TRUE);
+        }
+      else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
+        {
+          raise (gss_service_get_exit_signal (GSS_SERVICE (service)));
+          ret = 254; /* should not be reached, just in case the signal is caught */
+        }
+      else
+        {
+          g_printerr ("%s: %s\n", argv[0], error->message);
+          ret = error->code;
+          g_assert (ret != 0);
+        }
     }
   else
     ret = 0;

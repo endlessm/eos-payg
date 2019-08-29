@@ -25,6 +25,21 @@
 
 G_BEGIN_DECLS
 
+/**
+ * EpgServiceError:
+ * @EPG_SERVICE_ERROR_NO_PROVIDER: No PAYG provider was found to be enabled,
+ *                                 despite PAYG being active.
+ *
+ * Error codes returned by #EpgService
+ */
+typedef enum {
+  EPG_SERVICE_ERROR_NO_PROVIDER,
+  EPG_SERVICE_ERROR_LAST = EPG_SERVICE_ERROR_NO_PROVIDER, /*< skip >*/
+} EpgServiceError;
+
+#define EPG_SERVICE_ERROR (epg_service_error_quark ())
+GQuark epg_service_error_quark (void);
+
 #define EPG_TYPE_SERVICE epg_service_get_type ()
 G_DECLARE_FINAL_TYPE (EpgService, epg_service, EPG, SERVICE, GssService)
 
