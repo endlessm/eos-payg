@@ -533,22 +533,26 @@ static void
 epg_service_shutdown (GssService *service)
 {
   EpgService *self = EPG_SERVICE (service);
-  g_autoptr(GError) local_error = NULL;
 
-  /* Save the provider’s state. */
-  g_autoptr(GAsyncResult) result = NULL;
-  epg_provider_shutdown_async (self->provider, NULL, async_result_cb, &result);
-
-  while (result == NULL)
-    g_main_context_iteration (NULL, TRUE);
-
-  if (!epg_provider_shutdown_finish (self->provider, result, &local_error))
+  if (self->provider != NULL)
     {
-      g_warning ("Error shutting down provider: %s", local_error->message);
-      g_clear_error (&local_error);
-    }
+      g_autoptr(GAsyncResult) result = NULL;
+      g_autoptr(GError) local_error = NULL;
 
-  epg_manager_service_unregister (self->manager_service);
+      /* Save the provider’s state. */
+      epg_provider_shutdown_async (self->provider, NULL, async_result_cb, &result);
+
+      while (result == NULL)
+        g_main_context_iteration (NULL, TRUE);
+
+      if (!epg_provider_shutdown_finish (self->provider, result, &local_error))
+        {
+          g_warning ("Error shutting down provider: %s", local_error->message);
+          g_clear_error (&local_error);
+        }
+
+      epg_manager_service_unregister (self->manager_service);
+    }
 }
 
 /**
