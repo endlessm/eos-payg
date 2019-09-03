@@ -7,7 +7,8 @@ project('eos-payg','c',
     # static.
     'default_library=static',
     'c_std=gnu11',
-    'warning_level=2',
+    'warning_level=3',
+    'werror=true',
   ],
 )
 
