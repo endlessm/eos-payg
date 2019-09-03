@@ -32,6 +32,8 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#define FATAL_SIGNAL_EXIT_CODE 254
+
 /* Force a poweroff in situations where we are not able to enforce PAYG */
 static gboolean
 sync_and_poweroff (gpointer user_data)
@@ -211,7 +213,7 @@ main (int   argc,
       else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
         {
           raise (gss_service_get_exit_signal (GSS_SERVICE (service)));
-          ret = 254; /* should not be reached, just in case the signal is caught */
+          ret = FATAL_SIGNAL_EXIT_CODE; /* should not be reached, just in case the signal is caught */
         }
       else
         {
