@@ -329,7 +329,7 @@ epg_service_secure_init_sync (EpgService   *self,
    * pivot.
    */
   if (provider == NULL)
-    g_debug ("%s: No enabled providers found pre-root-pivot");
+    g_debug ("%s: No enabled providers found pre-root-pivot", G_STRFUNC);
   else
     epg_service_set_provider (self, g_steal_pointer (&provider));
 }
