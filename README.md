@@ -21,11 +21,11 @@ Phase 2 PAYG system or a non-PAYG system.
 Dependencies
 ============
 
- • gio-2.0 ≥ 2.54
- • glib-2.0 ≥ 2.54
- • gobject-2.0 ≥ 2.54
- • peas
- • systemd
+ * gio-2.0 ≥ 2.54
+ * glib-2.0 ≥ 2.54
+ * gobject-2.0 ≥ 2.54
+ * peas
+ * systemd
 
 Licensing
 =========
