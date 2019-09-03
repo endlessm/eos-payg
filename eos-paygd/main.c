@@ -72,7 +72,7 @@ sync_and_poweroff (gpointer user_data)
   g_warning ("bcsn: Forcing poweroff now!");
   sync ();
   reboot (LINUX_REBOOT_CMD_POWER_OFF);
-  return FALSE;
+  return G_SOURCE_REMOVE;
 }
 
 static void
