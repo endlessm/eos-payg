@@ -192,6 +192,15 @@ main (int   argc,
       if (system_ret == -1 || !WIFEXITED (system_ret) || WEXITSTATUS (system_ret) != 0)
         g_warning ("chown of /var/lib/eos-payg failed");
     }
+  else
+    {
+      /* Use /bin/mkdir instead of mkdir() to ensure the mode is unaffected by
+       * the process's umask.
+       */
+      system_ret = system ("/bin/mkdir --mode=700 /var/lib/eos-payg");
+      if (system_ret == -1 || !WIFEXITED (system_ret) || WEXITSTATUS (system_ret) != 0)
+        g_warning ("mkdir of /var/lib/eos-payg failed");
+    }
 
   /* Set up a D-Bus service and run until we are killed. */
   gss_service_run (GSS_SERVICE (service), argc, argv, &error);
