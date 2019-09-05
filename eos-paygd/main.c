@@ -207,7 +207,10 @@ main (int   argc,
        * initramfs difficult. */
       timeout_id = g_timeout_add_seconds (10 * 60, sync_and_poweroff, NULL);
       while (access ("/etc/initrd-release", F_OK) >= 0)
-        g_usleep (G_USEC_PER_SEC / 5);
+        {
+          g_main_context_iteration (NULL, TRUE); /* keep pinging watchdog */
+          g_usleep (G_USEC_PER_SEC / 5);
+        }
       g_source_remove (timeout_id);
 
       /* Wait up to 20 minutes for the system D-Bus daemon to be started. A
@@ -222,6 +225,7 @@ main (int   argc,
             {
               g_debug ("Error connecting to system bus, will retry: %s", error->message);
               g_clear_error (&error);
+              g_main_context_iteration (NULL, TRUE); /* keep pinging watchdog */
               g_usleep (G_USEC_PER_SEC);
             }
           else
