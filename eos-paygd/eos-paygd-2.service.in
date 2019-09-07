@@ -27,7 +27,6 @@ KillMode=none
 SendSIGKILL=no
 
 # Sandboxing
-CapabilityBoundingSet=
 DevicePolicy=closed
 Environment=GIO_USE_VFS=local
 Environment=GVFS_DISABLE_FUSE=1
@@ -37,17 +36,16 @@ MemoryDenyWriteExecute=yes
 NoNewPrivileges=yes
 PrivateNetwork=yes
 PrivateTmp=yes
-PrivateUsers=yes
+# We need PrivateUsers=no to be able to chown /var/lib/eos-payg
+PrivateUsers=no
 ProtectControlGroups=yes
 ProtectHome=yes
 ProtectKernelModules=yes
 # ProtectKernelTunables=yes would keep us from writing to /sys/block/mmcblk0boot0/force_ro
 ProtectKernelTunables=no
-ProtectSystem=strict
-StateDirectory=eos-payg
-StateDirectoryMode=0700
+ProtectSystem=full
 RestrictAddressFamilies=AF_UNIX
 RestrictRealtime=yes
 SystemCallErrorNumber=EPERM
-SystemCallFilter=~@clock @cpu-emulation @debug @keyring @module @mount @obsolete @privileged @raw-io @resources
+SystemCallFilter=~@clock @cpu-emulation @debug @keyring @module @mount @obsolete @raw-io @resources
 SystemCallArchitectures=native
