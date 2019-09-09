@@ -35,7 +35,7 @@
 #define FATAL_SIGNAL_EXIT_CODE 254
 #define WATCHDOG_FAILURE_EXIT_CODE 253
 
-int watchdog_fd = -1;
+static int watchdog_fd = -1;
 
 /* Ping the watchdog periodically as long as eos-paygd is running. */
 static gboolean
