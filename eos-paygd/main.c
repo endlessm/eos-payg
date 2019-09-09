@@ -32,14 +32,47 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#define FATAL_SIGNAL_EXIT_CODE 254
+#define WATCHDOG_FAILURE_EXIT_CODE 253
+
+int watchdog_fd = -1;
+
+/* Ping the watchdog periodically as long as eos-paygd is running. */
+static gboolean
+ping_watchdog (gpointer user_data)
+{
+  g_assert (watchdog_fd >= 0);
+
+  /* Write a byte to the watchdog device. We need the loop to deal with EINTR */
+  while (TRUE)
+    {
+      int bytes_written = write (watchdog_fd, "\0", 1);
+      if (bytes_written == -1)
+        {
+          int saved_errno = errno;
+          if (saved_errno == EINTR)
+            continue;
+
+          g_warning ("%s: Error writing to /dev/watchdog: %s", G_STRFUNC,
+                     g_strerror (saved_errno));
+        }
+      else if (bytes_written == 0)
+        g_warning ("%s: write() reported writing zero bytes", G_STRFUNC);
+
+      break;
+    }
+
+  return G_SOURCE_CONTINUE;
+}
+
 /* Force a poweroff in situations where we are not able to enforce PAYG */
 static gboolean
 sync_and_poweroff (gpointer user_data)
 {
-    g_warning ("bcsn: Forcing poweroff now!");
-    sync ();
-    reboot (LINUX_REBOOT_CMD_POWER_OFF);
-    return FALSE;
+  g_warning ("bcsn: Forcing poweroff now!");
+  sync ();
+  reboot (LINUX_REBOOT_CMD_POWER_OFF);
+  return G_SOURCE_REMOVE;
 }
 
 static void
@@ -107,7 +140,7 @@ main (int   argc,
   g_autoptr(GFile) state_dir = NULL;
   int ret, sd_notify_ret, system_ret;
   gboolean backward_compat_mode = FALSE;
-  guint timeout_id;
+  guint timeout_id, watchdog_id;
 
   /* If eos-paygd is running from the initramfs, change the process name so
    * that it survives the pivot to the final root filesystem. This is an
@@ -141,6 +174,26 @@ main (int   argc,
 
   if (!backward_compat_mode)
     {
+      /* Open and start pinging the custom watchdog timer ("endlessdog") which
+       * will ask for a shut down after not being pinged for 30 seconds, and
+       * force a shutdown after 60 seconds. This means that if eos-paygd is
+       * somehow killed or crashes, PAYG will not go unenforced. Ping it every
+       * 10 seconds so we have a margin of error in case another high priority
+       * task is happening on the main loop. And use O_CLOEXEC in case it's
+       * somehow possible to execve() this process after the root pivot. We
+       * ping the watchdog even if PAYG is not active (e.g. it's not yet
+       * provisioned or has been paid off) to prevent any other process from
+       * accidentally or maliciously using the watchdog timer.
+       */
+      watchdog_fd = open ("/dev/watchdog", O_WRONLY | O_CLOEXEC);
+      if (watchdog_fd == -1)
+        {
+          g_warning ("eos-paygd could not open /dev/watchdog: %m");
+          return WATCHDOG_FAILURE_EXIT_CODE; /* Early return */
+        }
+      watchdog_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 10, ping_watchdog, NULL, NULL);
+      g_assert (watchdog_id > 0);
+
       /* Let systemd know it's okay to proceed to pivot to the final root */
       sd_notify_ret = sd_notify (0, "READY=1");
       if (sd_notify_ret < 0)
@@ -154,7 +207,10 @@ main (int   argc,
        * initramfs difficult. */
       timeout_id = g_timeout_add_seconds (10 * 60, sync_and_poweroff, NULL);
       while (access ("/etc/initrd-release", F_OK) >= 0)
-        g_usleep (G_USEC_PER_SEC / 5);
+        {
+          g_main_context_iteration (NULL, TRUE); /* keep pinging watchdog */
+          g_usleep (G_USEC_PER_SEC / 5);
+        }
       g_source_remove (timeout_id);
 
       /* Wait up to 20 minutes for the system D-Bus daemon to be started. A
@@ -169,6 +225,7 @@ main (int   argc,
             {
               g_debug ("Error connecting to system bus, will retry: %s", error->message);
               g_clear_error (&error);
+              g_main_context_iteration (NULL, TRUE); /* keep pinging watchdog */
               g_usleep (G_USEC_PER_SEC);
             }
           else
@@ -220,7 +277,7 @@ main (int   argc,
       else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
         {
           raise (gss_service_get_exit_signal (GSS_SERVICE (service)));
-          ret = 254; /* should not be reached, just in case the signal is caught */
+          ret = FATAL_SIGNAL_EXIT_CODE; /* should not be reached, just in case the signal is caught */
         }
       else
         {
