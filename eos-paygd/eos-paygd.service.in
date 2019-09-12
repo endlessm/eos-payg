@@ -18,7 +18,8 @@ KillMode=none
 SendSIGKILL=no
 
 # Sandboxing
-DevicePolicy=closed
+# We might need access to /dev/mmcblkxboot0
+DevicePolicy=auto
 Environment=GIO_USE_VFS=local
 Environment=GVFS_DISABLE_FUSE=1
 Environment=GVFS_REMOTE_VOLUME_MONITOR_IGNORE=1
