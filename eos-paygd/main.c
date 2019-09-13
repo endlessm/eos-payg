@@ -290,5 +290,13 @@ main (int   argc,
     ret = 0;
 
   allow_writing_to_boot_partition (FALSE);
+
+  if (ret == 0 && !backward_compat_mode)
+    {
+      /* Continue to ping the watchdog indefinitely */
+      while (TRUE)
+        g_main_context_iteration (NULL, TRUE);
+    }
+
   return ret;
 }
