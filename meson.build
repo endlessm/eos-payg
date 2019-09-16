@@ -61,6 +61,9 @@ test_args = [
   '-Wcast-align',
   '-Wclobbered',
   '-Wno-declaration-after-statement',
+  # FIXME: Remove this -Wno-error after updating libpeas to 1.24 (libpeas
+  # header files mention GParameter)
+  '-Wno-error=deprecated-declarations',
   '-Wduplicated-branches',
   '-Wduplicated-cond',
   '-Wempty-body',
