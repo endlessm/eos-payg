@@ -113,6 +113,9 @@ test_args = [
 cc = meson.get_compiler('c')
 add_project_arguments(cc.get_supported_arguments(test_args), language: 'c')
 
+# Apply -Wno-pedantic to subprojects too
+add_global_arguments(cc.get_supported_arguments(['-Wno-pedantic']), language: 'c')
+
 want_tests = get_option('tests')
 enable_installed_tests = get_option('installed_tests')
 test_template = files('template.test.in')
