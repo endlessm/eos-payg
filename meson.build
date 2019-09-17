@@ -7,7 +7,8 @@ project('eos-payg','c',
     # static.
     'default_library=static',
     'c_std=gnu11',
-    'warning_level=2',
+    'warning_level=3',
+    'werror=true',
   ],
 )
 
@@ -60,6 +61,9 @@ test_args = [
   '-Wcast-align',
   '-Wclobbered',
   '-Wno-declaration-after-statement',
+  # FIXME: Remove this -Wno-error after updating libpeas to 1.24 (libpeas
+  # header files mention GParameter)
+  '-Wno-error=deprecated-declarations',
   '-Wduplicated-branches',
   '-Wduplicated-cond',
   '-Wempty-body',
@@ -111,6 +115,9 @@ test_args = [
 ]
 cc = meson.get_compiler('c')
 add_project_arguments(cc.get_supported_arguments(test_args), language: 'c')
+
+# Apply -Wno-pedantic to subprojects too
+add_global_arguments(cc.get_supported_arguments(['-Wno-pedantic']), language: 'c')
 
 want_tests = get_option('tests')
 enable_installed_tests = get_option('installed_tests')
