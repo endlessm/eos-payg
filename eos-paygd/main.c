@@ -31,6 +31,9 @@
 #include <glob.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #define FATAL_SIGNAL_EXIT_CODE 254
 #define WATCHDOG_FAILURE_EXIT_CODE 253
@@ -131,6 +134,45 @@ allow_writing_to_boot_partition (gboolean allow_write)
   globfree (&globbuf);
 }
 
+static int
+payg_relative_sd_notify (const gchar *path,
+                         const char *state)
+{
+  struct sockaddr_un sockaddr = {
+    .sun_family = AF_UNIX,
+  };
+  struct iovec iovec = {
+    .iov_base = (char *)state,
+    .iov_len = strlen(state),
+  };
+  struct msghdr msghdr = {
+    .msg_iov = &iovec,
+    .msg_iovlen = 1,
+    .msg_name = &sockaddr,
+  };
+  int fd;
+  int l, r = 1, salen;
+
+  unsetenv("NOTIFY_SOCKET");
+
+  l = strlen(path);
+  memcpy(&sockaddr.sun_path, path, l + 1);
+  salen = offsetof(struct sockaddr_un, sun_path) + l + 1;
+
+  fd = socket(AF_UNIX, SOCK_DGRAM|SOCK_CLOEXEC, 0);
+  if (fd < 0)
+    return -errno;
+
+  msghdr.msg_namelen = salen;
+  if (sendmsg(fd, &msghdr, MSG_NOSIGNAL) < 0)
+    r = -errno;
+
+  close(fd);
+
+  return r;
+}
+
+
 int
 main (int   argc,
       char *argv[])
@@ -141,6 +183,9 @@ main (int   argc,
   int ret, sd_notify_ret, system_ret;
   gboolean backward_compat_mode = FALSE;
   guint timeout_id, watchdog_id;
+  const gchar *sd_socket_env = NULL;
+  g_autofree char *sd_socket_dir = NULL;
+  g_autofree char *sd_socket_name = NULL;
 
   /* If eos-paygd is running from the initramfs, change the process name so
    * that it survives the pivot to the final root filesystem. This is an
@@ -194,24 +239,35 @@ main (int   argc,
       watchdog_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 10, ping_watchdog, NULL, NULL);
       g_assert (watchdog_id > 0);
 
-      /* Let systemd know it's okay to proceed to pivot to the final root */
-      sd_notify_ret = sd_notify (0, "READY=1");
-      if (sd_notify_ret < 0)
-        g_warning ("sd_notify() failed with code %d", -sd_notify_ret);
-      else if (sd_notify_ret == 0)
-        g_warning ("sd_notify() failed due to unset $NOTIFY_SOCKET");
+      /* Here be dragons:
+       * We're currently in the initramfs root directory, and systemd is putting
+       * all the useful bits of the system into /sysroot in preparation for the
+       * root pivot. After the root pivot, it will delete everything in the
+       * initramfs root, which will leave us in limbo forever.  We need to
+       * chroot() out of this into sysroot.
+       *
+       * However, once we do that, we no longer have access to the socket we
+       * need to write to to inform systemd we're ready for it to do the root
+       * pivot.
+       *
+       * What we do is chdir() into the directory $NOTIFY_SOCKET resides in,
+       * chroot() into /sysroot, then use our own variant of sd_notify() that
+       * doesn't refuse to use relative paths to notify systemd we're ready.
+       *
+       * After that, we can chdir() into our new / and begin trying to connect
+       * to the dbus socket. */
 
-      /* Wait for the pivot to the final root so we can connect to the D-Bus
-       * daemon, but timeout after 10 minutes; otherwise we could be fooled into
-       * waiting forever. If the timeout were shorter it would make debugging the
-       * initramfs difficult. */
-      timeout_id = g_timeout_add_seconds (10 * 60, sync_and_poweroff, NULL);
-      while (access ("/etc/initrd-release", F_OK) >= 0)
-        {
-          g_main_context_iteration (NULL, TRUE); /* keep pinging watchdog */
-          g_usleep (G_USEC_PER_SEC / 5);
-        }
-      g_source_remove (timeout_id);
+      sd_socket_env = g_getenv("NOTIFY_SOCKET");
+      sd_socket_dir = g_path_get_dirname(sd_socket_env);
+      sd_socket_name = g_path_get_basename(sd_socket_env);
+      chdir(sd_socket_dir);
+      chroot("/sysroot");
+
+      sd_notify_ret = payg_relative_sd_notify (sd_socket_name, "READY=1");
+      if (sd_notify_ret < 0)
+        g_warning ("payg_relative_sd_notify() failed with code %d", -sd_notify_ret);
+
+      chdir("/");
 
       /* Wait up to 20 minutes for the system D-Bus daemon to be started. A
        * shorter timeout would mean risking putting systems in an infinite boot
