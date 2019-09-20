@@ -36,17 +36,21 @@ Environment=GSETTINGS_BACKEND=memory
 MemoryDenyWriteExecute=yes
 NoNewPrivileges=yes
 PrivateNetwork=yes
-PrivateTmp=yes
+# Commented out sandboxing settings below this point that start with a -
+# have been tested to break our chroot() and are left here to save future
+# generations from accidentally turning them on.
+#-PrivateTmp=yes
 # We need PrivateUsers=no to be able to chown /var/lib/eos-payg
 PrivateUsers=no
-ProtectControlGroups=yes
-ProtectHome=yes
-ProtectKernelModules=yes
+#-ProtectControlGroups=yes
+#-ProtectHome=yes
+#-ProtectKernelModules=yes
 # ProtectKernelTunables=yes would keep us from writing to /sys/block/mmcblk0boot0/force_ro
 ProtectKernelTunables=no
-ProtectSystem=full
+#-ProtectSystem=full
 RestrictAddressFamilies=AF_UNIX
 RestrictRealtime=yes
 SystemCallErrorNumber=EPERM
-SystemCallFilter=~@clock @cpu-emulation @debug @keyring @module @mount @obsolete @raw-io @resources
+# @mount must not be in the filter, as that group of syscalls includes chroot()
+SystemCallFilter=~@clock @cpu-emulation @debug @keyring @module @obsolete @raw-io @resources
 SystemCallArchitectures=native
