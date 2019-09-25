@@ -110,15 +110,20 @@ typedef struct {
   GSource parent;
 
   EpgFakeClock *clock; /* owned */
-  gint64 ready_time_secs;
+  guint32 ready_time_secs_high;
+  guint32 ready_time_secs_low;
 } EpgFakeSource;
 
 static gboolean
 epg_fake_source_check (GSource *source)
 {
+  gint64 ready_time_secs;
   EpgFakeSource *self = (EpgFakeSource *) source;
 
-  return epg_clock_get_time (EPG_CLOCK (self->clock)) >= self->ready_time_secs;
+  ready_time_secs = self->ready_time_secs_high;
+  ready_time_secs = (ready_time_secs << 32) +
+                    self->ready_time_secs_low;
+  return epg_clock_get_time (EPG_CLOCK (self->clock)) >= ready_time_secs;
 }
 
 static gboolean
@@ -127,6 +132,7 @@ epg_fake_source_dispatch (GSource    *source,
                           gpointer    user_data)
 {
   EpgFakeSource *self = (EpgFakeSource *) source;
+  gint64 ready_time_secs;
 
   if (callback == NULL)
     {
@@ -135,8 +141,9 @@ epg_fake_source_dispatch (GSource    *source,
       return G_SOURCE_REMOVE;
     }
 
-  self->ready_time_secs = G_MAXINT64;
-
+  ready_time_secs = G_MAXINT64;
+  self->ready_time_secs_high = ready_time_secs >> 32;
+  self->ready_time_secs_low = ready_time_secs & 0xFFFFFFFF;
   return callback (user_data);
 }
 
@@ -174,6 +181,7 @@ epg_fake_clock_source_new_seconds (EpgClock  *clock,
   g_autoptr(GSource) source = NULL;
   EpgFakeSource *fake_source = NULL;
   gint64 current_time = epg_clock_get_time (EPG_CLOCK (self));
+  gint64 ready_time_secs;
 
   g_return_val_if_fail (EPG_IS_FAKE_CLOCK (self), NULL);
   g_return_val_if_fail (interval <= G_MAXINT64 - current_time, NULL);
@@ -182,7 +190,9 @@ epg_fake_clock_source_new_seconds (EpgClock  *clock,
                          sizeof (EpgFakeSource));
   fake_source = (EpgFakeSource *)source;
   fake_source->clock = g_object_ref (self);
-  fake_source->ready_time_secs = current_time + interval;
+  ready_time_secs = current_time + interval;
+  fake_source->ready_time_secs_high = ready_time_secs >> 32;
+  fake_source->ready_time_secs_low = ready_time_secs & 0xFFFFFFFF;
   return g_steal_pointer (&source);
 }
 
