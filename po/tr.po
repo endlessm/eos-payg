@@ -258,7 +258,7 @@ msgstr ""
 
 #: libhelper/service.c:536
 msgid "ADDRESS"
-msgstr ""
+msgstr "ADRES"
 
 #: libhelper/service.c:538
 msgid "Inactivity timeout to wait for before exiting (in milliseconds)"
