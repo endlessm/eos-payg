@@ -25,6 +25,15 @@
 
 G_BEGIN_DECLS
 
+/* The security level is used to ensure that a system can't be "downgraded"
+ * to a version with a known security hole. Any time a release is made that
+ * fixes a security issue, this must be increased. It must never decrease.
+ */
+#define EPG_SECURITY_LEVEL 1
+
+/* The GUID for the EOSPAYG EFI variables */
+#define EOSPAYG_GUID EFI_GUID(0xd89c3871, 0xae0c, 0x4fc5, 0xa409, 0xdc, 0x71, 0x7a, 0xee, 0x61, 0xe7)
+
 /**
  * EpgServiceError:
  * @EPG_SERVICE_ERROR_NO_PROVIDER: No PAYG provider was found to be enabled,

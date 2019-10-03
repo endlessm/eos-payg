@@ -34,10 +34,12 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <efivar.h>
 
 #define FATAL_SIGNAL_EXIT_CODE 254
 #define WATCHDOG_FAILURE_EXIT_CODE 253
 #define SD_NOTIFY_FAILURE_EXIT_CODE 252
+#define GOPTION_FAILURE_EXIT_CODE 251
 
 static int watchdog_fd = -1;
 
@@ -173,6 +175,70 @@ payg_relative_sd_notify (const gchar *path,
   return r;
 }
 
+/* Check that our securitylevel never goes backwards. The daemon's
+ * compiled in security level must always be equal to or higher than
+ * what's stored in the efi variable, or it indicates a "downgrade"
+ * to a version of endless with known PAYG bugs.
+ */
+static gboolean
+test_and_update_securitylevel (char *procname)
+{
+  uint8_t *level = NULL;
+  size_t data_size = 0;
+  uint32_t attributes;
+  int ret;
+
+  if (efi_get_variable_exists (EOSPAYG_GUID, "EOSPAYG_active") == 0)
+    {
+      ret = efi_get_variable (EOSPAYG_GUID, "EOSPAYG_securitylevel", &level, &data_size, &attributes);
+      if (ret < 0 || !level || data_size != 1)
+        {
+          g_printerr ("%s: Failed to read security level\n", procname);
+          return FALSE;
+        }
+
+      /* We've detected an attempt to boot an eos from before the last
+       * security level increase - we assume this is being done to
+       * exploit old holes.
+       */
+      if (level[0] > EPG_SECURITY_LEVEL)
+        {
+          g_printerr ("%s: Security level violation\n", procname);
+          return FALSE;
+        }
+
+      /* The daemon's security level is higher than the system's, increase
+       * the system level so there's no going back to an older version.
+       */
+      if (level[0] < EPG_SECURITY_LEVEL)
+        {
+          g_debug ("Security level changed this boot.");
+
+          /* If we exceed 255 security level bumps during the lifetime of this
+           * project we probably need to consider alternate career paths.
+           */
+          level[0] = EPG_SECURITY_LEVEL;
+          ret = efi_set_variable (EOSPAYG_GUID, "EOSPAYG_securitylevel", level, data_size, attributes, 0600);
+
+          /* There's nothing a user should be able to do to cause this to fail,
+           * so we'll let this "impossible" situation slide with a warning, and
+           * attempt to correct it on next boot.
+           */
+          if (ret < 0)
+            g_warning ("Failed to update security level.");
+        }
+    }
+  return TRUE;
+}
+
+static gboolean print_level = FALSE;
+
+static GOptionEntry opts[] =
+{
+  { "seclevel", 's', 0, G_OPTION_ARG_NONE, &print_level, "Print security level and exit", NULL },
+  { NULL }
+};
+
 int
 main (int   argc,
       char *argv[])
@@ -186,6 +252,24 @@ main (int   argc,
   const gchar *sd_socket_env = NULL;
   g_autofree char *sd_socket_dir = NULL;
   g_autofree char *sd_socket_name = NULL;
+  GOptionContext *context;
+
+  context = g_option_context_new ("- Pay As You Go enforcement daemon");
+  g_option_context_add_main_entries (context, opts, GETTEXT_PACKAGE);
+  if (!g_option_context_parse (context, &argc, &argv, &error))
+    {
+      g_printerr ("%s: %s\n", argv[0], error->message);
+      return GOPTION_FAILURE_EXIT_CODE;
+    }
+  if (print_level)
+    {
+      /* This is intentionally user-hostile, with no trailing newline.
+       * That makes it easier for the provisioning tool to consume the
+       * raw value.
+       */
+      printf ("%c", EPG_SECURITY_LEVEL);
+      exit (0);
+    }
 
   /* If eos-paygd is running from the initramfs, change the process name so
    * that it survives the pivot to the final root filesystem. This is an
@@ -194,7 +278,20 @@ main (int   argc,
    * https://phabricator.endlessm.com/T27037
    */
   if (access ("/etc/initrd-release", F_OK) >= 0)
-    argv[0][0] = '@';
+    {
+      argv[0][0] = '@';
+
+      /* If we fail the securitylevel test we still want to complete
+       * booting and have a chance at doing a system update to recover
+       * from our currently broken state, but the shutdown is
+       * inevitable.
+       */
+      if (!test_and_update_securitylevel(argv[0]))
+        {
+          g_warning ("Security level regressed, forced shutdown will occur in 20 minutes.");
+          g_timeout_add_seconds (20 * 60, sync_and_poweroff, NULL);
+        }
+    }
   else
     {
       /* To support existing deployments which use grub and can't be OTA
