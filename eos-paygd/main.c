@@ -41,6 +41,8 @@
 #define SD_NOTIFY_FAILURE_EXIT_CODE 252
 #define GOPTION_FAILURE_EXIT_CODE 251
 
+#define EFI_GLOBAL_VARIABLE_GUID EFI_GUID(0x8be4df61, 0x93ca, 0x11d2, 0xaa0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c)
+
 static int watchdog_fd = -1;
 
 /* Ping the watchdog periodically as long as eos-paygd is running. */
@@ -231,11 +233,36 @@ test_and_update_securitylevel (char *procname)
   return TRUE;
 }
 
+static gboolean
+secure_boot_enabled (void)
+{
+  uint8_t *secboot = NULL;
+  size_t data_size = 0;
+  uint32_t attributes;
+  int ret;
+
+  ret = efi_get_variable (EFI_GLOBAL_VARIABLE_GUID, "SecureBoot", &secboot, &data_size, &attributes);
+  if (ret < 0 || !secboot || data_size != 1)
+    {
+      g_debug ("Failed to read SecureBoot EFI variable, treating as SB off");
+      return FALSE;
+    }
+  if (*secboot == 0)
+    {
+      g_debug ("SecureBoot EFI variable indicates the current boot is not secure");
+      return FALSE;
+    }
+
+  return TRUE;
+}
+
 static gboolean print_level = FALSE;
+static gboolean skip_sb_check = FALSE;
 
 static GOptionEntry opts[] =
 {
   { "seclevel", 's', 0, G_OPTION_ARG_NONE, &print_level, "Print security level and exit", NULL },
+  { "skip-sb-check", 0, 0, G_OPTION_ARG_NONE, &skip_sb_check, "Enforce PAYG even if Secure Boot is off", NULL },
   { NULL }
 };
 
@@ -253,6 +280,7 @@ main (int   argc,
   g_autofree char *sd_socket_dir = NULL;
   g_autofree char *sd_socket_name = NULL;
   GOptionContext *context;
+  gboolean enforcing_mode = TRUE;
 
   context = g_option_context_new ("- Pay As You Go enforcement daemon");
   g_option_context_add_main_entries (context, opts, GETTEXT_PACKAGE);
@@ -280,6 +308,19 @@ main (int   argc,
   if (access ("/etc/initrd-release", F_OK) >= 0)
     {
       argv[0][0] = '@';
+
+      /* Don't enforce PAYG if the current boot is not secure. This likely
+       * means the machine is being unlocked for debugging purposes, or has
+       * been paid off. A command line flag can be used to skip this check.
+       * Note that we can't simply exit; systemd expects us to send READY=1,
+       * and we will ping the watchdog indefinitely so that no other process
+       * can use it.
+       */
+      if (!skip_sb_check && !secure_boot_enabled ())
+        {
+          g_debug ("Secure Boot is not enabled; not enforcing PAYG");
+          enforcing_mode = FALSE;
+        }
 
       /* If we fail the securitylevel test we still want to complete
        * booting and have a chance at doing a system update to recover
@@ -436,8 +477,11 @@ main (int   argc,
         g_warning ("mkdir of /var/lib/eos-payg failed");
     }
 
-  /* Set up a D-Bus service and run until we are killed. */
-  gss_service_run (GSS_SERVICE (service), argc, argv, &error);
+  if (enforcing_mode)
+    {
+      /* Set up a D-Bus service and run until we are killed. */
+      gss_service_run (GSS_SERVICE (service), argc, argv, &error);
+    }
 
   if (error != NULL)
     {
