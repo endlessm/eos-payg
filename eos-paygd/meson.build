@@ -8,6 +8,7 @@ eos_paygd_deps = [
   dependency('glib-2.0', version: '>= 2.44'),
   dependency('gobject-2.0', version: '>= 2.44'),
   dependency('libsystemd'),
+  dependency('efivar'),
   libgsystemservice_dep,
   libeos_payg_dep,
 ]

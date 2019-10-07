@@ -41,9 +41,6 @@
 #define USR_LOCAL_SHARE_CONFIG_FILE_PATH PREFIX "/local/share/eos-payg/eos-payg.conf"
 #define USR_SHARE_CONFIG_FILE_PATH DATADIR "/eos-payg/eos-payg.conf"
 
-/* The GUID for the EOSPAYG_active EFI variable */
-#define EOSPAYG_ACTIVE_GUID EFI_GUID(0xd89c3871, 0xae0c, 0x4fc5, 0xa409, 0xdc, 0x71, 0x7a, 0xee, 0x61, 0xe7)
-
 static const GDBusErrorEntry epg_service_error_entries[] = {
   { EPG_SERVICE_ERROR_NO_PROVIDER, "com.endlessm.Payg1.Error.NoProvider" },
 };
@@ -303,7 +300,7 @@ epg_service_secure_init_sync (EpgService   *self,
   g_return_if_fail (EPG_IS_SERVICE (self));
 
   /* Read EFI variable(s) before the root pivot */
-  self->eospayg_active_efivar = (efi_get_variable_exists (EOSPAYG_ACTIVE_GUID, "EOSPAYG_active") == 0);
+  self->eospayg_active_efivar = (efi_get_variable_exists (EOSPAYG_GUID, "EOSPAYG_active") == 0);
 
   /* Look for enabled PAYG providers */
   loader = epg_provider_loader_new (NULL);
