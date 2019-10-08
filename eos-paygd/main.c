@@ -358,10 +358,10 @@ main (int   argc,
   if (!backward_compat_mode)
     {
       /* Open and start pinging the custom watchdog timer ("endlessdog") which
-       * will ask for a shut down after not being pinged for 30 seconds, and
-       * force a shutdown after 60 seconds. This means that if eos-paygd is
+       * will ask for a shut down after not being pinged for 19 minutes, and
+       * force a shutdown after 20 minutes. This means that if eos-paygd is
        * somehow killed or crashes, PAYG will not go unenforced. Ping it every
-       * 10 seconds so we have a margin of error in case another high priority
+       * 60 seconds so we have a margin of error in case another high priority
        * task is happening on the main loop. And use O_CLOEXEC in case it's
        * somehow possible to execve() this process after the root pivot. We
        * ping the watchdog even if PAYG is not active (e.g. it's not yet
@@ -374,7 +374,7 @@ main (int   argc,
           g_warning ("eos-paygd could not open /dev/watchdog: %m");
           return WATCHDOG_FAILURE_EXIT_CODE; /* Early return */
         }
-      watchdog_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 10, ping_watchdog, NULL, NULL);
+      watchdog_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 60, ping_watchdog, NULL, NULL);
       g_assert (watchdog_id > 0);
 
       /* Here be dragons:
