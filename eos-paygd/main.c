@@ -24,10 +24,9 @@
 #include <glib/gstdio.h>
 #include <libgsystemservice/service.h>
 #include <libeos-payg/service.h>
+#include <libeos-payg/util.h>
 #include <signal.h>
 #include <systemd/sd-daemon.h>
-#include <linux/reboot.h>
-#include <sys/reboot.h>
 #include <glob.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -71,16 +70,6 @@ ping_watchdog (gpointer user_data)
     }
 
   return G_SOURCE_CONTINUE;
-}
-
-/* Force a poweroff in situations where we are not able to enforce PAYG */
-static gboolean
-sync_and_poweroff (gpointer user_data)
-{
-  g_warning ("bcsn: Forcing poweroff now!");
-  sync ();
-  reboot (LINUX_REBOOT_CMD_POWER_OFF);
-  return G_SOURCE_REMOVE;
 }
 
 static void
@@ -330,7 +319,7 @@ main (int   argc,
       if (!test_and_update_securitylevel(argv[0]))
         {
           g_warning ("Security level regressed, forced shutdown will occur in 20 minutes.");
-          g_timeout_add_seconds (20 * 60, sync_and_poweroff, NULL);
+          g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
         }
     }
   else
@@ -428,7 +417,7 @@ main (int   argc,
        * shorter timeout would mean risking putting systems in an infinite boot
        * loop; in the past we've had long running operations like migrations of
        * flatpaks occur during a reboot. */
-      timeout_id = g_timeout_add_seconds (20 * 60, sync_and_poweroff, NULL);
+      timeout_id = g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
       while (TRUE)
         {
           g_autoptr(GDBusConnection) bus_connection = g_bus_get_sync (G_BUS_TYPE_SYSTEM, NULL, &error);
@@ -491,7 +480,7 @@ main (int   argc,
            * after 10 minutes. See https://phabricator.endlessm.com/T27581
            */
           g_printerr ("%s: %s\n", argv[0], error->message);
-          timeout_id = g_timeout_add_seconds (10 * 60, sync_and_poweroff, NULL);
+          timeout_id = g_timeout_add_seconds (10 * 60, payg_sync_and_poweroff, NULL);
           while (TRUE)
             g_main_context_iteration (NULL, TRUE);
         }
