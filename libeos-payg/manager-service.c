@@ -26,6 +26,7 @@
 #include <libeos-payg/errors.h>
 #include <libeos-payg/manager-interface.h>
 #include <libeos-payg/manager-service.h>
+#include <libeos-payg/util.h>
 
 
 static void epg_manager_service_dispose      (GObject      *object);
@@ -134,6 +135,9 @@ static void expired_cb (EpgProvider *provider,
 static void notify_cb  (GObject    *obj,
                         GParamSpec *pspec,
                         gpointer    user_data);
+static void notify_expiry_time_cb  (GObject    *obj,
+                                    GParamSpec *pspec,
+                                    gpointer    user_data);
 
 static const GDBusErrorEntry manager_error_map[] =
   {
@@ -166,6 +170,7 @@ struct _EpgManagerService
   GDBusConnection *connection;  /* (owned) */
   gchar *object_path;  /* (owned) */
   guint entry_subtree_id;
+  guint shutdown_timer_id;
 
   /* Used to cancel any pending operations when the object is unregistered. */
   GCancellable *cancellable;  /* (owned) */
@@ -255,6 +260,7 @@ static void
 epg_manager_service_init (EpgManagerService *self)
 {
   self->cancellable = g_cancellable_new ();
+  self->shutdown_timer_id = 0;
 }
 
 static void
@@ -264,6 +270,9 @@ epg_manager_service_dispose (GObject *object)
 
   g_assert (self->entry_subtree_id == 0);
 
+  if (self->shutdown_timer_id != 0)
+    g_source_remove (self->shutdown_timer_id);
+
   g_clear_object (&self->connection);
   g_clear_pointer (&self->object_path, g_free);
   g_clear_object (&self->cancellable);
@@ -271,6 +280,7 @@ epg_manager_service_dispose (GObject *object)
   if (self->provider != NULL)
     {
       g_signal_handlers_disconnect_by_func (self->provider, notify_cb, self);
+      g_signal_handlers_disconnect_by_func (self->provider, notify_expiry_time_cb, self);
       g_signal_handlers_disconnect_by_func (self->provider, expired_cb, self);
     }
 
@@ -331,6 +341,7 @@ epg_manager_service_set_property (GObject      *object,
       self->provider = g_value_dup_object (value);
       g_signal_connect (self->provider, "expired", (GCallback) expired_cb, self);
       g_signal_connect (self->provider, "notify", (GCallback) notify_cb, self);
+      g_signal_connect (self->provider, "notify::expiry-time", (GCallback) notify_expiry_time_cb, self);
       break;
     default:
       g_assert_not_reached ();
@@ -353,6 +364,30 @@ expired_cb (EpgProvider *provider,
                                       &local_error))
     g_warning ("Failed to emit com.endlessm.Payg1.Expired signal: %s",
                local_error->message);
+
+  if (self->shutdown_timer_id != 0)
+    g_warning ("The provider emitted an Expired signal when a shutdown timer already exists.");
+  else
+    {
+      /* Start a shutdown timer so that even if gnome-shell has been replaced with
+       * a version that doesn't enforce PAYG, the computer isn't usable for too
+       * long without credit. We could use epg_boottime_source_new() here but
+       * presumably a suspended computer isn't very useful anyway.
+       */
+      self->shutdown_timer_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 60 * 10, payg_sync_and_poweroff, NULL, NULL);
+      g_assert (self->shutdown_timer_id > 0);
+
+      g_clear_error (&local_error);
+      if (!g_dbus_connection_emit_signal (self->connection,
+                                          NULL,  /* broadcast */
+                                          self->object_path,
+                                          "com.endlessm.Payg1",
+                                          "ImpendingShutdown",
+                                          g_variant_new ("(is)", 60 * 10, "PAYG credit expired"),
+                                          &local_error))
+        g_warning ("Failed to emit com.endlessm.Payg1.ImpendingShutdown signal: %s",
+                   local_error->message);
+    }
 }
 
 /**
@@ -799,6 +834,50 @@ notify_cb (GObject    *obj,
                                       &local_error))
     g_warning ("Failed to emit org.freedesktop.DBus.Properties.Properties signal: %s",
                local_error->message);
+}
+
+static void
+notify_expiry_time_cb (GObject    *obj,
+                       GParamSpec *pspec,
+                       gpointer    user_data)
+{
+  EpgManagerService *self = EPG_MANAGER_SERVICE (user_data);
+  EpgProvider *provider = EPG_PROVIDER (obj);
+  EpgClock *clock;
+  gint64 current_time;
+  guint64 expiry_time;
+
+  /* If a shutdown timer is counting down and the expiry time was extended into
+   * the future, cancel the timer.
+   */
+  if (self->shutdown_timer_id == 0)
+    return;
+
+  clock = epg_provider_get_clock (provider);
+  g_assert (EPG_IS_CLOCK (clock));
+  current_time = epg_clock_get_time (clock);
+  g_assert (current_time >= 0);
+  expiry_time = epg_provider_get_expiry_time (provider);
+  /* Note: expiry_time is 0 if the provider is disabled */
+  if (expiry_time == 0 || expiry_time > (guint64)current_time)
+    {
+      g_autoptr(GError) local_error = NULL;
+
+      g_debug ("%s: Cancelling shutdown timer since expiry time was extended", G_STRFUNC);
+      g_source_remove (self->shutdown_timer_id);
+      self->shutdown_timer_id = 0;
+
+      /* Emit ImpendingShutdown with the special value -1 which means "shutdown cancelled" */
+      if (!g_dbus_connection_emit_signal (self->connection,
+                                          NULL,  /* broadcast */
+                                          self->object_path,
+                                          "com.endlessm.Payg1",
+                                          "ImpendingShutdown",
+                                          g_variant_new ("(is)", -1, "PAYG credit extended"),
+                                          &local_error))
+        g_warning ("Failed to emit com.endlessm.Payg1.ImpendingShutdown signal: %s",
+                   local_error->message);
+    }
 }
 
 static GVariant *
