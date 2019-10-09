@@ -190,46 +190,44 @@ test_and_update_securitylevel (char *procname)
   uint32_t attributes;
   int ret;
 
-  if (efi_get_variable_exists (EOSPAYG_GUID, "EOSPAYG_active") == 0)
+  ret = efi_get_variable (EOSPAYG_GUID, "EOSPAYG_securitylevel", &level, &data_size, &attributes);
+  if (ret < 0 || !level || data_size != 1)
     {
-      ret = efi_get_variable (EOSPAYG_GUID, "EOSPAYG_securitylevel", &level, &data_size, &attributes);
-      if (ret < 0 || !level || data_size != 1)
-        {
-          g_printerr ("%s: Failed to read security level\n", procname);
-          return FALSE;
-        }
-
-      /* We've detected an attempt to boot an eos from before the last
-       * security level increase - we assume this is being done to
-       * exploit old holes.
-       */
-      if (level[0] > EPG_SECURITY_LEVEL)
-        {
-          g_printerr ("%s: Security level violation\n", procname);
-          return FALSE;
-        }
-
-      /* The daemon's security level is higher than the system's, increase
-       * the system level so there's no going back to an older version.
-       */
-      if (level[0] < EPG_SECURITY_LEVEL)
-        {
-          g_debug ("Security level changed this boot.");
-
-          /* If we exceed 255 security level bumps during the lifetime of this
-           * project we probably need to consider alternate career paths.
-           */
-          level[0] = EPG_SECURITY_LEVEL;
-          ret = efi_set_variable (EOSPAYG_GUID, "EOSPAYG_securitylevel", level, data_size, attributes, 0600);
-
-          /* There's nothing a user should be able to do to cause this to fail,
-           * so we'll let this "impossible" situation slide with a warning, and
-           * attempt to correct it on next boot.
-           */
-          if (ret < 0)
-            g_warning ("Failed to update security level.");
-        }
+      g_printerr ("%s: Failed to read security level\n", procname);
+      return FALSE;
     }
+
+  /* We've detected an attempt to boot an eos from before the last
+   * security level increase - we assume this is being done to
+   * exploit old holes.
+   */
+  if (level[0] > EPG_SECURITY_LEVEL)
+    {
+      g_printerr ("%s: Security level violation\n", procname);
+      return FALSE;
+    }
+
+  /* The daemon's security level is higher than the system's, increase
+   * the system level so there's no going back to an older version.
+   */
+  if (level[0] < EPG_SECURITY_LEVEL)
+    {
+      g_debug ("Security level changed this boot.");
+
+      /* If we exceed 255 security level bumps during the lifetime of this
+       * project we probably need to consider alternate career paths.
+       */
+      level[0] = EPG_SECURITY_LEVEL;
+      ret = efi_set_variable (EOSPAYG_GUID, "EOSPAYG_securitylevel", level, data_size, attributes, 0600);
+
+      /* There's nothing a user should be able to do to cause this to fail,
+       * so we'll let this "impossible" situation slide with a warning, and
+       * attempt to correct it on next boot.
+       */
+      if (ret < 0)
+        g_warning ("Failed to update security level.");
+    }
+
   return TRUE;
 }
 
@@ -322,12 +320,21 @@ main (int   argc,
           enforcing_mode = FALSE;
         }
 
+      /* Also don't enforce PAYG if EOSPAYG_active is not set; this could mean
+       * the machine has been paid off or unlocked for another reason.
+       */
+      if (efi_get_variable_exists (EOSPAYG_GUID, "EOSPAYG_active") < 0)
+        {
+          g_debug ("EOSPAYG_active is not set; not enforcing PAYG");
+          enforcing_mode = FALSE;
+        }
+
       /* If we fail the securitylevel test we still want to complete
        * booting and have a chance at doing a system update to recover
        * from our currently broken state, but the shutdown is
        * inevitable.
        */
-      if (!test_and_update_securitylevel(argv[0]))
+      if (enforcing_mode && !test_and_update_securitylevel(argv[0]))
         {
           g_warning ("Security level regressed, forced shutdown will occur in 20 minutes.");
           g_timeout_add_seconds (20 * 60, sync_and_poweroff, NULL);
