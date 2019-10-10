@@ -231,7 +231,7 @@ msgstr ""
 
 #: libeos-payg/service.c:122
 msgid "PATH"
-msgstr ""
+msgstr "PATH"
 
 #: libeos-payg/service.c:320
 msgid "— verify top-up codes and monitor time remaining"
