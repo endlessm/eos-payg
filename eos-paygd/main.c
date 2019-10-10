@@ -40,6 +40,7 @@
 #define WATCHDOG_FAILURE_EXIT_CODE 253
 #define SD_NOTIFY_FAILURE_EXIT_CODE 252
 #define GOPTION_FAILURE_EXIT_CODE 251
+#define LSM_FAILURE_EXIT_CODE 250
 
 #define EFI_GLOBAL_VARIABLE_GUID EFI_GUID(0x8be4df61, 0x93ca, 0x11d2, 0xaa0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c)
 
@@ -272,6 +273,7 @@ main (int   argc,
   g_autoptr(EpgService) service = NULL;
   g_autoptr(GFile) state_dir = NULL;
   int ret, sd_notify_ret, system_ret;
+  int lsm_fd;
   gboolean backward_compat_mode = FALSE;
   guint timeout_id, watchdog_id;
   const gchar *sd_socket_env = NULL;
@@ -310,9 +312,8 @@ main (int   argc,
       /* Don't enforce PAYG if the current boot is not secure. This likely
        * means the machine is being unlocked for debugging purposes, or has
        * been paid off. A command line flag can be used to skip this check.
-       * Note that we can't simply exit; systemd expects us to send READY=1,
-       * and we will ping the watchdog indefinitely so that no other process
-       * can use it.
+       * Note that we can't simply exit; systemd expects us to send READY=1
+       * so it knows to proceed with the root pivot.
        */
       if (!skip_sb_check && !secure_boot_enabled ())
         {
@@ -364,25 +365,46 @@ main (int   argc,
 
   if (!backward_compat_mode)
     {
-      /* Open and start pinging the custom watchdog timer ("endlessdog") which
-       * will ask for a shut down after not being pinged for 19 minutes, and
-       * force a shutdown after 20 minutes. This means that if eos-paygd is
-       * somehow killed or crashes, PAYG will not go unenforced. Ping it every
-       * 60 seconds so we have a margin of error in case another high priority
-       * task is happening on the main loop. And use O_CLOEXEC in case it's
-       * somehow possible to execve() this process after the root pivot. We
-       * ping the watchdog even if PAYG is not active (e.g. it's not yet
-       * provisioned or has been paid off) to prevent any other process from
-       * accidentally or maliciously using the watchdog timer.
-       */
-      watchdog_fd = open ("/dev/watchdog", O_WRONLY | O_CLOEXEC);
-      if (watchdog_fd == -1)
+      if (enforcing_mode)
         {
-          g_warning ("eos-paygd could not open /dev/watchdog: %m");
-          return WATCHDOG_FAILURE_EXIT_CODE; /* Early return */
+          /* Open and start pinging the custom watchdog timer ("endlessdog") which
+           * will ask for a shut down after not being pinged for 19 minutes, and
+           * force a shutdown after 20 minutes. This means that if eos-paygd is
+           * somehow killed or crashes, PAYG will not go unenforced. Ping it every
+           * 60 seconds so we have a margin of error in case another high priority
+           * task is happening on the main loop. And use O_CLOEXEC in case it's
+           * somehow possible to execve() this process after the root pivot. We
+           * ping the watchdog even if PAYG is not active (e.g. it's not yet
+           * provisioned or has been paid off) to prevent any other process from
+           * accidentally or maliciously using the watchdog timer.
+           */
+          watchdog_fd = open ("/dev/watchdog", O_WRONLY | O_CLOEXEC);
+          if (watchdog_fd == -1)
+            {
+              g_warning ("eos-paygd could not open /dev/watchdog: %m");
+              return WATCHDOG_FAILURE_EXIT_CODE; /* Early return */
+            }
+          watchdog_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 60, ping_watchdog, NULL, NULL);
+          g_assert (watchdog_id > 0);
+
+          /* Activate the LSM which will protect this process from various
+           * signals, protect it from being ptraced, remove it from /proc, and
+           * give it privileged access to EFI variables. We don't ever want to
+           * close the fd (we'd lose the protection), but use O_CLOEXEC anyway
+           * since we don't expect an execve() to happen.
+           */
+          lsm_fd = open("/sys/kernel/security/endlesspayg/paygd_pid", O_RDONLY | O_CLOEXEC);
+          if (lsm_fd == -1)
+            {
+              g_warning ("eos-paygd could not open /sys/kernel/security/endlesspayg/paygd_pid: %m");
+              return LSM_FAILURE_EXIT_CODE; /* Early return */
+            }
+          else
+            {
+              /* Forget the fd since we don't even want to close it. */
+              lsm_fd = -1;
+            }
         }
-      watchdog_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 60, ping_watchdog, NULL, NULL);
-      g_assert (watchdog_id > 0);
 
       /* Here be dragons:
        * We're currently in the initramfs root directory, and systemd is putting
@@ -519,7 +541,7 @@ main (int   argc,
 
   allow_writing_to_boot_partition (FALSE);
 
-  if (ret == 0 && !backward_compat_mode)
+  if (ret == 0 && !backward_compat_mode && enforcing_mode)
     {
       /* Continue to ping the watchdog indefinitely */
       while (TRUE)
