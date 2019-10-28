@@ -176,6 +176,9 @@ epg_provider_default_init (EpgProviderInterface *iface)
    * you go code expires. It is expected that when this is emitted, clients of
    * this service will lock the computer until a new code is entered.
    *
+   * #EpgProvider implementations must also emit this signal on startup if
+   * there is no credit remaining.
+   *
    * This will never be emitted when #EpgProvider:enabled is %FALSE.
    *
    * Since: 0.2.0

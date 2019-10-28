@@ -89,9 +89,41 @@ static const GDBusSignalInfo manager_interface_expired =
   NULL,  /* annotations */
 };
 
+static const GDBusArgInfo manager_interface_impending_shutdown_arg0 =
+{
+  -1,
+  (gchar *) "seconds_remaining",
+  (gchar *) "i", /* Note: the special value -1 means the shutdown was cancelled */
+  (GDBusAnnotationInfo**) NULL,
+};
+
+static const GDBusArgInfo manager_interface_impending_shutdown_arg1 =
+{
+  -1,
+  (gchar *) "shutdown_reason",
+  (gchar *) "s",
+  (GDBusAnnotationInfo**) NULL,
+};
+
+static const GDBusArgInfo * const manager_interface_impending_shutdown_arg_pointers[] =
+{
+  &manager_interface_impending_shutdown_arg0,
+  &manager_interface_impending_shutdown_arg1,
+  NULL
+};
+
+static const GDBusSignalInfo manager_interface_impending_shutdown =
+{
+  -1,  /* ref count */
+  (gchar *) "ImpendingShutdown",
+  (GDBusArgInfo**) &manager_interface_impending_shutdown_arg_pointers,  /* args */
+  NULL,  /* annotations */
+};
+
 static const GDBusSignalInfo *manager_interface_signals[] =
 {
   &manager_interface_expired,
+  &manager_interface_impending_shutdown,
   NULL,
 };
 
