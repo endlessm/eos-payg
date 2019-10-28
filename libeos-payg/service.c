@@ -30,10 +30,10 @@
 #include <libeos-payg/resources.h>
 #include <libeos-payg/service.h>
 #include <libeos-payg/clock-jump-source.h>
+#include <libeos-payg/util.h>
 #include <libeos-payg-codes/codes.h>
 #include <libgsystemservice/config-file.h>
 #include <locale.h>
-#include <efivar.h>
 
 
 /* Paths to the various places the config file could be loaded from. */
@@ -300,7 +300,7 @@ epg_service_secure_init_sync (EpgService   *self,
   g_return_if_fail (EPG_IS_SERVICE (self));
 
   /* Read EFI variable(s) before the root pivot */
-  self->eospayg_active_efivar = (efi_get_variable_exists (EOSPAYG_GUID, "EOSPAYG_active") == 0);
+  self->eospayg_active_efivar = payg_get_eospayg_active_set ();
 
   /* Look for enabled PAYG providers */
   loader = epg_provider_loader_new (NULL);

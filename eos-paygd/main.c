@@ -41,8 +41,6 @@
 #define GOPTION_FAILURE_EXIT_CODE 251
 #define LSM_FAILURE_EXIT_CODE 250
 
-#define EFI_GLOBAL_VARIABLE_GUID EFI_GUID(0x8be4df61, 0x93ca, 0x11d2, 0xaa0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c)
-
 static int watchdog_fd = -1;
 
 /* Ping the watchdog periodically as long as eos-paygd is running. */
@@ -221,29 +219,6 @@ test_and_update_securitylevel (char *procname)
   return TRUE;
 }
 
-static gboolean
-secure_boot_enabled (void)
-{
-  uint8_t *secboot = NULL;
-  size_t data_size = 0;
-  uint32_t attributes;
-  int ret;
-
-  ret = efi_get_variable (EFI_GLOBAL_VARIABLE_GUID, "SecureBoot", &secboot, &data_size, &attributes);
-  if (ret < 0 || !secboot || data_size != 1)
-    {
-      g_debug ("Failed to read SecureBoot EFI variable, treating as SB off");
-      return FALSE;
-    }
-  if (*secboot == 0)
-    {
-      g_debug ("SecureBoot EFI variable indicates the current boot is not secure");
-      return FALSE;
-    }
-
-  return TRUE;
-}
-
 static gboolean print_level = FALSE;
 static gboolean skip_sb_check = FALSE;
 
@@ -264,12 +239,14 @@ main (int   argc,
   int ret, sd_notify_ret, system_ret;
   int lsm_fd;
   gboolean backward_compat_mode = FALSE;
-  guint timeout_id, watchdog_id;
+  guint timeout_id = 0, watchdog_id = 0;
   const gchar *sd_socket_env = NULL;
   g_autofree char *sd_socket_dir = NULL;
   g_autofree char *sd_socket_name = NULL;
   GOptionContext *context;
   gboolean enforcing_mode = TRUE;
+
+  payg_set_debug_env_vars ();
 
   context = g_option_context_new ("- Pay As You Go enforcement daemon");
   g_option_context_add_main_entries (context, opts, GETTEXT_PACKAGE);
@@ -304,7 +281,7 @@ main (int   argc,
        * Note that we can't simply exit; systemd expects us to send READY=1
        * so it knows to proceed with the root pivot.
        */
-      if (!skip_sb_check && !secure_boot_enabled ())
+      if (!skip_sb_check && !payg_get_secure_boot_enabled ())
         {
           g_debug ("Secure Boot is not enabled; not enforcing PAYG");
           enforcing_mode = FALSE;
@@ -313,7 +290,7 @@ main (int   argc,
       /* Also don't enforce PAYG if EOSPAYG_active is not set; this could mean
        * the machine has been paid off or unlocked for another reason.
        */
-      if (efi_get_variable_exists (EOSPAYG_GUID, "EOSPAYG_active") < 0)
+      if (!payg_get_eospayg_active_set ())
         {
           g_debug ("EOSPAYG_active is not set; not enforcing PAYG");
           enforcing_mode = FALSE;
@@ -324,7 +301,8 @@ main (int   argc,
        * from our currently broken state, but the shutdown is
        * inevitable.
        */
-      if (enforcing_mode && !test_and_update_securitylevel(argv[0]))
+      if (enforcing_mode && payg_should_check_securitylevel () &&
+          !test_and_update_securitylevel (argv[0]))
         {
           g_warning ("Security level regressed, forced shutdown will occur in 20 minutes.");
           g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
@@ -354,7 +332,7 @@ main (int   argc,
 
   if (!backward_compat_mode)
     {
-      if (enforcing_mode)
+      if (enforcing_mode && payg_should_use_watchdog ())
         {
           /* Open and start pinging the custom watchdog timer ("endlessdog") which
            * will ask for a shut down after not being pinged for 19 minutes, and
@@ -375,7 +353,10 @@ main (int   argc,
             }
           watchdog_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 60, ping_watchdog, NULL, NULL);
           g_assert (watchdog_id > 0);
+        }
 
+      if (enforcing_mode && payg_should_use_lsm ())
+        {
           /* Activate the LSM which will protect this process from various
            * signals, protect it from being ptraced, remove it from /proc, and
            * give it privileged access to EFI variables. We don't ever want to
@@ -530,7 +511,7 @@ main (int   argc,
 
   allow_writing_to_boot_partition (FALSE);
 
-  if (ret == 0 && !backward_compat_mode && enforcing_mode)
+  if (ret == 0 && watchdog_id > 0)
     {
       /* Continue to ping the watchdog indefinitely */
       while (TRUE)
