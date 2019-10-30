@@ -23,6 +23,15 @@
 
 G_BEGIN_DECLS
 
+/* The GUID for the EOSPAYG EFI variables */
+#define EOSPAYG_GUID EFI_GUID(0xd89c3871, 0xae0c, 0x4fc5, 0xa409, 0xdc, 0x71, 0x7a, 0xee, 0x61, 0xe7)
+
 gboolean payg_sync_and_poweroff (gpointer user_data);
+void payg_set_debug_env_vars (void);
+gboolean payg_get_secure_boot_enabled (void);
+gboolean payg_get_eospayg_active_set (void);
+gboolean payg_should_use_watchdog (void);
+gboolean payg_should_use_lsm (void);
+gboolean payg_should_check_securitylevel (void);
 
 G_END_DECLS
