@@ -435,7 +435,14 @@ main (int   argc,
             {
               g_debug ("Error connecting to system bus, will retry: %s", error->message);
               g_clear_error (&error);
-              g_main_context_iteration (NULL, TRUE); /* keep pinging watchdog */
+
+              /* Keep pinging the watchdog if we have it, but don't block in
+               * case we don't have it. We also need to iterate the main
+               * context for payg_sync_and_poweroff() to have a chance to be
+               * triggered.
+               */
+              g_main_context_iteration (NULL, FALSE);
+
               g_usleep (G_USEC_PER_SEC);
             }
           else
