@@ -462,7 +462,7 @@ main (int   argc,
        * that relative paths work in the future, let's chdir into / one last time
        * to be sure we're actually there and not "under" a mount point. */
       if (chdir ("/"))
-         g_warning ("Unable to re-establish root directory: %m");
+        g_warning ("Unable to re-establish root directory: %m");
       else
         g_debug ("Pivoted to final root filesystem");
     }
