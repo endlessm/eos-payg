@@ -275,6 +275,8 @@ main (int   argc,
     {
       argv[0][0] = '@';
 
+      g_debug ("eos-paygd running from initramfs");
+
       /* Don't enforce PAYG if the current boot is not secure. This likely
        * means the machine is being unlocked for debugging purposes, or has
        * been paid off. A command line flag can be used to skip this check.
@@ -330,6 +332,8 @@ main (int   argc,
   service = epg_service_new ();
   epg_service_secure_init_sync (service, NULL);
 
+  g_debug ("epg_service_secure_init_sync() completed");
+
   if (!backward_compat_mode)
     {
       if (enforcing_mode && payg_should_use_watchdog ())
@@ -345,6 +349,7 @@ main (int   argc,
            * provisioned or has been paid off) to prevent any other process from
            * accidentally or maliciously using the watchdog timer.
            */
+          g_debug ("Opening /dev/watchdog");
           watchdog_fd = open ("/dev/watchdog", O_WRONLY | O_CLOEXEC);
           if (watchdog_fd == -1)
             {
@@ -363,6 +368,7 @@ main (int   argc,
            * close the fd (we'd lose the protection), but use O_CLOEXEC anyway
            * since we don't expect an execve() to happen.
            */
+          g_debug ("Opening /sys/kernel/security/endlesspayg/paygd_pid");
           lsm_fd = open("/sys/kernel/security/endlesspayg/paygd_pid", O_RDONLY | O_CLOEXEC);
           if (lsm_fd == -1)
             {
@@ -427,6 +433,7 @@ main (int   argc,
        * shorter timeout would mean risking putting systems in an infinite boot
        * loop; in the past we've had long running operations like migrations of
        * flatpaks occur during a reboot. */
+      g_debug ("Attempting to connect to D-Bus daemon");
       timeout_id = g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
       while (TRUE)
         {
@@ -456,6 +463,8 @@ main (int   argc,
        * to be sure we're actually there and not "under" a mount point. */
       if (chdir ("/"))
          g_warning ("Unable to re-establish root directory: %m");
+      else
+        g_debug ("Pivoted to final root filesystem");
     }
 
   /* Technically this existence check is racy but no other process should be
@@ -486,8 +495,11 @@ main (int   argc,
   if (enforcing_mode)
     {
       /* Set up a D-Bus service and run until we are killed. */
+      g_debug ("Starting EpgService to enforce PAYG");
       gss_service_run (GSS_SERVICE (service), argc, argv, &error);
     }
+  else
+    g_debug ("Not enforcing PAYG for this boot");
 
   if (error != NULL)
     {
@@ -503,6 +515,7 @@ main (int   argc,
         }
       else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
         {
+          g_printerr ("%s: EpgService exited with GSS_SERVICE_ERROR_SIGNALLED\n", argv[0]);
           raise (gss_service_get_exit_signal (GSS_SERVICE (service)));
           ret = FATAL_SIGNAL_EXIT_CODE; /* should not be reached, just in case the signal is caught */
         }
@@ -514,13 +527,17 @@ main (int   argc,
         }
     }
   else
-    ret = 0;
+    {
+      g_debug ("EpgService exited successfully or did not run");
+      ret = 0;
+    }
 
   allow_writing_to_boot_partition (FALSE);
 
   if (ret == 0 && watchdog_id > 0)
     {
       /* Continue to ping the watchdog indefinitely */
+      g_debug ("Entering watchdog-ping-only mode");
       while (TRUE)
         g_main_context_iteration (NULL, TRUE);
     }
