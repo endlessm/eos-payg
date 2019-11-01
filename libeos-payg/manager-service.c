@@ -321,6 +321,9 @@ epg_manager_service_set_property (GObject      *object,
                                   GParamSpec   *pspec)
 {
   EpgManagerService *self = EPG_MANAGER_SERVICE (object);
+  EpgClock *clock;
+  gint64 current_time;
+  guint64 expiry_time;
 
   switch ((EpgManagerServiceProperty) property_id)
     {
@@ -342,6 +345,16 @@ epg_manager_service_set_property (GObject      *object,
       g_signal_connect (self->provider, "expired", (GCallback) expired_cb, self);
       g_signal_connect (self->provider, "notify", (GCallback) notify_cb, self);
       g_signal_connect (self->provider, "notify::expiry-time", (GCallback) notify_expiry_time_cb, self);
+
+      /* Trigger expired_cb() if it's already expired */
+      clock = epg_provider_get_clock (self->provider);
+      g_assert (EPG_IS_CLOCK (clock));
+      current_time = epg_clock_get_time (clock);
+      g_assert (current_time >= 0);
+      expiry_time = epg_provider_get_expiry_time (self->provider);
+      if (expiry_time <= (guint64)current_time)
+        expired_cb (self->provider, self);
+
       break;
     default:
       g_assert_not_reached ();
