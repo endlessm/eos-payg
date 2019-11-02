@@ -34,7 +34,7 @@
 gboolean
 payg_sync_and_poweroff (gpointer user_data)
 {
-  g_warning ("bcsn: Forcing poweroff now!");
+  g_message ("bcsn: Forcing poweroff now!");
   sync ();
   reboot (LINUX_REBOOT_CMD_POWER_OFF);
   return G_SOURCE_REMOVE;
@@ -79,7 +79,7 @@ _read_eospayg_debug (void)
   ret = efi_get_variable (EOSPAYG_GUID, "EOSPAYG_debug", &debug_efivar, &data_size, &attributes);
   if (ret < 0 || !debug_efivar || data_size < 1)
     {
-      g_printerr ("%s: Failed to read EOSPAYG_debug\n", G_STRFUNC);
+      g_warning ("Failed to read EOSPAYG_debug");
       return debug_flags;
     }
 
@@ -150,7 +150,7 @@ payg_get_secure_boot_enabled (void)
 
   if (debug_flags & EPG_DEBUG_SECURE_BOOT_OFF &&
       debug_flags & EPG_DEBUG_SECURE_BOOT_ON)
-    g_printerr ("%s: Both EPG_DEBUG_SECURE_BOOT_OFF and EPG_DEBUG_SECURE_BOOT_ON are set\n", G_STRFUNC);
+    g_warning ("Both EPG_DEBUG_SECURE_BOOT_OFF and EPG_DEBUG_SECURE_BOOT_ON are set");
 
   if (debug_flags & EPG_DEBUG_SECURE_BOOT_OFF)
     return FALSE;
@@ -192,7 +192,7 @@ payg_get_eospayg_active_set (void)
 
   if (debug_flags & EPG_DEBUG_EOSPAYG_ACTIVE_OFF &&
       debug_flags & EPG_DEBUG_EOSPAYG_ACTIVE_ON)
-    g_printerr ("%s: Both EPG_DEBUG_EOSPAYG_ACTIVE_OFF and EPG_DEBUG_EOSPAYG_ACTIVE_ON are set\n", G_STRFUNC);
+    g_warning ("Both EPG_DEBUG_EOSPAYG_ACTIVE_OFF and EPG_DEBUG_EOSPAYG_ACTIVE_ON are set");
 
   if (debug_flags & EPG_DEBUG_EOSPAYG_ACTIVE_OFF)
     return FALSE;
