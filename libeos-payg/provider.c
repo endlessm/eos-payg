@@ -186,6 +186,24 @@ epg_provider_default_init (EpgProviderInterface *iface)
   g_signal_new ("expired", G_TYPE_FROM_INTERFACE (iface),
                 G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
                 G_TYPE_NONE, 0);
+
+  /**
+   * EpgProvider::unlocked:
+   * @self: a #EpgProvider
+   *
+   * Emitted when the loan has been paid off completely and the computer should
+   * be unlocked for unrestricted use.
+   *
+   * #EpgProvider implementations need only emit this signal when the final
+   * unlocked code is entered, not when initialized on subsequent boots. This
+   * signal must be emitted before #EpgProvider:enabled is changed to %FALSE to
+   * ensure that the unlock is successful.
+   *
+   * Since: 0.2.3
+   */
+  g_signal_new ("unlocked", G_TYPE_FROM_INTERFACE (iface),
+                G_SIGNAL_RUN_LAST, 0, NULL, NULL, NULL,
+                G_TYPE_NONE, 0);
 }
 
 /**

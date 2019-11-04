@@ -34,6 +34,7 @@
 #include <libeos-payg-codes/codes.h>
 #include <libgsystemservice/config-file.h>
 #include <locale.h>
+#include <efivar.h>
 
 
 /* Paths to the various places the config file could be loaded from. */
@@ -96,6 +97,11 @@ struct _EpgService
    */
   gulong notify_enabled_id;
 
+  /* If @provider is non-%NULL, a non-zero ID for a handler of
+   * provider::unlocked.
+   */
+  gulong unlocked_id;
+
   /* If %TRUE, there is an outstanding call to gss_service_hold() without a
    * matching call to gss_service_release().
    */
@@ -145,6 +151,13 @@ epg_service_dispose (GObject *object)
       self->notify_enabled_id = 0;
     }
 
+  if (self->unlocked_id != 0)
+    {
+      g_assert (self->provider != NULL);
+      g_signal_handler_disconnect (self->provider, self->unlocked_id);
+      self->unlocked_id = 0;
+    }
+
   g_clear_object (&self->manager_service);
   g_clear_object (&self->provider);
 
@@ -190,6 +203,8 @@ static void epg_service_startup_complete (EpgService  *self,
 static void provider_notify_enabled_cb (GObject    *object,
                                         GParamSpec *param_spec,
                                         gpointer    user_data);
+static void provider_unlocked_cb (EpgProvider *provider,
+                                  gpointer     user_data);
 
 static void
 async_result_cb (GObject      *obj,
@@ -499,6 +514,11 @@ epg_service_startup_complete (EpgService  *self,
                                               G_CALLBACK (provider_notify_enabled_cb),
                                               self);
   provider_notify_enabled_cb (G_OBJECT (self->provider), NULL, self);
+
+  self->unlocked_id = g_signal_connect (self->provider,
+                                        "unlocked",
+                                        G_CALLBACK (provider_unlocked_cb),
+                                        self);
 }
 
 static void
@@ -524,6 +544,31 @@ provider_notify_enabled_cb (GObject    *object,
     gss_service_release (GSS_SERVICE (self));
 
   self->holding = enabled;
+}
+
+static void provider_unlocked_cb (EpgProvider *provider,
+                                  gpointer     user_data)
+{
+  EpgService *self = EPG_SERVICE (user_data);
+
+  g_message ("EpgProvider emitted 'unlocked' signal");
+
+  /* Check self->eospayg_active_efivar to determine if we're in backward compat
+   * mode for Phase 2, and to allow EOSPAYG_debug to prevent deletion of
+   * EOSPAYG_active (via EPG_DEBUG_EOSPAYG_ACTIVE_OFF).
+   */
+  if (self->eospayg_active_efivar)
+    {
+      if (efi_del_variable (EOSPAYG_GUID, "EOSPAYG_active") < 0)
+        g_warning ("Failed to delete EOSPAYG_active upon unlock");
+      else
+        g_message ("Deleted EOSPAYG_active upon unlock");
+
+      /* FIXME: Perhaps we should also change the Secure Boot settings so the
+       * user can boot Windows and other Linux distributions?
+       * https://phabricator.endlessm.com/T28511
+       */
+    }
 }
 
 static void
