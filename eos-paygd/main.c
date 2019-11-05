@@ -171,7 +171,7 @@ payg_relative_sd_notify (const gchar *path,
  * to a version of endless with known PAYG bugs.
  */
 static gboolean
-test_and_update_securitylevel (char *procname)
+test_and_update_securitylevel (void)
 {
   uint8_t *level = NULL;
   size_t data_size = 0;
@@ -181,7 +181,7 @@ test_and_update_securitylevel (char *procname)
   ret = efi_get_variable (EOSPAYG_GUID, "EOSPAYG_securitylevel", &level, &data_size, &attributes);
   if (ret < 0 || !level || data_size != 1)
     {
-      g_printerr ("%s: Failed to read security level\n", procname);
+      g_warning ("Failed to read security level");
       return FALSE;
     }
 
@@ -191,7 +191,7 @@ test_and_update_securitylevel (char *procname)
    */
   if (level[0] > EPG_SECURITY_LEVEL)
     {
-      g_printerr ("%s: Security level violation\n", procname);
+      g_warning ("Security level violation");
       return FALSE;
     }
 
@@ -252,7 +252,7 @@ main (int   argc,
   g_option_context_add_main_entries (context, opts, GETTEXT_PACKAGE);
   if (!g_option_context_parse (context, &argc, &argv, &error))
     {
-      g_printerr ("%s: %s\n", argv[0], error->message);
+      g_warning ("Failed to parse options: %s", error->message);
       return GOPTION_FAILURE_EXIT_CODE;
     }
   if (print_level)
@@ -304,7 +304,7 @@ main (int   argc,
        * inevitable.
        */
       if (enforcing_mode && payg_should_check_securitylevel () &&
-          !test_and_update_securitylevel (argv[0]))
+          !test_and_update_securitylevel ())
         {
           g_warning ("Security level regressed, forced shutdown will occur in 20 minutes.");
           g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
@@ -405,14 +405,14 @@ main (int   argc,
         {
           /* If we can't notify systemd that we're ready to move on, it will
            * timeout in 90 seconds and shutdown, might as well just exit. */
-          g_printerr ("%s: NOTIFY_SOCKET not set.\n", argv[0]);
+          g_warning ("NOTIFY_SOCKET not set");
           return SD_NOTIFY_FAILURE_EXIT_CODE;
         }
       sd_socket_dir = g_path_get_dirname (sd_socket_env);
       sd_socket_name = g_path_get_basename (sd_socket_env);
       if (!sd_socket_dir || !sd_socket_name)
         {
-          g_printerr ("%s: NOTIFY_SOCKET not in valid format.\n", argv[0]);
+          g_warning ("NOTIFY_SOCKET not in valid format");
           return SD_NOTIFY_FAILURE_EXIT_CODE;
         }
       if (chdir (sd_socket_dir))
@@ -423,7 +423,7 @@ main (int   argc,
       sd_notify_ret = payg_relative_sd_notify (sd_socket_name, "READY=1");
       if (sd_notify_ret < 0)
         {
-          g_printerr ("%s: payg_relative_sd_notify() failed with code %d\n", argv[0], -sd_notify_ret);
+          g_warning ("payg_relative_sd_notify() failed with code %d", -sd_notify_ret);
           return SD_NOTIFY_FAILURE_EXIT_CODE;
         }
       if (chdir ("/"))
@@ -508,20 +508,20 @@ main (int   argc,
           /* This could mean the PAYG data has been erased; force a poweroff
            * after 10 minutes. See https://phabricator.endlessm.com/T27581
            */
-          g_printerr ("%s: %s\n", argv[0], error->message);
+          g_warning ("Initiating 10 minute shutdown timer due to error: %s", error->message);
           timeout_id = g_timeout_add_seconds (10 * 60, payg_sync_and_poweroff, NULL);
           while (TRUE)
             g_main_context_iteration (NULL, TRUE);
         }
       else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
         {
-          g_printerr ("%s: EpgService exited with GSS_SERVICE_ERROR_SIGNALLED\n", argv[0]);
+          g_warning ("EpgService exited with GSS_SERVICE_ERROR_SIGNALLED");
           raise (gss_service_get_exit_signal (GSS_SERVICE (service)));
           ret = FATAL_SIGNAL_EXIT_CODE; /* should not be reached, just in case the signal is caught */
         }
       else
         {
-          g_printerr ("%s: %s\n", argv[0], error->message);
+          g_warning ("Unknown error encountered: %s", error->message);
           ret = error->code;
           g_assert (ret != 0);
         }

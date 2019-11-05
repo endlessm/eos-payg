@@ -321,6 +321,9 @@ epg_manager_service_set_property (GObject      *object,
                                   GParamSpec   *pspec)
 {
   EpgManagerService *self = EPG_MANAGER_SERVICE (object);
+  EpgClock *clock;
+  gint64 current_time;
+  guint64 expiry_time;
 
   switch ((EpgManagerServiceProperty) property_id)
     {
@@ -342,6 +345,16 @@ epg_manager_service_set_property (GObject      *object,
       g_signal_connect (self->provider, "expired", (GCallback) expired_cb, self);
       g_signal_connect (self->provider, "notify", (GCallback) notify_cb, self);
       g_signal_connect (self->provider, "notify::expiry-time", (GCallback) notify_expiry_time_cb, self);
+
+      /* Trigger expired_cb() if it's already expired */
+      clock = epg_provider_get_clock (self->provider);
+      g_assert (EPG_IS_CLOCK (clock));
+      current_time = epg_clock_get_time (clock);
+      g_assert (current_time >= 0);
+      expiry_time = epg_provider_get_expiry_time (self->provider);
+      if (expiry_time <= (guint64)current_time)
+        expired_cb (self->provider, self);
+
       break;
     default:
       g_assert_not_reached ();
@@ -374,6 +387,7 @@ expired_cb (EpgProvider *provider,
        * long without credit. We could use epg_boottime_source_new() here but
        * presumably a suspended computer isn't very useful anyway.
        */
+      g_message ("Starting 10 minute shutdown timer due to expired PAYG credit");
       self->shutdown_timer_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 60 * 10, payg_sync_and_poweroff, NULL, NULL);
       g_assert (self->shutdown_timer_id > 0);
 
@@ -863,7 +877,7 @@ notify_expiry_time_cb (GObject    *obj,
     {
       g_autoptr(GError) local_error = NULL;
 
-      g_debug ("%s: Cancelling shutdown timer since expiry time was extended", G_STRFUNC);
+      g_message ("%s: Cancelling shutdown timer since expiry time was extended", G_STRFUNC);
       g_source_remove (self->shutdown_timer_id);
       self->shutdown_timer_id = 0;
 
