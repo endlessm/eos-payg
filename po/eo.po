@@ -11,7 +11,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2018-04-03 16:11+0200\n"
+"POT-Creation-Date: 2019-11-05 21:33+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
 "Last-Translator: Will Thompson <wjt@endlessm.com>, 2019\n"
 "Language-Team: Esperanto (https://www.transifex.com/endless-os/teams/9016/eo/)\n"
@@ -37,7 +37,7 @@ msgstr "5 minutoj"
 msgid "30 minutes"
 msgstr "30 minutoj"
 
-#: eos-payg-generate/main.c:52
+#: eos-payg-generate/main.c:53
 msgid "1 hour"
 msgstr "1 horo"
 
@@ -45,248 +45,250 @@ msgstr "1 horo"
 msgid "8 hours"
 msgstr ""
 
-#: eos-payg-generate/main.c:53
+#: eos-payg-generate/main.c:55
 msgid "1 day"
 msgstr "1 tago"
 
-#: eos-payg-generate/main.c:54
+#: eos-payg-generate/main.c:56
 msgid "2 days"
 msgstr "2 tagoj"
 
-#: eos-payg-generate/main.c:55
+#: eos-payg-generate/main.c:57
 msgid "3 days"
 msgstr "3 tagoj"
 
-#: eos-payg-generate/main.c:56
+#: eos-payg-generate/main.c:58
 msgid "4 days"
 msgstr "4 tagoj"
 
-#: eos-payg-generate/main.c:57
+#: eos-payg-generate/main.c:59
 msgid "5 days"
 msgstr "5 tagoj"
 
-#: eos-payg-generate/main.c:58
+#: eos-payg-generate/main.c:60
 msgid "6 days"
 msgstr "6 tagoj"
 
-#: eos-payg-generate/main.c:59
+#: eos-payg-generate/main.c:61
 msgid "7 days"
 msgstr "7 tagoj"
 
-#: eos-payg-generate/main.c:60
+#: eos-payg-generate/main.c:62
 msgid "8 days"
 msgstr ""
 
-#: eos-payg-generate/main.c:61
+#: eos-payg-generate/main.c:63
 msgid "9 days"
 msgstr ""
 
-#: eos-payg-generate/main.c:62
+#: eos-payg-generate/main.c:64
 msgid "10 days"
 msgstr ""
 
-#: eos-payg-generate/main.c:63
+#: eos-payg-generate/main.c:65
 msgid "11 days"
 msgstr ""
 
-#: eos-payg-generate/main.c:64
+#: eos-payg-generate/main.c:66
 msgid "12 days"
 msgstr ""
 
-#: eos-payg-generate/main.c:65
+#: eos-payg-generate/main.c:67
 msgid "13 days"
 msgstr ""
 
-#: eos-payg-generate/main.c:66
+#: eos-payg-generate/main.c:68
 msgid "14 days"
 msgstr "14 tagoj"
 
-#: eos-payg-generate/main.c:67
+#: eos-payg-generate/main.c:69
 msgid "30 days"
 msgstr "30 tagoj"
 
-#: eos-payg-generate/main.c:68
+#: eos-payg-generate/main.c:70
 msgid "60 days"
 msgstr ""
 
-#: eos-payg-generate/main.c:69
+#: eos-payg-generate/main.c:71
 msgid "90 days"
 msgstr ""
 
-#: eos-payg-generate/main.c:70
+#: eos-payg-generate/main.c:72
 msgid "120 days"
 msgstr ""
 
-#: eos-payg-generate/main.c:71
+#: eos-payg-generate/main.c:73
 msgid "365 days"
 msgstr ""
 
-#: eos-payg-generate/main.c:72
+#: eos-payg-generate/main.c:74
 msgid "Infinite"
 msgstr ""
 
-#: eos-payg-generate/main.c:94
+#: eos-payg-generate/main.c:96
 #, c-format
 msgid "Invalid period ‘%s’."
 msgstr ""
 
-#: eos-payg-generate/main.c:118
+#: eos-payg-generate/main.c:120
 msgid "Only print error messages"
 msgstr ""
 
-#: eos-payg-generate/main.c:120
+#: eos-payg-generate/main.c:122
 msgid "List the available periods"
 msgstr ""
 
-#: eos-payg-generate/main.c:127
+#: eos-payg-generate/main.c:129
 msgid "KEY-FILENAME PERIOD [COUNTER]"
 msgstr ""
 
-#: eos-payg-generate/main.c:128
+#: eos-payg-generate/main.c:130
 msgid "Generate one or more pay as you go codes"
 msgstr ""
 
-#: eos-payg-generate/main.c:134 eos-payg-generate/main.c:162
-#: eos-payg-generate/main.c:171 libhelper/service.c:598
+#: eos-payg-generate/main.c:136 eos-payg-generate/main.c:164
+#: eos-payg-generate/main.c:173
+#: subprojects/libgsystemservice/libgsystemservice/service.c:661
 #, c-format
 msgid "Option parsing failed: %s"
 msgstr ""
 
-#: eos-payg-generate/main.c:145
+#: eos-payg-generate/main.c:147
 msgid "Available periods:"
 msgstr ""
 
-#: eos-payg-generate/main.c:163
+#: eos-payg-generate/main.c:165
 msgid "A KEY-FILENAME and PERIOD are required"
 msgstr ""
 
-#: eos-payg-generate/main.c:172
+#: eos-payg-generate/main.c:174
 msgid "Too many arguments provided"
 msgstr ""
 
-#: libeos-payg-codes/codes.c:133
+#: libeos-payg-codes/codes.c:135
 #, c-format
 msgid "Unknown period %u."
 msgstr ""
 
-#: libeos-payg-codes/codes.c:147
+#: libeos-payg-codes/codes.c:150
 #, c-format
-msgid "Key is too short; minimum length %u bytes."
+msgid "Key is too short (%u bytes); minimum length %u bytes."
 msgstr ""
 
-#: libeos-payg-codes/codes.c:182
+#: libeos-payg-codes/codes.c:186
 #, c-format
 msgid "Invalid code %s."
 msgstr ""
 
-#: libeos-payg-codes/codes.c:305
+#: libeos-payg-codes/codes.c:309
 #, c-format
 msgid "Invalid signature on code %s."
 msgstr ""
 
-#: libeos-payg-codes/codes.c:372
+#: libeos-payg-codes/codes.c:376
 msgid "Codes must be 8 digits long."
 msgstr ""
 
-#: libeos-payg/manager.c:391
+#: libeos-payg/manager.c:527
 msgid "Pay as you go is disabled on this computer."
 msgstr ""
 
-#: libeos-payg/manager.c:448
+#: libeos-payg/manager.c:584
 msgid "Too many invalid codes entered recently; please wait"
 msgstr ""
 
-#: libeos-payg/manager.c:488
+#: libeos-payg/manager.c:626
 msgid "This pay as you go code has already been used."
 msgstr ""
 
-#: libeos-payg/manager.c:1008 libeos-payg/manager.c:1011
+#: libeos-payg/manager.c:1114
 #, c-format
 msgid "State file ‘%s’ was the wrong length."
 msgstr ""
 
-#: libeos-payg/manager-service.c:480
+#: libeos-payg/manager-service.c:550
 #, c-format
 msgid "Invalid interface name ‘%s’."
 msgstr ""
 
-#: libeos-payg/manager-service.c:629 libeos-payg/manager-service.c:669
+#: libeos-payg/manager-service.c:705 libeos-payg/manager-service.c:745
 #, c-format
 msgid "Unknown property ‘%s.%s’."
 msgstr ""
 
-#: libeos-payg/manager-service.c:661
+#: libeos-payg/manager-service.c:737
 #, c-format
 msgid "Property ‘%s.%s’ is read-only."
 msgstr ""
 
-#: libeos-payg/manager-service.c:691
+#: libeos-payg/manager-service.c:767
 #, c-format
 msgid "Unknown interface ‘%s’."
 msgstr ""
 
-#: libeos-payg/service.c:121
+#: libeos-payg/service.c:189
 msgid "Configuration file to use (default: "
 msgstr ""
 
-#: libeos-payg/service.c:122
+#: libeos-payg/service.c:190
 msgid "PATH"
 msgstr ""
 
-#: libeos-payg/service.c:320
+#: libeos-payg/service.c:617
 msgid "— verify top-up codes and monitor time remaining"
 msgstr ""
 
-#: libeos-payg/service.c:321
+#: libeos-payg/service.c:618
 msgid ""
 "Verify inputted top-up codes and monitor the amount of time the computer has"
 " remaining before its lease next needs topping up."
 msgstr ""
 
-#: libhelper/service.c:428
+#: subprojects/libgsystemservice/libgsystemservice/service.c:468
 #, c-format
 msgid "Lost D-Bus name ‘%s’; exiting."
 msgstr ""
 
-#: libhelper/service.c:442
+#: subprojects/libgsystemservice/libgsystemservice/service.c:482
 msgid "Inactivity timeout reached; exiting."
 msgstr ""
 
-#: libhelper/service.c:535
+#: subprojects/libgsystemservice/libgsystemservice/service.c:595
 msgid "Address of the D-Bus daemon to connect to and own a name on"
 msgstr ""
 
-#: libhelper/service.c:536
+#: subprojects/libgsystemservice/libgsystemservice/service.c:596
 msgid "ADDRESS"
 msgstr ""
 
-#: libhelper/service.c:538
+#: subprojects/libgsystemservice/libgsystemservice/service.c:598
 msgid "Inactivity timeout to wait for before exiting (in milliseconds)"
 msgstr ""
 
-#: libhelper/service.c:539
+#: subprojects/libgsystemservice/libgsystemservice/service.c:599
 msgid "MS"
 msgstr ""
 
-#: libhelper/service.c:554
+#: subprojects/libgsystemservice/libgsystemservice/service.c:616
 msgid "This daemon must not be run as root."
 msgstr ""
 
-#: libhelper/service.c:608
-msgid "Invalid inactivity timeout %"
+#: subprojects/libgsystemservice/libgsystemservice/service.c:674
+#, c-format
+msgid "Invalid inactivity timeout %sms."
 msgstr ""
 
-#: libhelper/service.c:629
+#: subprojects/libgsystemservice/libgsystemservice/service.c:695
 #, c-format
 msgid "D-Bus unavailable: %s"
 msgstr ""
 
-#: libhelper/service.c:653
+#: subprojects/libgsystemservice/libgsystemservice/service.c:719
 #, c-format
 msgid "D-Bus bus ‘%s’ unavailable: %s"
 msgstr ""
 
-#: libhelper/service.c:750
+#: subprojects/libgsystemservice/libgsystemservice/service.c:825
 #, c-format
 msgid "Signalled with signal %d"
 msgstr ""
