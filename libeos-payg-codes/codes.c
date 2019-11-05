@@ -147,8 +147,8 @@ validate_key (GBytes  *key,
   if (key_size < KEY_LENGTH_BYTES_MINIMUM)
     {
       g_set_error (error, EPC_CODE_ERROR, EPC_CODE_ERROR_INVALID_KEY,
-                   _("Key is too short (%" G_GSIZE_FORMAT " bytes); minimum length %u bytes."),
-                   key_size,
+                   _("Key is too short (%u bytes); minimum length %u bytes."),
+                   (guint) key_size,
                    (guint) KEY_LENGTH_BYTES_MINIMUM);
       return FALSE;
     }
