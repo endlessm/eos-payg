@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-05-31 18:14+0100\n"
+"POT-Creation-Date: 2019-11-05 21:33+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -144,7 +144,7 @@ msgstr ""
 
 #: eos-payg-generate/main.c:136 eos-payg-generate/main.c:164
 #: eos-payg-generate/main.c:173
-#: subprojects/libgsystemservice/libgsystemservice/service.c:612
+#: subprojects/libgsystemservice/libgsystemservice/service.c:661
 #, c-format
 msgid "Option parsing failed: %s"
 msgstr ""
@@ -167,7 +167,8 @@ msgid "Unknown period %u."
 msgstr ""
 
 #: libeos-payg-codes/codes.c:150
-msgid "Key is too short (%"
+#, c-format
+msgid "Key is too short (%u bytes); minimum length %u bytes."
 msgstr ""
 
 #: libeos-payg-codes/codes.c:186
@@ -184,105 +185,106 @@ msgstr ""
 msgid "Codes must be 8 digits long."
 msgstr ""
 
-#: libeos-payg/manager.c:507
+#: libeos-payg/manager.c:527
 msgid "Pay as you go is disabled on this computer."
 msgstr ""
 
-#: libeos-payg/manager.c:564
+#: libeos-payg/manager.c:584
 msgid "Too many invalid codes entered recently; please wait"
 msgstr ""
 
-#: libeos-payg/manager.c:606
+#: libeos-payg/manager.c:626
 msgid "This pay as you go code has already been used."
 msgstr ""
 
-#: libeos-payg/manager.c:1094
+#: libeos-payg/manager.c:1114
 #, c-format
 msgid "State file ‘%s’ was the wrong length."
 msgstr ""
 
-#: libeos-payg/manager-service.c:487
+#: libeos-payg/manager-service.c:550
 #, c-format
 msgid "Invalid interface name ‘%s’."
 msgstr ""
 
-#: libeos-payg/manager-service.c:638 libeos-payg/manager-service.c:678
+#: libeos-payg/manager-service.c:705 libeos-payg/manager-service.c:745
 #, c-format
 msgid "Unknown property ‘%s.%s’."
 msgstr ""
 
-#: libeos-payg/manager-service.c:670
+#: libeos-payg/manager-service.c:737
 #, c-format
 msgid "Property ‘%s.%s’ is read-only."
 msgstr ""
 
-#: libeos-payg/manager-service.c:700
+#: libeos-payg/manager-service.c:767
 #, c-format
 msgid "Unknown interface ‘%s’."
 msgstr ""
 
-#: libeos-payg/service.c:155
+#: libeos-payg/service.c:189
 msgid "Configuration file to use (default: "
 msgstr ""
 
-#: libeos-payg/service.c:156
+#: libeos-payg/service.c:190
 msgid "PATH"
 msgstr ""
 
-#: libeos-payg/service.c:433
+#: libeos-payg/service.c:617
 msgid "— verify top-up codes and monitor time remaining"
 msgstr ""
 
-#: libeos-payg/service.c:434
+#: libeos-payg/service.c:618
 msgid ""
 "Verify inputted top-up codes and monitor the amount of time the computer has "
 "remaining before its lease next needs topping up."
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:442
+#: subprojects/libgsystemservice/libgsystemservice/service.c:468
 #, c-format
 msgid "Lost D-Bus name ‘%s’; exiting."
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:456
+#: subprojects/libgsystemservice/libgsystemservice/service.c:482
 msgid "Inactivity timeout reached; exiting."
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:549
+#: subprojects/libgsystemservice/libgsystemservice/service.c:595
 msgid "Address of the D-Bus daemon to connect to and own a name on"
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:550
+#: subprojects/libgsystemservice/libgsystemservice/service.c:596
 msgid "ADDRESS"
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:552
+#: subprojects/libgsystemservice/libgsystemservice/service.c:598
 msgid "Inactivity timeout to wait for before exiting (in milliseconds)"
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:553
+#: subprojects/libgsystemservice/libgsystemservice/service.c:599
 msgid "MS"
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:568
+#: subprojects/libgsystemservice/libgsystemservice/service.c:616
 msgid "This daemon must not be run as root."
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:622
-msgid "Invalid inactivity timeout %"
+#: subprojects/libgsystemservice/libgsystemservice/service.c:674
+#, c-format
+msgid "Invalid inactivity timeout %sms."
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:643
+#: subprojects/libgsystemservice/libgsystemservice/service.c:695
 #, c-format
 msgid "D-Bus unavailable: %s"
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:667
+#: subprojects/libgsystemservice/libgsystemservice/service.c:719
 #, c-format
 msgid "D-Bus bus ‘%s’ unavailable: %s"
 msgstr ""
 
-#: subprojects/libgsystemservice/libgsystemservice/service.c:764
+#: subprojects/libgsystemservice/libgsystemservice/service.c:825
 #, c-format
 msgid "Signalled with signal %d"
 msgstr ""
