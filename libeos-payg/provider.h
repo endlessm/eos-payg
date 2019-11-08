@@ -56,6 +56,7 @@ struct _EpgProviderInterface
   gboolean        (*get_enabled)             (EpgProvider *self);
   guint64         (*get_rate_limit_end_time) (EpgProvider *self);
   EpgClock       *(*get_clock)               (EpgProvider *self);
+  const gchar    *(*get_account_id)          (EpgProvider *self);
 
   const gchar *     code_format;
   const gchar *     code_format_prefix;
@@ -87,5 +88,6 @@ const gchar *   epg_provider_get_code_format         (EpgProvider *self);
 const gchar *   epg_provider_get_code_format_prefix  (EpgProvider *self);
 const gchar *   epg_provider_get_code_format_suffix  (EpgProvider *self);
 EpgClock *      epg_provider_get_clock               (EpgProvider *self);
+const gchar *   epg_provider_get_account_id          (EpgProvider *self);
 
 G_END_DECLS

@@ -32,6 +32,8 @@ G_BEGIN_DECLS
  * @EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS: Too many attempts to verify a code
  *    in recent history.
  * @EPG_MANAGER_ERROR_DISABLED: Pay as you go is disabled.
+ * @EPG_MANAGER_ERROR_DISPLAY_ACCOUNT_ID: The given code was valid, but instead of
+ *    adding time, tell the listener to show the account ID assigned to the machine.
  *
  * Errors which can be returned by #EpgManager.
  *
@@ -43,8 +45,9 @@ typedef enum
   EPG_MANAGER_ERROR_CODE_ALREADY_USED,
   EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS,
   EPG_MANAGER_ERROR_DISABLED,
+  EPG_MANAGER_ERROR_DISPLAY_ACCOUNT_ID,
 } EpgManagerError;
-#define EPG_MANAGER_N_ERRORS (EPG_MANAGER_ERROR_DISABLED + 1)
+#define EPG_MANAGER_N_ERRORS (EPG_MANAGER_ERROR_DISPLAY_ACCOUNT_ID + 1)
 
 GQuark epg_manager_error_quark (void);
 #define EPG_MANAGER_ERROR epg_manager_error_quark ()
