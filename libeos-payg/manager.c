@@ -431,17 +431,8 @@ epg_manager_set_property (GObject      *object,
     case PROP_EXPIRY_TIME:
     case PROP_RATE_LIMIT_END_TIME:
     case PROP_CODE_FORMAT:
-      /* Read only. */
-      g_assert_not_reached ();
-      break;
     case PROP_CODE_FORMAT_PREFIX:
-      /* Read only. */
-      g_assert_not_reached ();
-      break;
     case PROP_CODE_FORMAT_SUFFIX:
-      /* Read only. */
-      g_assert_not_reached ();
-      break;
     case PROP_ACCOUNT_ID:
       /* Read only. */
       g_assert_not_reached ();
