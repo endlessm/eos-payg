@@ -181,6 +181,15 @@ static const GDBusPropertyInfo manager_interface_code_format_suffix =
   NULL,  /* annotations */
 };
 
+static const GDBusPropertyInfo manager_interface_account_id =
+{
+  -1,  /* ref count */
+  (gchar *) "AccountID",
+  (gchar *) "s",
+  G_DBUS_PROPERTY_INFO_FLAGS_READABLE,
+  NULL,  /* annotations */
+};
+
 static const GDBusPropertyInfo *manager_interface_properties[] =
 {
   &manager_interface_expiry_time,
@@ -189,6 +198,7 @@ static const GDBusPropertyInfo *manager_interface_properties[] =
   &manager_interface_code_format,
   &manager_interface_code_format_prefix,
   &manager_interface_code_format_suffix,
+  &manager_interface_account_id,
   NULL,
 };
 
@@ -208,6 +218,7 @@ static const gchar *manager_errors[] =
   "com.endlessm.Payg1.Error.CodeAlreadyUsed",
   "com.endlessm.Payg1.Error.TooManyAttempts",
   "com.endlessm.Payg1.Error.Disabled",
+  "com.endlessm.Payg1.Error.DisplayAccountID",
 };
 
 G_END_DECLS

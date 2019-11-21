@@ -63,11 +63,13 @@ static guint64     epg_test_provider_get_expiry_time     (EpgProvider *provider)
 static gboolean    epg_test_provider_get_enabled         (EpgProvider *provider);
 static guint64     epg_test_provider_get_rate_limit_end_time (EpgProvider *provider);
 static EpgClock *  epg_test_provider_get_clock (EpgProvider *provider);
+static const gchar *  epg_test_provider_get_account_id (EpgProvider *provider);
 
 typedef struct
 {
   gboolean enabled;
   EpgClock *clock; /* (owned) */
+  const gchar *account_id; /* (owned) */
 } EpgTestProviderPrivate;
 
 typedef enum
@@ -79,6 +81,7 @@ typedef enum
   PROP_CODE_FORMAT_PREFIX,
   PROP_CODE_FORMAT_SUFFIX,
   PROP_CLOCK,
+  PROP_ACCOUNT_ID,
 } EpgTestProviderProperty;
 
 G_DEFINE_TYPE_WITH_CODE (EpgTestProvider, epg_test_provider, G_TYPE_OBJECT,
@@ -105,6 +108,7 @@ epg_test_provider_class_init (EpgTestProviderClass *klass)
   g_object_class_override_property (object_class, PROP_CODE_FORMAT_PREFIX, "code-format-prefix");
   g_object_class_override_property (object_class, PROP_CODE_FORMAT_SUFFIX, "code-format-suffix");
   g_object_class_override_property (object_class, PROP_CLOCK, "clock");
+  g_object_class_override_property (object_class, PROP_ACCOUNT_ID, "account-id");
 }
 
 static void
@@ -131,6 +135,7 @@ epg_test_provider_provider_iface_init (gpointer g_iface,
   iface->get_enabled = epg_test_provider_get_enabled;
   iface->get_rate_limit_end_time = epg_test_provider_get_rate_limit_end_time;
   iface->get_clock = epg_test_provider_get_clock;
+  iface->get_account_id = epg_test_provider_get_account_id;
   iface->code_format = "";
   iface->code_format_prefix = "";
   iface->code_format_suffix = "";
@@ -173,6 +178,9 @@ epg_test_provider_get_property (GObject    *object,
     case PROP_CLOCK:
       g_value_set_object (value, epg_provider_get_clock (provider));
       break;
+    case PROP_ACCOUNT_ID:
+      g_value_set_static_string (value, epg_provider_get_account_id (provider));
+      break;
     default:
       g_assert_not_reached ();
     }
@@ -192,14 +200,9 @@ epg_test_provider_set_property (GObject      *object,
     case PROP_EXPIRY_TIME:
     case PROP_RATE_LIMIT_END_TIME:
     case PROP_CODE_FORMAT:
-      /* Read only. */
-      g_assert_not_reached ();
-      break;
     case PROP_CODE_FORMAT_PREFIX:
-      /* Read only. */
-      g_assert_not_reached ();
-      break;
     case PROP_CODE_FORMAT_SUFFIX:
+    case PROP_ACCOUNT_ID:
       /* Read only. */
       g_assert_not_reached ();
       break;
@@ -361,4 +364,16 @@ epg_test_provider_get_clock (EpgProvider *provider)
   EpgTestProviderPrivate *priv = epg_test_provider_get_instance_private (self);
 
   return priv->clock;
+}
+
+static const gchar *
+epg_test_provider_get_account_id (EpgProvider *provider)
+{
+  EpgTestProvider *self = EPG_TEST_PROVIDER (provider);
+
+  g_return_val_if_fail (EPG_IS_TEST_PROVIDER (self), NULL);
+
+  EpgTestProviderPrivate *priv = epg_test_provider_get_instance_private (self);
+
+  return priv->account_id;
 }

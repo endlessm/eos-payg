@@ -129,7 +129,12 @@ static GVariant *epg_manager_service_manager_get_code_format_suffix (EpgManagerS
                                                                      const gchar           *interface_name,
                                                                      const gchar           *property_name,
                                                                      GDBusMethodInvocation *invocation);
-
+static GVariant *epg_manager_service_manager_get_account_id (EpgManagerService     *self,
+                                                             GDBusConnection       *connection,
+                                                             const gchar           *sender,
+                                                             const gchar           *interface_name,
+                                                             const gchar           *property_name,
+                                                             GDBusMethodInvocation *invocation);
 static void expired_cb (EpgProvider *provider,
                         gpointer     user_data);
 static void notify_cb  (GObject    *obj,
@@ -149,6 +154,8 @@ static const GDBusErrorEntry manager_error_map[] =
       "com.endlessm.Payg1.Error.TooManyAttempts" },
     { EPG_MANAGER_ERROR_DISABLED,
       "com.endlessm.Payg1.Error.Disabled" },
+    { EPG_MANAGER_ERROR_DISPLAY_ACCOUNT_ID,
+      "com.endlessm.Payg1.Error.DisplayAccountID" },
   };
 G_STATIC_ASSERT (G_N_ELEMENTS (manager_error_map) == EPG_MANAGER_N_ERRORS);
 G_STATIC_ASSERT (G_N_ELEMENTS (manager_error_map) == G_N_ELEMENTS (manager_errors));
@@ -663,6 +670,8 @@ manager_properties[] =
       epg_manager_service_manager_get_code_format_prefix, NULL  /* read-only */ },
     { "com.endlessm.Payg1", "CodeFormatSuffix", "code-format-suffix",
       epg_manager_service_manager_get_code_format_suffix, NULL  /* read-only */ },
+    { "com.endlessm.Payg1", "AccountID", "account-id",
+      epg_manager_service_manager_get_account_id, NULL  /* read-only */ },
   };
 
 G_STATIC_ASSERT (G_N_ELEMENTS (manager_properties) ==
@@ -958,6 +967,17 @@ epg_manager_service_manager_get_code_format_suffix (EpgManagerService     *self,
                                                     GDBusMethodInvocation *invocation)
 {
   return g_variant_new_string (epg_provider_get_code_format_suffix (self->provider));
+}
+
+static GVariant *
+epg_manager_service_manager_get_account_id (EpgManagerService     *self,
+                                            GDBusConnection       *connection,
+                                            const gchar           *sender,
+                                            const gchar           *interface_name,
+                                            const gchar           *property_name,
+                                            GDBusMethodInvocation *invocation)
+{
+  return g_variant_new_string (epg_provider_get_account_id (self->provider));
 }
 
 static void

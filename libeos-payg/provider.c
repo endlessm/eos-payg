@@ -169,6 +169,22 @@ epg_provider_default_init (EpgProviderInterface *iface)
   g_object_interface_install_property (iface, pspec);
 
   /**
+   * EpgProvider:account-id:
+   *
+   * A gchar representing the user's account id.
+   *
+   * This property is constant once the provider is initialized.
+   *
+   * Since: 0.2.3
+   */
+  pspec =
+      g_param_spec_string ("account-id", "AccountID",
+                           "The user's account number ",
+                           "",
+                           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+  g_object_interface_install_property (iface, pspec);
+
+  /**
    * EpgProvider::expired:
    * @self: a #EpgProvider
    *
@@ -224,6 +240,10 @@ epg_provider_default_init (EpgProviderInterface *iface)
  * a given time period, %EPG_MANAGER_ERROR_TOO_MANY_ATTEMPTS will be returned
  * until that period expires. The rate limiting history is reset on a successful
  * verification of a code. 
+ *
+ * Also, %EPG_MANAGER_ERROR_DISPLAY_ACCOUNT_ID can be returned in the event the user
+ * inserts a code to show the account identifier for the machine, and this should
+ * be handled by the provider. 
  *
  * @time_added is signed because some implementations can reduce the available credit
  * when you add a new code.
@@ -505,4 +525,23 @@ epg_provider_get_clock (EpgProvider *self)
   g_assert (iface->get_clock != NULL);
 
   return iface->get_clock (self);
+}
+
+/**
+ * epg_provider_get_account_id:
+ * @self: a #EpgProvider
+ *
+ * Get the value of #EpgProvider:account-id
+ *
+ * Returns: An account id refering to the user's account number
+ * Since: 0.2.3
+ */
+const gchar *
+epg_provider_get_account_id (EpgProvider *self)
+{
+  g_return_val_if_fail (EPG_IS_PROVIDER (self), NULL);
+
+  EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
+
+  return iface->get_account_id (self);
 }

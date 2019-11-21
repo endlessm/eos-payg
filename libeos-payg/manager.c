@@ -37,6 +37,7 @@ static void epg_manager_provider_iface_init (gpointer g_iface,
 
 static void epg_manager_constructed  (GObject *object);
 static void epg_manager_dispose      (GObject *object);
+static void epg_manager_finalize     (GObject *object);
 
 static void epg_manager_get_property (GObject      *object,
                                       guint         property_id,
@@ -93,6 +94,7 @@ static guint64     epg_manager_get_expiry_time     (EpgProvider *provider);
 static gboolean    epg_manager_get_enabled         (EpgProvider *provider);
 static guint64     epg_manager_get_rate_limit_end_time (EpgProvider *provider);
 static EpgClock *  epg_manager_get_clock (EpgProvider *provider);
+static const gchar * epg_manager_get_account_id (EpgProvider *provider);
 
 /* Struct for storing the values in a used-codes file. The alignment and
  * size of this struct are file format ABI, and must be kept the same. */
@@ -146,6 +148,7 @@ struct _EpgManager
   GFile *key_file;  /* (owned) */
   GBytes *key_bytes;  /* (owned) */
   EpgClock *clock; /* (owned) */
+  const gchar *account_id; /* (owned) */
 
   GFile *state_directory;  /* (owned) */
 
@@ -186,6 +189,7 @@ typedef enum
   PROP_CODE_FORMAT_PREFIX,
   PROP_CODE_FORMAT_SUFFIX,
   PROP_CLOCK,
+  PROP_ACCOUNT_ID,
 } EpgManagerProperty;
 
 G_DEFINE_TYPE_WITH_CODE (EpgManager, epg_manager, G_TYPE_OBJECT,
@@ -203,6 +207,7 @@ epg_manager_class_init (EpgManagerClass *klass)
 
   object_class->constructed = epg_manager_constructed;
   object_class->dispose = epg_manager_dispose;
+  object_class->finalize = epg_manager_finalize;
   object_class->get_property = epg_manager_get_property;
   object_class->set_property = epg_manager_set_property;
 
@@ -213,6 +218,7 @@ epg_manager_class_init (EpgManagerClass *klass)
   g_object_class_override_property (object_class, PROP_CODE_FORMAT_PREFIX, "code-format-prefix");
   g_object_class_override_property (object_class, PROP_CODE_FORMAT_SUFFIX, "code-format-suffix");
   g_object_class_override_property (object_class, PROP_CLOCK, "clock");
+  g_object_class_override_property (object_class, PROP_ACCOUNT_ID, "account-id");
 
   /**
    * EpgManager:key-file:
@@ -280,6 +286,7 @@ epg_manager_provider_iface_init (gpointer g_iface,
   iface->get_enabled = epg_manager_get_enabled;
   iface->get_rate_limit_end_time = epg_manager_get_rate_limit_end_time;
   iface->get_clock = epg_manager_get_clock;
+  iface->get_account_id = epg_manager_get_account_id;
 
   iface->code_format = "^[0-9]{8}$";
   iface->code_format_prefix = "";
@@ -326,6 +333,8 @@ epg_manager_constructed (GObject *object)
 
   if (self->clock == NULL)
     self->clock = EPG_CLOCK (epg_real_clock_new ());
+
+  self->account_id = g_strdup ("");
 }
 
 static void
@@ -350,6 +359,17 @@ epg_manager_dispose (GObject *object)
 
   /* Chain up to the parent class */
   G_OBJECT_CLASS (epg_manager_parent_class)->dispose (object);
+}
+
+static void
+epg_manager_finalize (GObject *object)
+{
+  EpgManager *self = EPG_MANAGER (object);
+
+  g_free ((gchar *) self->account_id);
+
+  /* Chain up to the parent class */
+  G_OBJECT_CLASS (epg_manager_parent_class)->finalize (object);
 }
 
 static void
@@ -390,6 +410,9 @@ epg_manager_get_property (GObject    *object,
     case PROP_CLOCK:
       g_value_set_object (value, epg_provider_get_clock (provider));
       break;
+    case PROP_ACCOUNT_ID:
+      g_value_set_static_string (value, epg_provider_get_account_id (provider));
+      break;
     default:
       g_assert_not_reached ();
     }
@@ -408,14 +431,9 @@ epg_manager_set_property (GObject      *object,
     case PROP_EXPIRY_TIME:
     case PROP_RATE_LIMIT_END_TIME:
     case PROP_CODE_FORMAT:
-      /* Read only. */
-      g_assert_not_reached ();
-      break;
     case PROP_CODE_FORMAT_PREFIX:
-      /* Read only. */
-      g_assert_not_reached ();
-      break;
     case PROP_CODE_FORMAT_SUFFIX:
+    case PROP_ACCOUNT_ID:
       /* Read only. */
       g_assert_not_reached ();
       break;
@@ -1712,4 +1730,14 @@ epg_manager_get_clock (EpgProvider *provider)
   g_return_val_if_fail (EPG_IS_MANAGER (self), NULL);
 
   return self->clock;
+}
+
+static const gchar *
+epg_manager_get_account_id (EpgProvider *provider)
+{
+  EpgManager *self = EPG_MANAGER (provider);
+
+  g_return_val_if_fail (EPG_IS_MANAGER (self), NULL);
+
+  return self->account_id;
 }

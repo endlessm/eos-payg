@@ -372,6 +372,21 @@ write_valid_clock_time_file (Fixture *fixture)
   g_assert_true (ret);
 }
 
+/* test_account_id:
+ *
+ * Tests that the :account_id is properly returned.
+ */
+static void
+test_manager_account_id (Fixture *fixture,
+                         gconstpointer data)
+{
+  manager_new (fixture);
+
+  const gchar *account_id = epg_provider_get_account_id (fixture->provider);
+
+  g_assert_cmpstr (account_id, ==, "");
+}
+
 /* test_manager_load_error_malformed:
  * @data: offset within Fixture of the path to a state file, which will be
  * initialized to an invalid value
@@ -876,6 +891,7 @@ main (int    argc,
   T ("/manager/add-infinite", test_manager_add_infinite_code, NULL);
   T ("/manager/get-code-format-prefix", test_manager_code_format_prefix, NULL);
   T ("/manager/get-code-format-suffix", test_manager_code_format_suffix, NULL);
+  T ("/manager/get-account-id", test_manager_account_id, NULL);
   T ("/manager/error/malformed", test_manager_error_malformed, NULL);
   T ("/manager/error/reused", test_manager_error_reused, NULL);
   T ("/manager/error/rate-limit", test_manager_error_rate_limit, NULL);
