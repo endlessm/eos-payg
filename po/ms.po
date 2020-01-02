@@ -173,7 +173,7 @@ msgstr "Tempoh %u tidak diketahui."
 #: libeos-payg-codes/codes.c:150
 #, c-format
 msgid "Key is too short (%u bytes); minimum length %u bytes."
-msgstr ""
+msgstr "Kunci terlalu pendek (%u bait); panjang minimum %u bait."
 
 #: libeos-payg-codes/codes.c:186
 #, c-format
@@ -281,7 +281,7 @@ msgstr "Daemin ini tidak boleh dijalankan sebagai root."
 #: subprojects/libgsystemservice/libgsystemservice/service.c:674
 #, c-format
 msgid "Invalid inactivity timeout %sms."
-msgstr ""
+msgstr "Had masa tamat ketidakaktifan yang tidak sah %sms."
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:695
 #, c-format
