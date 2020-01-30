@@ -210,7 +210,7 @@ msgstr "狀態檔案 ‘%s’ 長度錯誤。"
 #: libeos-payg/manager-service.c:550
 #, c-format
 msgid "Invalid interface name ‘%s’."
-msgstr "介面名 ‘%s’ 稱無效。"
+msgstr "‘%s’ 介面名稱無效。"
 
 #: libeos-payg/manager-service.c:705 libeos-payg/manager-service.c:745
 #, c-format

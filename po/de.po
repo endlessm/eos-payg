@@ -6,6 +6,7 @@
 # Translators:
 # XorgMC <xorgmc@gmail.com>, 2018
 # Thomas Siegele <tsiegele@gmx.at>, 2019
+# Will Thompson <wjt@endlessm.com>, 2020
 # 
 #, fuzzy
 msgid ""
@@ -14,7 +15,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-11-05 21:33+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
-"Last-Translator: Thomas Siegele <tsiegele@gmx.at>, 2019\n"
+"Last-Translator: Will Thompson <wjt@endlessm.com>, 2020\n"
 "Language-Team: German (https://www.transifex.com/endless-os/teams/9016/de/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -282,7 +283,7 @@ msgstr "Dieses Daemon darf nicht als root ausgeführt werden."
 #: subprojects/libgsystemservice/libgsystemservice/service.c:674
 #, c-format
 msgid "Invalid inactivity timeout %sms."
-msgstr "Ungültiger Timeout wegen Inaktivität: 1%s ms."
+msgstr "Ungültiger Timeout wegen Inaktivität: %s ms."
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:695
 #, c-format
