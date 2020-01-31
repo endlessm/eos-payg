@@ -33,5 +33,7 @@ gboolean payg_get_eospayg_active_set (void);
 gboolean payg_should_use_watchdog (void);
 gboolean payg_should_use_lsm (void);
 gboolean payg_should_check_securitylevel (void);
+gboolean payg_get_legacy_mode (void);
+void payg_internal_set_legacy_mode (void);
 
 G_END_DECLS
