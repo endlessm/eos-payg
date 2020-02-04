@@ -28,6 +28,8 @@
 
 #define EFI_GLOBAL_VARIABLE_GUID EFI_GUID(0x8be4df61, 0x93ca, 0x11d2, 0xaa0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c)
 
+static gboolean payg_legacy_mode = FALSE;
+
 /* Force a poweroff in situations where we are not able to enforce PAYG. This
  * is intended to be used as a GSourceFunc, e.g. with g_timeout_add_seconds()
  */
@@ -262,4 +264,28 @@ payg_should_check_securitylevel (void)
     return FALSE;
 
   return TRUE;
+}
+
+/**
+ * payg_get_legacy_mode:
+ *
+ * If eospaygd is running in Phase 2 mode, returns %TRUE, otherwise returns
+ * %FALSE
+ */
+gboolean payg_get_legacy_mode (void)
+{
+  return payg_legacy_mode;
+}
+
+/**
+ * payg_internal_set_legacy_mode:
+ *
+ * To be called by eospaygd to initialize the value returned by
+ * payg_get_legacy_mode. Should be called once, only on Phase 2
+ * systems (where eos-paygd is run from the primary filesystem
+ * not the initramfs).
+ */
+void payg_internal_set_legacy_mode (void)
+{
+  payg_legacy_mode = TRUE;
 }

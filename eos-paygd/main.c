@@ -238,7 +238,6 @@ main (int   argc,
   g_autoptr(GFile) state_dir = NULL;
   int ret, sd_notify_ret, system_ret;
   int lsm_fd;
-  gboolean backward_compat_mode = FALSE;
   guint timeout_id = 0, watchdog_id = 0;
   const gchar *sd_socket_env = NULL;
   g_autofree char *sd_socket_dir = NULL;
@@ -318,7 +317,7 @@ main (int   argc,
        * unsupported on those grub systems, like state data encryption.
        * https://phabricator.endlessm.com/T27524 */
       g_debug ("eos-paygd running from root filesystem, entering backward compat mode");
-      backward_compat_mode = TRUE;
+      payg_internal_set_legacy_mode();
     }
 
   /* Allow writes to /dev/mmcblk?boot0. This requires writing to a special file
@@ -334,7 +333,7 @@ main (int   argc,
 
   g_debug ("epg_service_secure_init_sync() completed");
 
-  if (!backward_compat_mode)
+  if (!payg_get_legacy_mode ())
     {
       if (enforcing_mode && payg_should_use_watchdog ())
         {
