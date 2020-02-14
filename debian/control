@@ -15,6 +15,7 @@ Build-Depends:
  python3-dbusmock,
  dracut,
  libefivar-dev,
+ gtk-doc-tools,
 
 Package: eos-paygd
 Section: misc
