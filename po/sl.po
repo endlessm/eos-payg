@@ -4,8 +4,8 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
-# Shaddai, 2019
 # Will Thompson <wjt@endlessm.com>, 2020
+# Shaddai, 2020
 # 
 #, fuzzy
 msgid ""
@@ -14,7 +14,7 @@ msgstr ""
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2019-11-05 21:33+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
-"Last-Translator: Will Thompson <wjt@endlessm.com>, 2020\n"
+"Last-Translator: Shaddai, 2020\n"
 "Language-Team: Slovenian (https://www.transifex.com/endless-os/teams/9016/sl/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -141,11 +141,11 @@ msgstr "Seznam razpoložljivih obdobij"
 
 #: eos-payg-generate/main.c:129
 msgid "KEY-FILENAME PERIOD [COUNTER]"
-msgstr ""
+msgstr "KEY-FILENAME PERIOD [COUNTER]"
 
 #: eos-payg-generate/main.c:130
 msgid "Generate one or more pay as you go codes"
-msgstr ""
+msgstr "Ustvarite eno ali več kodo pay as you go"
 
 #: eos-payg-generate/main.c:136 eos-payg-generate/main.c:164
 #: eos-payg-generate/main.c:173
