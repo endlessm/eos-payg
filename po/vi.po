@@ -11,7 +11,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2019-11-05 21:33+0000\n"
+"POT-Creation-Date: 2020-04-08 11:43+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
 "Last-Translator: Roddy Shuler <roddy@stanfordalumni.org>, 2018\n"
 "Language-Team: Vietnamese (https://www.transifex.com/endless-os/teams/9016/vi/)\n"
@@ -190,39 +190,39 @@ msgstr "Chữ ký không hợp lệ cho mã %s."
 msgid "Codes must be 8 digits long."
 msgstr "Mã phải dài 8 chữ số."
 
-#: libeos-payg/manager.c:527
+#: libeos-payg/manager.c:545
 msgid "Pay as you go is disabled on this computer."
 msgstr "Trả phí theo thực tế dùng bị tắt trên máy tính này."
 
-#: libeos-payg/manager.c:584
+#: libeos-payg/manager.c:602
 msgid "Too many invalid codes entered recently; please wait"
 msgstr "Quá nhiều mã không hợp lệ được nhập gần đây; vui lòng đợi"
 
-#: libeos-payg/manager.c:626
+#: libeos-payg/manager.c:644
 msgid "This pay as you go code has already been used."
 msgstr "Đọa mã dùng để thanh toán trả trước này đã được sử dụng."
 
-#: libeos-payg/manager.c:1114
+#: libeos-payg/manager.c:1132
 #, c-format
 msgid "State file ‘%s’ was the wrong length."
 msgstr "Tập tin trạng thái '%s' có độ dài không đúng."
 
-#: libeos-payg/manager-service.c:550
+#: libeos-payg/manager-service.c:557
 #, c-format
 msgid "Invalid interface name ‘%s’."
 msgstr "Tên giao diện không hợp lệ '%s'."
 
-#: libeos-payg/manager-service.c:705 libeos-payg/manager-service.c:745
+#: libeos-payg/manager-service.c:714 libeos-payg/manager-service.c:754
 #, c-format
 msgid "Unknown property ‘%s.%s’."
 msgstr "Thuộc tính chưa biết ‘%s.%s’."
 
-#: libeos-payg/manager-service.c:737
+#: libeos-payg/manager-service.c:746
 #, c-format
 msgid "Property ‘%s.%s’ is read-only."
 msgstr "Thuộc tính '%s.%s' là chỉ đọc."
 
-#: libeos-payg/manager-service.c:767
+#: libeos-payg/manager-service.c:776
 #, c-format
 msgid "Unknown interface ‘%s’."
 msgstr "Giao diện không xác định '%s'."
