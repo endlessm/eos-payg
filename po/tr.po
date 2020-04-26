@@ -5,15 +5,16 @@
 # 
 # Translators:
 # Muha Aliss <muhaaliss@gmail.com>, 2019
+# Will Thompson <wjt@endlessm.com>, 2020
 # 
 #, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-04-08 11:43+0000\n"
+"POT-Creation-Date: 2020-04-26 01:33+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
-"Last-Translator: Muha Aliss <muhaaliss@gmail.com>, 2019\n"
+"Last-Translator: Will Thompson <wjt@endlessm.com>, 2020\n"
 "Language-Team: Turkish (https://www.transifex.com/endless-os/teams/9016/tr/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -232,7 +233,7 @@ msgstr ""
 
 #: libeos-payg/service.c:190
 msgid "PATH"
-msgstr ""
+msgstr "VERİYOLU"
 
 #: libeos-payg/service.c:617
 msgid "— verify top-up codes and monitor time remaining"
