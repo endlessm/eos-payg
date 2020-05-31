@@ -12,7 +12,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-05-24 01:31+0000\n"
+"POT-Creation-Date: 2020-05-31 01:31+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
 "Last-Translator: Pavel Borecki <pavel.borecki@gmail.com>, 2020\n"
 "Language-Team: Czech (https://www.transifex.com/endless-os/teams/9016/cs/)\n"
@@ -145,14 +145,14 @@ msgstr ""
 
 #: eos-payg-generate/main.c:130
 msgid "Generate one or more pay as you go codes"
-msgstr ""
+msgstr "Vytvořit jeden či více kódu pro průběžné platby"
 
 #: eos-payg-generate/main.c:136 eos-payg-generate/main.c:164
 #: eos-payg-generate/main.c:173
 #: subprojects/libgsystemservice/libgsystemservice/service.c:661
 #, c-format
 msgid "Option parsing failed: %s"
-msgstr ""
+msgstr "Zpracovávání volby se nezdařilo: %s"
 
 #: eos-payg-generate/main.c:147
 msgid "Available periods:"
@@ -160,7 +160,7 @@ msgstr "Období k dispozici:"
 
 #: eos-payg-generate/main.c:165
 msgid "A KEY-FILENAME and PERIOD are required"
-msgstr ""
+msgstr "Je zapotřebí KEY-FILENAME a PERIOD"
 
 #: eos-payg-generate/main.c:174
 msgid "Too many arguments provided"
@@ -174,43 +174,43 @@ msgstr "Neznámé období %u."
 #: libeos-payg-codes/codes.c:150
 #, c-format
 msgid "Key is too short (%u bytes); minimum length %u bytes."
-msgstr ""
+msgstr "Klíč je příliš krátký (%u bajtů); nejkratší možná délka je %u bajtů."
 
 #: libeos-payg-codes/codes.c:186
 #, c-format
 msgid "Invalid code %s."
-msgstr ""
+msgstr "Neplatný kód %s."
 
 #: libeos-payg-codes/codes.c:309
 #, c-format
 msgid "Invalid signature on code %s."
-msgstr ""
+msgstr "Neplatný podpis na kódu %s."
 
 #: libeos-payg-codes/codes.c:376
 msgid "Codes must be 8 digits long."
-msgstr ""
+msgstr "Je třeba, aby kódy byly 8 číslic dlouhé."
 
 #: libeos-payg/manager.c:545
 msgid "Pay as you go is disabled on this computer."
-msgstr ""
+msgstr "Průběžné placení není na tomto počítači možné."
 
 #: libeos-payg/manager.c:602
 msgid "Too many invalid codes entered recently; please wait"
-msgstr ""
+msgstr "V krátkém čase zadáno příliš mnoho neplatných kódu – čekejte prosím"
 
 #: libeos-payg/manager.c:644
 msgid "This pay as you go code has already been used."
-msgstr ""
+msgstr "Kód průběžné platby už byl použit."
 
 #: libeos-payg/manager.c:1132
 #, c-format
 msgid "State file ‘%s’ was the wrong length."
-msgstr ""
+msgstr "Stavový soubor „%s“ má nesprávnou délku."
 
 #: libeos-payg/manager-service.c:557
 #, c-format
 msgid "Invalid interface name ‘%s’."
-msgstr ""
+msgstr "Neplatný název rozhraní „%s“."
 
 #: libeos-payg/manager-service.c:714 libeos-payg/manager-service.c:754
 #, c-format
@@ -248,15 +248,15 @@ msgstr ""
 #: subprojects/libgsystemservice/libgsystemservice/service.c:468
 #, c-format
 msgid "Lost D-Bus name ‘%s’; exiting."
-msgstr ""
+msgstr "Ztraceno D-Bus název „%s“ – ukončuje se."
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:482
 msgid "Inactivity timeout reached; exiting."
-msgstr ""
+msgstr "Překročen časový limit nečinnosti – ukončuje se."
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:595
 msgid "Address of the D-Bus daemon to connect to and own a name on"
-msgstr ""
+msgstr "Adresa D-Bus procesu služby, ke které se připojit a vlastní název na"
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:596
 msgid "ADDRESS"
@@ -265,10 +265,11 @@ msgstr "ADRESA"
 #: subprojects/libgsystemservice/libgsystemservice/service.c:598
 msgid "Inactivity timeout to wait for before exiting (in milliseconds)"
 msgstr ""
+"Časový limit nečinnosti, po jehož překročení ukončit (v milisekundách)"
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:599
 msgid "MS"
-msgstr ""
+msgstr "MS"
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:616
 msgid "This daemon must not be run as root."
@@ -288,9 +289,9 @@ msgstr "D-BUS není k dispozici: %s"
 #: subprojects/libgsystemservice/libgsystemservice/service.c:719
 #, c-format
 msgid "D-Bus bus ‘%s’ unavailable: %s"
-msgstr ""
+msgstr "D-Bus sběrnice „%s“ není k dispozici: %s"
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:825
 #, c-format
 msgid "Signalled with signal %d"
-msgstr ""
+msgstr "Signalizováno signálem %d"
