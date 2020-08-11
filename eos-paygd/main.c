@@ -308,6 +308,13 @@ main (int   argc,
           g_warning ("Security level regressed, forced shutdown will occur in 20 minutes.");
           g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
         }
+
+      /* Setup RTC updater before the root pivot */
+      if (enforcing_mode && !payg_hwclock_init ())
+        {
+          g_warning ("RTC failure, forced shutdown will occur in 20 minutes.");
+          g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
+        }
     }
   else
     {

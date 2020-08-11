@@ -35,5 +35,7 @@ gboolean payg_should_use_lsm (void);
 gboolean payg_should_check_securitylevel (void);
 gboolean payg_get_legacy_mode (void);
 void payg_internal_set_legacy_mode (void);
+void payg_hwclock_queue_update (void);
+gboolean payg_hwclock_init (void);
 
 G_END_DECLS
