@@ -247,6 +247,8 @@ clock_jump_cb (gpointer user_data)
   self->clock_realtime_secs_v0 = clock_realtime_secs_v1;
   self->clock_boottime_secs_v0 = clock_boottime_secs_v1;
 
+  payg_hwclock_queue_update ();
+
   return G_SOURCE_CONTINUE;
 }
 

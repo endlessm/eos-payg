@@ -4,6 +4,7 @@ libeos_payg_sources = [
   'clock.c',
   'errors.c',
   'fake-clock.c',
+  'hwclock.c',
   'manager.c',
   'manager-service.c',
   'multi-task.c',
