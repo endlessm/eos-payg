@@ -2,6 +2,7 @@ libeos_payg_sources = [
   'boottime-source.c',
   'clock-jump-source.c',
   'clock.c',
+  'efi.c',
   'errors.c',
   'fake-clock.c',
   'hwclock.c',
@@ -16,6 +17,7 @@ libeos_payg_sources = [
 ]
 libeos_payg_exported_headers = [
   'clock.h',
+  'efi.h',
   'errors.h',
   'fake-clock.h',
   'multi-task.h',
@@ -38,7 +40,6 @@ libeos_payg_deps = [
   dependency('glib-2.0', version: '>= 2.54'),
   dependency('gobject-2.0', version: '>= 2.54'),
   dependency('libpeas-1.0'),
-  dependency('efivar'),
   libeos_payg_codes_dep,
   libgsystemservice_dep,
 ]

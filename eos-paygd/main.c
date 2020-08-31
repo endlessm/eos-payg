@@ -33,7 +33,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <efivar.h>
+#include <libeos-payg/efi.h>
 
 #define FATAL_SIGNAL_EXIT_CODE 254
 #define WATCHDOG_FAILURE_EXIT_CODE 253
@@ -173,13 +173,12 @@ payg_relative_sd_notify (const gchar *path,
 static gboolean
 test_and_update_securitylevel (void)
 {
-  uint8_t *level = NULL;
-  size_t data_size = 0;
-  uint32_t attributes;
-  int ret;
+  g_autofree char *level = NULL;
+  int data_size = 0;
+  gboolean ret;
 
-  ret = efi_get_variable (EOSPAYG_GUID, "EOSPAYG_securitylevel", &level, &data_size, &attributes);
-  if (ret < 0 || !level || data_size != 1)
+  level = eospayg_efi_var_read ("securitylevel", &data_size);
+  if (!level || data_size != 1)
     {
       g_warning ("Failed to read security level");
       return FALSE;
@@ -206,13 +205,13 @@ test_and_update_securitylevel (void)
        * project we probably need to consider alternate career paths.
        */
       level[0] = EPG_SECURITY_LEVEL;
-      ret = efi_set_variable (EOSPAYG_GUID, "EOSPAYG_securitylevel", level, data_size, attributes, 0600);
+      ret = eospayg_efi_var_overwrite ("securitylevel", level, data_size);
 
       /* There's nothing a user should be able to do to cause this to fail,
        * so we'll let this "impossible" situation slide with a warning, and
        * attempt to correct it on next boot.
        */
-      if (ret < 0)
+      if (!ret)
         g_warning ("Failed to update security level.");
     }
 
@@ -245,8 +244,6 @@ main (int   argc,
   GOptionContext *context;
   gboolean enforcing_mode = TRUE;
 
-  payg_set_debug_env_vars ();
-
   context = g_option_context_new ("- Pay As You Go enforcement daemon");
   g_option_context_add_main_entries (context, opts, GETTEXT_PACKAGE);
   if (!g_option_context_parse (context, &argc, &argv, &error))
@@ -275,6 +272,14 @@ main (int   argc,
       argv[0][0] = '@';
 
       g_debug ("eos-paygd running from initramfs");
+
+      if (!eospayg_efi_init (0))
+        {
+          g_warning ("Unable to access EFI variables, shutting down in 20 minutes.");
+          g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
+        }
+
+      payg_set_debug_env_vars ();
 
       /* Don't enforce PAYG if the current boot is not secure. This likely
        * means the machine is being unlocked for debugging purposes, or has
@@ -471,6 +476,11 @@ main (int   argc,
         g_warning ("Unable to re-establish root directory: %m");
       else
         g_debug ("Pivoted to final root filesystem");
+
+      /* Tell our efi code that we're post root pivot so it stops us from doing
+       * anything unsafe
+       */
+      eospayg_efi_root_pivot ();
     }
 
   /* Technically this existence check is racy but no other process should be
