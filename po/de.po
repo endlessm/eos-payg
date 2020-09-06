@@ -13,7 +13,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-08-16 01:31+0000\n"
+"POT-Creation-Date: 2020-09-06 01:31+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
 "Last-Translator: Will Thompson <wjt@endlessm.com>, 2020\n"
 "Language-Team: German (https://www.transifex.com/endless-os/teams/9016/de/)\n"
@@ -238,11 +238,11 @@ msgstr "Zu benutzende Konfigurations-Datei (Standard:"
 msgid "PATH"
 msgstr "PATH"
 
-#: libeos-payg/service.c:617
+#: libeos-payg/service.c:619
 msgid "— verify top-up codes and monitor time remaining"
 msgstr "– Auflade-Codes und verbleibende Zeit überprüfen"
 
-#: libeos-payg/service.c:618
+#: libeos-payg/service.c:620
 msgid ""
 "Verify inputted top-up codes and monitor the amount of time the computer has"
 " remaining before its lease next needs topping up."
