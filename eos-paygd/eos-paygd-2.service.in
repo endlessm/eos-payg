@@ -9,9 +9,19 @@ ConditionPathExists=/etc/initrd-release
 ConditionKernelCommandLine=eospayg
 # Don't complete boot without this running
 FailureAction=poweroff
-# Start early to reduce the chance the user is dropped to a shell before we've started
-After=sysinit.target
-Before=basic.target
+# We used to start earlier in an effort to reduce the chance the user is dropped to a
+# shell before we started - but that leaves us with a weird race condition that can
+# sometimes lead to chroot()ing to a place where dbus doesn't exist.
+#
+# initrd-parse-etc.service appears to be the place where untrusted actions start, as
+# fstab mounts with the x-initrd.mount option happen shortly afterwards. We need to
+# ensure we start before that point.
+#
+# This puts us starting after the main fs has been checked, so there's a chance to
+# drop to a root shell before eos-paygd starts. We'll have to solve that somewhere
+# else for now.
+After=initrd-root-fs.target
+Before=initrd-parse-etc.service
 Conflicts=shutdown.target
 
 [Service]
