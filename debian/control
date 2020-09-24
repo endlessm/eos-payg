@@ -14,7 +14,6 @@ Build-Depends:
  meson,
  python3-dbusmock,
  dracut,
- libefivar-dev,
  gtk-doc-tools,
 
 Package: eos-paygd

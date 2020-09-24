@@ -34,7 +34,7 @@
 #include <libeos-payg-codes/codes.h>
 #include <libgsystemservice/config-file.h>
 #include <locale.h>
-#include <efivar.h>
+#include <libeos-payg/efi.h>
 
 
 /* Paths to the various places the config file could be loaded from. */
@@ -561,7 +561,7 @@ static void provider_unlocked_cb (EpgProvider *provider,
    */
   if (self->eospayg_active_efivar)
     {
-      if (efi_del_variable (EOSPAYG_GUID, "EOSPAYG_active") < 0)
+      if (!eospayg_efi_var_delete ("active"))
         g_warning ("Failed to delete EOSPAYG_active upon unlock");
       else
         g_message ("Deleted EOSPAYG_active upon unlock");

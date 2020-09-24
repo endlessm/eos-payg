@@ -24,9 +24,7 @@
 #include <gio/gio.h>
 #include <linux/reboot.h>
 #include <sys/reboot.h>
-#include <efivar.h>
-
-#define EFI_GLOBAL_VARIABLE_GUID EFI_GUID(0x8be4df61, 0x93ca, 0x11d2, 0xaa0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c)
+#include <libeos-payg/efi.h>
 
 static gboolean payg_legacy_mode = FALSE;
 
@@ -66,20 +64,18 @@ typedef enum {
 static EpgDebugFlags
 _read_eospayg_debug (void)
 {
-  uint8_t *debug_efivar;
-  size_t data_size;
-  uint32_t attributes;
-  int ret;
+  g_autofree unsigned char *debug_efivar = NULL;
+  int data_size;
   EpgDebugFlags debug_flags = 0;
 
-  if (efi_get_variable_exists (EOSPAYG_GUID, "EOSPAYG_debug") < 0)
+  if (!eospayg_efi_var_exists ("debug"))
     return debug_flags;
 
   /* For now we only look at the first byte but let's allow it to be bigger so
    * it can be extended in the future.
    */
-  ret = efi_get_variable (EOSPAYG_GUID, "EOSPAYG_debug", &debug_efivar, &data_size, &attributes);
-  if (ret < 0 || !debug_efivar || data_size < 1)
+  debug_efivar = eospayg_efi_var_read ("debug", &data_size);
+  if (!debug_efivar)
     {
       g_warning ("Failed to read EOSPAYG_debug");
       return debug_flags;
@@ -145,10 +141,7 @@ gboolean
 payg_get_secure_boot_enabled (void)
 {
   EpgDebugFlags debug_flags = _read_eospayg_debug ();
-  uint8_t *secboot = NULL;
-  size_t data_size = 0;
-  uint32_t attributes;
-  int ret;
+  gboolean secboot;
 
   if (debug_flags & EPG_DEBUG_SECURE_BOOT_OFF &&
       debug_flags & EPG_DEBUG_SECURE_BOOT_ON)
@@ -160,13 +153,8 @@ payg_get_secure_boot_enabled (void)
   if (debug_flags & EPG_DEBUG_SECURE_BOOT_ON)
     return TRUE;
 
-  ret = efi_get_variable (EFI_GLOBAL_VARIABLE_GUID, "SecureBoot", &secboot, &data_size, &attributes);
-  if (ret < 0 || !secboot || data_size != 1)
-    {
-      g_debug ("Failed to read SecureBoot EFI variable, treating as SB off");
-      return FALSE;
-    }
-  if (*secboot == 0)
+  secboot = eospayg_efi_secureboot_active ();
+  if (!secboot)
     {
       g_debug ("SecureBoot EFI variable indicates the current boot is not secure");
       return FALSE;
@@ -202,7 +190,7 @@ payg_get_eospayg_active_set (void)
   if (debug_flags & EPG_DEBUG_EOSPAYG_ACTIVE_ON)
     return TRUE;
 
-  return efi_get_variable_exists (EOSPAYG_GUID, "EOSPAYG_active") == 0;
+  return eospayg_efi_var_exists ("active");
 }
 
 /**
