@@ -316,8 +316,14 @@ epg_service_secure_init_sync (EpgService   *self,
 
   g_return_if_fail (EPG_IS_SERVICE (self));
 
-  /* Read EFI variable(s) before the root pivot */
-  self->eospayg_active_efivar = payg_get_eospayg_active_set ();
+  /* Read EFI variable(s) before the root pivot, but only for
+   * Phase 4 and beyond. The Phase 2/legacy code path runs
+   * on all non-PAYG systems, which includes BIOS boot systems
+   * that don't have EFI at all. */
+  if (payg_get_legacy_mode ())
+    self->eospayg_active_efivar = FALSE;
+  else
+    self->eospayg_active_efivar = payg_get_eospayg_active_set ();
 
   /* Look for enabled PAYG providers */
   loader = epg_provider_loader_new (NULL);
