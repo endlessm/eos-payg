@@ -4,7 +4,7 @@
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 # 
 # Translators:
-# Will Thompson <wjt@endlessm.com>, 2020
+# Will Thompson <wjt@endlessos.org>, 2020
 # Shaddai, 2020
 # 
 #, fuzzy
@@ -12,7 +12,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-05-24 01:31+0000\n"
+"POT-Creation-Date: 2020-10-11 20:31+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
 "Last-Translator: Shaddai, 2020\n"
 "Language-Team: Slovenian (https://www.transifex.com/endless-os/teams/9016/sl/)\n"
@@ -174,7 +174,7 @@ msgstr "Neznano obdobje %u."
 #: libeos-payg-codes/codes.c:150
 #, c-format
 msgid "Key is too short (%u bytes); minimum length %u bytes."
-msgstr ""
+msgstr "Ključ je prekratek (%u bajtov); najmanjše dolžine %u bajtov.."
 
 #: libeos-payg-codes/codes.c:186
 #, c-format
@@ -235,11 +235,11 @@ msgstr ""
 msgid "PATH"
 msgstr "POT"
 
-#: libeos-payg/service.c:617
+#: libeos-payg/service.c:625
 msgid "— verify top-up codes and monitor time remaining"
 msgstr ""
 
-#: libeos-payg/service.c:618
+#: libeos-payg/service.c:626
 msgid ""
 "Verify inputted top-up codes and monitor the amount of time the computer has"
 " remaining before its lease next needs topping up."
