@@ -12,7 +12,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2020-10-11 20:31+0000\n"
+"POT-Creation-Date: 2020-10-18 20:31+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
 "Last-Translator: Shaddai, 2020\n"
 "Language-Team: Slovenian (https://www.transifex.com/endless-os/teams/9016/sl/)\n"
@@ -160,7 +160,7 @@ msgstr "Razpoložljiva obdobja:"
 
 #: eos-payg-generate/main.c:165
 msgid "A KEY-FILENAME and PERIOD are required"
-msgstr ""
+msgstr "Potrebna sta KEY-FILENAME in PERIOD"
 
 #: eos-payg-generate/main.c:174
 msgid "Too many arguments provided"
@@ -192,7 +192,7 @@ msgstr "Kode morejo biti največ 8 številk velike."
 
 #: libeos-payg/manager.c:545
 msgid "Pay as you go is disabled on this computer."
-msgstr ""
+msgstr "Pay as you go v tem računalniku je onemogočeno."
 
 #: libeos-payg/manager.c:602
 msgid "Too many invalid codes entered recently; please wait"
@@ -200,17 +200,17 @@ msgstr "Pred kratkim je bilo vnesenih preveč neveljavnih kod; prosim počakaj"
 
 #: libeos-payg/manager.c:644
 msgid "This pay as you go code has already been used."
-msgstr ""
+msgstr "Koda za plačilo pay as you go je že uporabljena."
 
 #: libeos-payg/manager.c:1132
 #, c-format
 msgid "State file ‘%s’ was the wrong length."
-msgstr ""
+msgstr "Datoteka ‘%s’ je bila napačne dolžine."
 
 #: libeos-payg/manager-service.c:557
 #, c-format
 msgid "Invalid interface name ‘%s’."
-msgstr ""
+msgstr "Neveljavno ime vmesnika ‘%s’."
 
 #: libeos-payg/manager-service.c:714 libeos-payg/manager-service.c:754
 #, c-format
@@ -229,7 +229,7 @@ msgstr "Neznani vmesnik '%s'."
 
 #: libeos-payg/service.c:189
 msgid "Configuration file to use (default: "
-msgstr ""
+msgstr "Konfiguracijska datoteka za uporabo (privzeto:"
 
 #: libeos-payg/service.c:190
 msgid "PATH"
@@ -237,26 +237,28 @@ msgstr "POT"
 
 #: libeos-payg/service.c:625
 msgid "— verify top-up codes and monitor time remaining"
-msgstr ""
+msgstr "— preverite kode za dopolnitev in spremljajte preostali čas"
 
 #: libeos-payg/service.c:626
 msgid ""
 "Verify inputted top-up codes and monitor the amount of time the computer has"
 " remaining before its lease next needs topping up."
 msgstr ""
+"Preverite vnesene kode za dopolnitev in spremljajte, koliko časa je "
+"računalniku ostalo, preden je treba najem napolniti."
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:468
 #, c-format
 msgid "Lost D-Bus name ‘%s’; exiting."
-msgstr ""
+msgstr "Izgubljeno ime D-Bus-a '%s'; izstopam."
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:482
 msgid "Inactivity timeout reached; exiting."
-msgstr ""
+msgstr "Dosežena časovna omejitev neaktivnosti; izstopam."
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:595
 msgid "Address of the D-Bus daemon to connect to and own a name on"
-msgstr ""
+msgstr "Naslov D-Bus daemon za povezavo in lastno ime na"
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:596
 msgid "ADDRESS"
@@ -265,6 +267,8 @@ msgstr "NASLOV"
 #: subprojects/libgsystemservice/libgsystemservice/service.c:598
 msgid "Inactivity timeout to wait for before exiting (in milliseconds)"
 msgstr ""
+"Časovna omejitev nedejavnosti, ki jo je treba počakati pred izstopom (v "
+"milisekundah)"
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:599
 msgid "MS"
@@ -272,22 +276,22 @@ msgstr "MS"
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:616
 msgid "This daemon must not be run as root."
-msgstr ""
+msgstr "Tega daemon ne smete zagnati kot root."
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:674
 #, c-format
 msgid "Invalid inactivity timeout %sms."
-msgstr ""
+msgstr "Neveljaven čas nedejavnosti %sms."
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:695
 #, c-format
 msgid "D-Bus unavailable: %s"
-msgstr ""
+msgstr "D-Bus ni na voljo: %s"
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:719
 #, c-format
 msgid "D-Bus bus ‘%s’ unavailable: %s"
-msgstr ""
+msgstr "D-Bus vodilo '%s' ni na voljo: %s"
 
 #: subprojects/libgsystemservice/libgsystemservice/service.c:825
 #, c-format
