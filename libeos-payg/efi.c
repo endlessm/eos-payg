@@ -510,6 +510,32 @@ eospayg_efi_securebootoption_disabled (void)
   return !content[0];
 }
 
+/* eospayg_efi_PK_size:
+ *
+ * Get the size of the PK efi variable, including EFI attribute overhead.
+ *
+ * The size of the PK variable is useful in determining if the system is
+ * set up properly for Secure Boot. If it has non zero size, it's properly
+ * installed. If the size is 0, there is no variable present in EFI storage
+ * space, but the kernel has a placeholder file for it due to a failed
+ * write.
+ *
+ * Returns: size of the PK efi variable including EFI overhead, or -1 if missing
+ */
+int
+eospayg_efi_PK_size (void)
+{
+  g_autofree char *tname = full_efi_name (GLOBAL_VARIABLE_GUID, "PK");
+  g_autofree unsigned char *content = NULL;
+  int size;
+
+  if (test_mode)
+    return -1;
+
+  content = efivarfs_read (tname, &size);
+  return size;
+}
+
 /* eospayg_efi_var_read:
  * @name: Short name of variable
  * @size: Returns the number of bytes in the variable
