@@ -428,9 +428,17 @@ efivarfs_read (const char *name, int *size)
   fsize = sb.st_size;
   if (fsize < 5)
     {
-      /* This should be impossible, but let's not get
-       * surprised if it happens. */
-      *size = -1;
+      /* This should be impossible, but efivarfs is a tire fire.
+       * For example, on a system that has a PK enrolled, trying to
+       * overwrite that PK without a properly signed request will result
+       * in the expected write failure and the unintended side effect of
+       * the kernel thinking the PK is 0 bytes long until the next reboot.
+       *
+       * If we return -1 here, the caller will think the file doesn't exist,
+       * so let's return a 0. It's not possible for an efi variable to exist
+       * without content, so this shouldn't be ambiguous.
+       */
+      *size = 0;
       goto out;
     }
 
