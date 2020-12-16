@@ -20,6 +20,8 @@ gboolean eospayg_efi_var_delete (const char *name);
 gboolean eospayg_efi_var_delete_fullname (const char *name);
 gboolean eospayg_efi_var_exists (const char *name);
 gboolean eospayg_efi_secureboot_active (void);
+gboolean eospayg_efi_securebootoption_disabled (void);
+int eospayg_efi_PK_size (void);
 gboolean eospayg_efi_var_supported (void);
 void eospayg_efi_list_rewind (void);
 const char *eospayg_efi_list_next (void);

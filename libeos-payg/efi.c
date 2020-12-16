@@ -18,6 +18,8 @@
 #define EOSPAYG_GUID         "d89c3871-ae0c-4fc5-a409-dc717aee61e7"
 #define GLOBAL_VARIABLE_GUID "8be4df61-93ca-11d2-aa0d-00e098032b8c"
 
+/* Can't figure out who owns this GUID. ECS and Lenovo have both used it */
+#define SBO_VARIABLE_GUID    "955b9041-133a-4bcf-90d1-97e1693c0e30"
 #define NVM_PREFIX           "EOSPAYG_"
 
 /* Totally bogus low performance mock storage for dry runs.
@@ -426,9 +428,17 @@ efivarfs_read (const char *name, int *size)
   fsize = sb.st_size;
   if (fsize < 5)
     {
-      /* This should be impossible, but let's not get
-       * surprised if it happens. */
-      *size = -1;
+      /* This should be impossible, but efivarfs is a tire fire.
+       * For example, on a system that has a PK enrolled, trying to
+       * overwrite that PK without a properly signed request will result
+       * in the expected write failure and the unintended side effect of
+       * the kernel thinking the PK is 0 bytes long until the next reboot.
+       *
+       * If we return -1 here, the caller will think the file doesn't exist,
+       * so let's return a 0. It's not possible for an efi variable to exist
+       * without content, so this shouldn't be ambiguous.
+       */
+      *size = 0;
       goto out;
     }
 
@@ -472,6 +482,66 @@ eospayg_efi_secureboot_active (void)
     return FALSE;
 
   return !!content[0];
+}
+
+/* eospayg_efi_securebootoption_disabled:
+ *
+ * Check if the SecureBootOption EFI variable exists and
+ * is disabled.
+ *
+ * The oddly inverted logic is due to the fact that most
+ * systems don't have this variable at all - if it doesn't
+ * exist, we can infer nothing about the state of Secure Boot,
+ * if it does it tells us if the Secure Boot option in the
+ * BIOS is enabled or disabled.
+ *
+ * Thus, on and not existing should likely be treated in the
+ * same way by a caller, but existing and off is a red flag
+ * for PAYG enforcement.
+ *
+ * Returns: %TRUE if the variable exists and is disabled, %FALSE otherwise
+ */
+gboolean
+eospayg_efi_securebootoption_disabled (void)
+{
+  g_autofree char *tname = full_efi_name (SBO_VARIABLE_GUID, "SecureBootOption");
+  g_autofree unsigned char *content = NULL;
+  int size;
+
+  if (test_mode)
+    return FALSE;
+
+  content = efivarfs_read (tname, &size);
+  if (!content || size != 1)
+    return FALSE;
+
+  return !content[0];
+}
+
+/* eospayg_efi_PK_size:
+ *
+ * Get the size of the PK efi variable, including EFI attribute overhead.
+ *
+ * The size of the PK variable is useful in determining if the system is
+ * set up properly for Secure Boot. If it has non zero size, it's properly
+ * installed. If the size is 0, there is no variable present in EFI storage
+ * space, but the kernel has a placeholder file for it due to a failed
+ * write.
+ *
+ * Returns: size of the PK efi variable including EFI overhead, or -1 if missing
+ */
+int
+eospayg_efi_PK_size (void)
+{
+  g_autofree char *tname = full_efi_name (GLOBAL_VARIABLE_GUID, "PK");
+  g_autofree unsigned char *content = NULL;
+  int size;
+
+  if (test_mode)
+    return -1;
+
+  content = efivarfs_read (tname, &size);
+  return size;
 }
 
 /* eospayg_efi_var_read:
