@@ -31,13 +31,24 @@ static gboolean payg_legacy_mode = FALSE;
 /* Force a poweroff in situations where we are not able to enforce PAYG. This
  * is intended to be used as a GSourceFunc, e.g. with g_timeout_add_seconds()
  */
-gboolean
+__attribute__ ((__noreturn__)) gboolean
 payg_sync_and_poweroff (gpointer user_data)
 {
   g_message ("bcsn: Forcing poweroff now!");
-  sync ();
-  reboot (LINUX_REBOOT_CMD_POWER_OFF);
-  return G_SOURCE_REMOVE;
+  if (system ("systemctl poweroff") != 0)
+    {
+      /* If we're here, something went wrong in the call, so we can force
+       * an immediate dirty shutdown, since we know a clean shutdown has
+       * already failed.
+       */
+      sync ();
+      reboot (LINUX_REBOOT_CMD_POWER_OFF);
+    }
+  /* We've requested a shutdown, so there's nothing left for us to do.
+   * Exit now so the watchdog timer will make sure we get our shutdown
+   * eventually.
+   */
+  exit (EXIT_FAILURE);
 }
 
 /**
