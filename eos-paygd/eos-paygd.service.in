@@ -10,8 +10,7 @@ ExecStart=@libexecdir@/eos-paygd1
 Type=dbus
 BusName=com.endlessm.Payg1
 NotifyAccess=main
-# We must be root to avoid systemd's post-root-pivot killing spree
-# and to make the eMMC boot partition writable
+# We must be root to make the eMMC boot partition writable
 User=root
 
 # Sandboxing
