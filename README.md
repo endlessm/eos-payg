@@ -18,6 +18,19 @@ running from a payg image, and (2) when run from the primary root filesystem,
 it does not use the advanced security features and assumes it's running on a
 Phase 2 PAYG system or a non-PAYG system.
 
+When running from the initramfs, eos-paygd is unkillable. systemd will leave
+it running during the root pivot and shutdown. The reason this is safe, and
+that a system shutdown while it's writing to non-volatile storage isn't
+considered a risk is that all the non-volatile storage backends in use are
+robust against a shutdown during write. This is done either through the
+ability to rollback an interrupted write, or writes that are fully atomic.
+
+Since it would be very difficult to enter a timecode at the same time as
+a system shutdown (because the UI would not be accessible during shutdown),
+the most likely interrupted operation would be time expiry. On the following
+boot the time would still be past expiration time, and the system would lock
+again.
+
 Dependencies
 ============
 
