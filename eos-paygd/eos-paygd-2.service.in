@@ -23,6 +23,10 @@ FailureAction=poweroff
 After=initrd-root-fs.target
 Before=initrd-parse-etc.service
 Conflicts=shutdown.target
+# We need IgnoreOnIsolate to prevent systemd from trying to shut us down during
+# the root pivot. This is independent of the tricks in the daemon itself to avoid
+# the pivot killing spree.
+IgnoreOnIsolate=true
 
 [Service]
 ExecStart=@libexecdir@/eos-paygd1
@@ -32,9 +36,6 @@ NotifyAccess=main
 # We must be root to avoid systemd's post-root-pivot killing spree
 # and to make the eMMC boot partition writable
 User=root
-# Set KillMode and SendSIGKILL such that we're not stopped along with the associated target
-KillMode=none
-SendSIGKILL=no
 
 # Sandboxing
 # We need access to /dev/watchdog and /dev/mmcblkxboot0 at least
