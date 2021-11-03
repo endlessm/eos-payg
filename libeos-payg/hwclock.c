@@ -24,6 +24,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <errno.h>
 
 static int rtc_fd = -1;
 static gboolean queued = FALSE;
@@ -111,7 +112,7 @@ payg_hwclock_init (void)
   rtc_fd = open ("/dev/rtc", O_RDWR);
   if (rtc_fd == -1)
     {
-      g_warning ("Failed to open RTC device");
+      g_warning ("Failed to open RTC device: %s", g_strerror (errno));
       return FALSE;
     }
 
