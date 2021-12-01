@@ -38,8 +38,8 @@ static gboolean
 payg_hwclock_update (gpointer unused)
 {
   int err;
-  time_t time_sec;
-  struct tm local_time;
+  time_t now_sec;
+  struct tm now_tm;
 
   /* We make a trivial effort to prevent doing a stack of
    * time updates on the same main loop iteration, but
@@ -48,15 +48,15 @@ payg_hwclock_update (gpointer unused)
    */
   queued = FALSE;
 
-  time (&time_sec);
-  localtime_r (&time_sec, &local_time);
+  time (&now_sec);
+  localtime_r (&now_sec, &now_tm);
 
   /* The RTC docs indicate the third param should be
    * struct rtc_time, however hwclock-rtc.c in util-linux
    * uses a struct tm. This works because the structs
    * are identical.
    */
-  err = ioctl (rtc_fd, RTC_SET_TIME, &local_time);
+  err = ioctl (rtc_fd, RTC_SET_TIME, &now_tm);
   if (err != 0 && !warned)
     {
       warned = TRUE;
