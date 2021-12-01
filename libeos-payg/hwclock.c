@@ -60,7 +60,7 @@ payg_hwclock_update (gpointer unused)
   if (err != 0 && !warned)
     {
       warned = TRUE;
-      g_warning ("Failed to update hardware clock");
+      g_warning ("Failed to update hardware clock: %s", g_strerror (errno));
     }
   return FALSE;
 }
@@ -126,7 +126,7 @@ payg_hwclock_init (void)
   err = ioctl (rtc_fd, RTC_RD_TIME, &rtc_tm);
   if (err != 0)
     {
-      g_warning ("Failed to read RTC");
+      g_warning ("Failed to read RTC: %s", g_strerror (errno));
       return FALSE;
     }
   rtc_time = mktime (&rtc_tm);
