@@ -105,7 +105,7 @@ source_hwclock_update (gpointer unused)
 gboolean
 payg_hwclock_init (void)
 {
-  time_t sys_time, rtc_time;
+  time_t sys_secs, rtc_secs;
   struct tm rtc_tm;
   int err;
 
@@ -129,15 +129,15 @@ payg_hwclock_init (void)
       g_warning ("Failed to read RTC: %s", g_strerror (errno));
       return FALSE;
     }
-  rtc_time = mktime (&rtc_tm);
-  time (&sys_time);
+  rtc_secs = mktime (&rtc_tm);
+  time (&sys_secs);
   /* Knock off a few binary digits to be safe, this will
    * drop a few days of precision. If the clock was reset
    * by battery removal, it will shift years.
    */
-  rtc_time >>= 19;
-  sys_time >>= 19;
-  if (rtc_time < sys_time)
+  rtc_secs >>= 19;
+  sys_secs >>= 19;
+  if (rtc_secs < sys_secs)
     {
       g_warning ("RTC out of sync with system clock at boot");
       return FALSE;
