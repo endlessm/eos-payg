@@ -62,6 +62,8 @@ payg_hwclock_update (gpointer unused)
       warned = TRUE;
       g_warning ("Failed to update hardware clock: %s", g_strerror (errno));
     }
+  else
+      g_debug ("Updated RTC time to %s", asctime (&now_tm));
   return FALSE;
 }
 
@@ -131,6 +133,10 @@ payg_hwclock_init (void)
     }
   rtc_secs = mktime (&rtc_tm);
   time (&sys_secs);
+  g_debug ("RTC time:        %s", asctime (&rtc_tm));
+  g_debug ("system UTC time: %s", asctime (gmtime (&sys_secs)));
+  g_debug ("RTC secs:        %ld\n", rtc_secs);
+  g_debug ("system UTC secs: %ld\n", sys_secs);
   /* Knock off a few binary digits to be safe, this will
    * drop a few days of precision. If the clock was reset
    * by battery removal, it will shift years.
