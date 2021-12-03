@@ -30,16 +30,16 @@ static int rtc_fd = -1;
 static gboolean queued = FALSE;
 static gboolean warned = FALSE;
 
-/* Sets the hardware clock to the system clock time - this
- * assumes the hardware clock is in local time and not UTC,
- * which is the default on a fresh endless install.
+/* Sets the hardware clock to the system clock time
+ * Note: this assumes the hardware clock is in UTC, which
+ * should always be the case for standalone EOS systems.
  */
 static gboolean
 payg_hwclock_update (gpointer unused)
 {
   int err;
-  time_t time_sec;
-  struct tm local_time;
+  time_t now_sec;
+  struct tm now_tm;
 
   /* We make a trivial effort to prevent doing a stack of
    * time updates on the same main loop iteration, but
@@ -48,20 +48,22 @@ payg_hwclock_update (gpointer unused)
    */
   queued = FALSE;
 
-  time (&time_sec);
-  localtime_r (&time_sec, &local_time);
+  time (&now_sec);
+  gmtime_r (&now_sec, &now_tm);
 
   /* The RTC docs indicate the third param should be
    * struct rtc_time, however hwclock-rtc.c in util-linux
    * uses a struct tm. This works because the structs
    * are identical.
    */
-  err = ioctl (rtc_fd, RTC_SET_TIME, &local_time);
+  err = ioctl (rtc_fd, RTC_SET_TIME, &now_tm);
   if (err != 0 && !warned)
     {
       warned = TRUE;
-      g_warning ("Failed to update hardware clock");
+      g_warning ("Failed to update hardware clock: %s", g_strerror (errno));
     }
+  else
+      g_debug ("Updated RTC time to %s", asctime (&now_tm));
   return FALSE;
 }
 
@@ -105,7 +107,7 @@ source_hwclock_update (gpointer unused)
 gboolean
 payg_hwclock_init (void)
 {
-  time_t sys_time, rtc_time;
+  time_t sys_secs, rtc_secs;
   struct tm rtc_tm;
   int err;
 
@@ -126,18 +128,22 @@ payg_hwclock_init (void)
   err = ioctl (rtc_fd, RTC_RD_TIME, &rtc_tm);
   if (err != 0)
     {
-      g_warning ("Failed to read RTC");
+      g_warning ("Failed to read RTC: %s", g_strerror (errno));
       return FALSE;
     }
-  rtc_time = mktime (&rtc_tm);
-  time (&sys_time);
+  rtc_secs = timegm (&rtc_tm);
+  time (&sys_secs);
+  g_debug ("RTC time:        %s", asctime (&rtc_tm));
+  g_debug ("system UTC time: %s", asctime (gmtime (&sys_secs)));
+  g_debug ("RTC secs:        %ld\n", rtc_secs);
+  g_debug ("system UTC secs: %ld\n", sys_secs);
   /* Knock off a few binary digits to be safe, this will
    * drop a few days of precision. If the clock was reset
    * by battery removal, it will shift years.
    */
-  rtc_time >>= 19;
-  sys_time >>= 19;
-  if (rtc_time < sys_time)
+  rtc_secs >>= 19;
+  sys_secs >>= 19;
+  if (rtc_secs < sys_secs)
     {
       g_warning ("RTC out of sync with system clock at boot");
       return FALSE;
