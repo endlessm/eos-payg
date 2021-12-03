@@ -30,9 +30,9 @@ static int rtc_fd = -1;
 static gboolean queued = FALSE;
 static gboolean warned = FALSE;
 
-/* Sets the hardware clock to the system clock time - this
- * assumes the hardware clock is in local time and not UTC,
- * which is the default on a fresh endless install.
+/* Sets the hardware clock to the system clock time
+ * Note: this assumes the hardware clock is in UTC, which
+ * should always be the case for standalone EOS systems.
  */
 static gboolean
 payg_hwclock_update (gpointer unused)
@@ -49,7 +49,7 @@ payg_hwclock_update (gpointer unused)
   queued = FALSE;
 
   time (&now_sec);
-  localtime_r (&now_sec, &now_tm);
+  gmtime_r (&now_sec, &now_tm);
 
   /* The RTC docs indicate the third param should be
    * struct rtc_time, however hwclock-rtc.c in util-linux
@@ -131,7 +131,7 @@ payg_hwclock_init (void)
       g_warning ("Failed to read RTC: %s", g_strerror (errno));
       return FALSE;
     }
-  rtc_secs = mktime (&rtc_tm);
+  rtc_secs = timegm (&rtc_tm);
   time (&sys_secs);
   g_debug ("RTC time:        %s", asctime (&rtc_tm));
   g_debug ("system UTC time: %s", asctime (gmtime (&sys_secs)));
