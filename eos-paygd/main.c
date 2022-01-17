@@ -40,6 +40,7 @@
 #define SD_NOTIFY_FAILURE_EXIT_CODE 252
 #define GOPTION_FAILURE_EXIT_CODE 251
 #define LSM_FAILURE_EXIT_CODE 250
+#define NO_PROVIDER_EXIT_CODE 249
 
 static int watchdog_fd = -1;
 
@@ -467,6 +468,7 @@ main (int   argc,
             break;
         }
       g_source_remove (timeout_id);
+      timeout_id = 0;
 
       /* Now that we've connected to the dbus socket we know that / is populated.
        * We were able to connect to dbus with an absolute path, but to be certain
@@ -526,12 +528,12 @@ main (int   argc,
            */
           g_warning ("Initiating 10 minute shutdown timer due to error: %s", error->message);
           timeout_id = g_timeout_add_seconds (10 * 60, payg_sync_and_poweroff, NULL);
-          while (TRUE)
-            g_main_context_iteration (NULL, TRUE);
+          ret = NO_PROVIDER_EXIT_CODE;
         }
       else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
         {
           /* The service received SIGTERM or SIGINT */
+          timeout_id = g_idle_add (payg_sync_and_poweroff, NULL);
           ret = FATAL_SIGNAL_EXIT_CODE;
         }
       else
@@ -549,9 +551,14 @@ main (int   argc,
 
   allow_writing_to_boot_partition (FALSE);
 
+  /* If payg_sync_and_poweroff is scheduled, spin the mainloop until it runs
+   * and terminates the daemon.
+   */
+  while (timeout_id)
+    g_main_context_iteration (NULL, TRUE);
+
   if (ret == 0 && watchdog_id > 0)
     {
-      /* Continue to ping the watchdog indefinitely */
       g_message ("Entering watchdog-ping-only mode");
       while (TRUE)
         g_main_context_iteration (NULL, TRUE);
