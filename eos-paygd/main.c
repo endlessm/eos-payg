@@ -531,9 +531,8 @@ main (int   argc,
         }
       else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
         {
-          g_warning ("EpgService exited with GSS_SERVICE_ERROR_SIGNALLED");
-          raise (gss_service_get_exit_signal (GSS_SERVICE (service)));
-          ret = FATAL_SIGNAL_EXIT_CODE; /* should not be reached, just in case the signal is caught */
+          /* The service received SIGTERM or SIGINT */
+          ret = FATAL_SIGNAL_EXIT_CODE;
         }
       else
         {
