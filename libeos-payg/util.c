@@ -34,19 +34,18 @@ static gboolean payg_legacy_mode = FALSE;
 __attribute__ ((__noreturn__)) gboolean
 payg_sync_and_poweroff (gpointer user_data)
 {
-  g_message ("bcsn: Forcing poweroff now!");
-  if (system ("systemctl poweroff") != 0)
-    {
-      /* If we're here, something went wrong in the call, so we can force
-       * an immediate dirty shutdown, since we know a clean shutdown has
-       * already failed.
-       */
-      sync ();
-      reboot (LINUX_REBOOT_CMD_POWER_OFF);
-    }
-  /* We've requested a shutdown, so there's nothing left for us to do.
-   * Exit now so the watchdog timer will make sure we get our shutdown
-   * eventually.
+  int ret;
+
+  g_message ("Requesting an orderly system shudown");
+  ret = system ("systemctl poweroff");
+  g_debug ("systemctl returned %d", ret);
+
+  /* We have requested an orderly system shutdown. If that request failed or if
+   * a shutdown was already in progress 'systemctl' will return a failure
+   * status the same way, so we can't easily distinguish between these two
+   * scenarios. Let's ignore systemctl exit status and let the daemon
+   * terminate. If an orderly system shutdown does not happen after we exit the
+   * watchdog will take care of powering off the machine eventually.
    */
   exit (EXIT_FAILURE);
 }
