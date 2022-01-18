@@ -533,7 +533,7 @@ main (int   argc,
       else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
         {
           /* The service received SIGTERM or SIGINT */
-          timeout_id = g_idle_add (payg_sync_and_poweroff, NULL);
+          timeout_id = g_idle_add (payg_sync_and_poweroff, &timeout_id);
           ret = FATAL_SIGNAL_EXIT_CODE;
         }
       else
@@ -551,8 +551,8 @@ main (int   argc,
 
   allow_writing_to_boot_partition (FALSE);
 
-  /* If payg_sync_and_poweroff is scheduled, spin the mainloop until it runs
-   * and terminates the daemon.
+  /* If payg_sync_and_poweroff is scheduled, spin the mainloop until it runs.
+   * timeout_id will be cleared by payg_sync_and_poweroff.
    */
   while (timeout_id)
     g_main_context_iteration (NULL, TRUE);
@@ -563,6 +563,14 @@ main (int   argc,
       while (TRUE)
         g_main_context_iteration (NULL, TRUE);
     }
+
+  if (ret == FATAL_SIGNAL_EXIT_CODE)
+    /* If the service exited due to a signal we should not exit with an error
+     * status, as this is likely systemd's SIGTERM when stopping the service.
+     * Let's just re-raise the signal so the unit ends up with a clean
+     * termination status.
+     */
+    raise (gss_service_get_exit_signal (GSS_SERVICE (service)));
 
   return ret;
 }

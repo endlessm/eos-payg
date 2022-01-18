@@ -30,11 +30,19 @@ static gboolean payg_legacy_mode = FALSE;
 
 /* Force a poweroff in situations where we are not able to enforce PAYG. This
  * is intended to be used as a GSourceFunc, e.g. with g_timeout_add_seconds()
+ *
+ * If user_data != NULL, it must be a pointer to the source ID to be cleared.
  */
-__attribute__ ((__noreturn__)) gboolean
+gboolean
 payg_sync_and_poweroff (gpointer user_data)
 {
   int ret;
+
+  if (user_data != NULL)
+    {
+      guint *source_id = (guint *) user_data;
+      *source_id = 0;
+    }
 
   g_message ("Requesting an orderly system shudown");
   ret = system ("systemctl poweroff");
@@ -47,7 +55,7 @@ payg_sync_and_poweroff (gpointer user_data)
    * terminate. If an orderly system shutdown does not happen after we exit the
    * watchdog will take care of powering off the machine eventually.
    */
-  exit (EXIT_FAILURE);
+  return G_SOURCE_REMOVE;
 }
 
 /**
