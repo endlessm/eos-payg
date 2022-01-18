@@ -35,6 +35,8 @@
 #include <sys/un.h>
 #include <libeos-payg/efi.h>
 
+#define TIMEOUT_POWEROFF_ON_ERROR_MINUTES 20
+
 #define FATAL_SIGNAL_EXIT_CODE 254
 #define WATCHDOG_FAILURE_EXIT_CODE 253
 #define SD_NOTIFY_FAILURE_EXIT_CODE 252
@@ -276,8 +278,10 @@ main (int   argc,
 
       if (!eospayg_efi_init (0))
         {
-          g_warning ("Unable to access EFI variables, shutting down in 20 minutes.");
-          g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
+          g_warning ("Unable to access EFI variables, shutting down in %d minutes",
+                     TIMEOUT_POWEROFF_ON_ERROR_MINUTES);
+          g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
+                                 payg_sync_and_poweroff, NULL);
         }
 
       payg_set_debug_env_vars ();
@@ -311,15 +315,19 @@ main (int   argc,
       if (enforcing_mode && payg_should_check_securitylevel () &&
           !test_and_update_securitylevel ())
         {
-          g_warning ("Security level regressed, forced shutdown will occur in 20 minutes.");
-          g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
+          g_warning ("Security level regressed, shutting down in %d minutes",
+                     TIMEOUT_POWEROFF_ON_ERROR_MINUTES);
+          g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
+                                 payg_sync_and_poweroff, NULL);
         }
 
       /* Setup RTC updater before the root pivot */
       if (enforcing_mode && !payg_hwclock_init ())
         {
-          g_warning ("RTC failure, forced shutdown will occur in 20 minutes.");
-          g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
+          g_warning ("RTC failure, shutting down in %d minutes",
+                     TIMEOUT_POWEROFF_ON_ERROR_MINUTES);
+          g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
+                                 payg_sync_and_poweroff, NULL);
         }
     }
   else
@@ -446,7 +454,8 @@ main (int   argc,
        * loop; in the past we've had long running operations like migrations of
        * flatpaks occur during a reboot. */
       g_debug ("Attempting to connect to D-Bus daemon");
-      timeout_id = g_timeout_add_seconds (20 * 60, payg_sync_and_poweroff, NULL);
+      timeout_id = g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
+                                          payg_sync_and_poweroff, NULL);
       while (TRUE)
         {
           g_autoptr(GDBusConnection) bus_connection = g_bus_get_sync (G_BUS_TYPE_SYSTEM, NULL, &error);
@@ -523,11 +532,13 @@ main (int   argc,
     {
       if (g_error_matches (error, EPG_SERVICE_ERROR, EPG_SERVICE_ERROR_NO_PROVIDER))
         {
-          /* This could mean the PAYG data has been erased; force a poweroff
-           * after 10 minutes. See https://phabricator.endlessm.com/T27581
+          /* This could mean the PAYG data has been erased; force a poweroff.
+           * See https://phabricator.endlessm.com/T27581
            */
-          g_warning ("Initiating 10 minute shutdown timer due to error: %s", error->message);
-          timeout_id = g_timeout_add_seconds (10 * 60, payg_sync_and_poweroff, NULL);
+          g_warning ("Provider failure, shutting down in %d minutes: %s",
+                     TIMEOUT_POWEROFF_ON_ERROR_MINUTES, error->message);
+          timeout_id = g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
+                                              payg_sync_and_poweroff, NULL);
           ret = NO_PROVIDER_EXIT_CODE;
         }
       else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
