@@ -400,7 +400,7 @@ expired_cb (EpgProvider *provider,
       self->shutdown_timer_id =
               g_timeout_add_seconds_full (G_PRIORITY_HIGH,
                                           TIMEOUT_POWEROFF_NO_CREDIT_MINUTES * 60,
-                                          payg_sync_and_poweroff,
+                                          payg_system_poweroff,
                                           NULL, NULL);
       g_assert (self->shutdown_timer_id > 0);
 

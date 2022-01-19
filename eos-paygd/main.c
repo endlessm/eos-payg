@@ -281,7 +281,7 @@ main (int   argc,
           g_warning ("Unable to access EFI variables, shutting down in %d minutes",
                      TIMEOUT_POWEROFF_ON_ERROR_MINUTES);
           g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
-                                 payg_sync_and_poweroff, NULL);
+                                 payg_system_poweroff, NULL);
         }
 
       payg_set_debug_env_vars ();
@@ -318,7 +318,7 @@ main (int   argc,
           g_warning ("Security level regressed, shutting down in %d minutes",
                      TIMEOUT_POWEROFF_ON_ERROR_MINUTES);
           g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
-                                 payg_sync_and_poweroff, NULL);
+                                 payg_system_poweroff, NULL);
         }
 
       /* Setup RTC updater before the root pivot */
@@ -327,7 +327,7 @@ main (int   argc,
           g_warning ("RTC failure, shutting down in %d minutes",
                      TIMEOUT_POWEROFF_ON_ERROR_MINUTES);
           g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
-                                 payg_sync_and_poweroff, NULL);
+                                 payg_system_poweroff, NULL);
         }
     }
   else
@@ -455,7 +455,7 @@ main (int   argc,
        * flatpaks occur during a reboot. */
       g_debug ("Attempting to connect to D-Bus daemon");
       timeout_id = g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
-                                          payg_sync_and_poweroff, NULL);
+                                          payg_system_poweroff, NULL);
       while (TRUE)
         {
           g_autoptr(GDBusConnection) bus_connection = g_bus_get_sync (G_BUS_TYPE_SYSTEM, NULL, &error);
@@ -466,7 +466,7 @@ main (int   argc,
 
               /* Keep pinging the watchdog if we have it, but don't block in
                * case we don't have it. We also need to iterate the main
-               * context for payg_sync_and_poweroff() to have a chance to be
+               * context for payg_system_poweroff() to have a chance to be
                * triggered.
                */
               g_main_context_iteration (NULL, FALSE);
@@ -538,13 +538,13 @@ main (int   argc,
           g_warning ("Provider failure, shutting down in %d minutes: %s",
                      TIMEOUT_POWEROFF_ON_ERROR_MINUTES, error->message);
           timeout_id = g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
-                                              payg_sync_and_poweroff, NULL);
+                                              payg_system_poweroff, NULL);
           ret = NO_PROVIDER_EXIT_CODE;
         }
       else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
         {
           /* The service received SIGTERM or SIGINT */
-          timeout_id = g_idle_add (payg_sync_and_poweroff, &timeout_id);
+          timeout_id = g_idle_add (payg_system_poweroff, &timeout_id);
           ret = FATAL_SIGNAL_EXIT_CODE;
         }
       else
@@ -562,8 +562,8 @@ main (int   argc,
 
   allow_writing_to_boot_partition (FALSE);
 
-  /* If payg_sync_and_poweroff is scheduled, spin the mainloop until it runs.
-   * timeout_id will be cleared by payg_sync_and_poweroff.
+  /* If payg_system_poweroff is scheduled, spin the mainloop until it runs.
+   * timeout_id will be cleared by payg_system_poweroff.
    */
   while (timeout_id)
     g_main_context_iteration (NULL, TRUE);

@@ -34,7 +34,7 @@ static gboolean payg_legacy_mode = FALSE;
  * If user_data != NULL, it must be a pointer to the source ID to be cleared.
  */
 gboolean
-payg_sync_and_poweroff (gpointer user_data)
+payg_system_poweroff (gpointer user_data)
 {
   int ret;
 
