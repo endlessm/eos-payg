@@ -515,7 +515,7 @@ main (int   argc,
       gss_service_run (GSS_SERVICE (service), argc, argv, &error);
     }
   else
-    g_debug ("Not enforcing PAYG for this boot");
+    g_message ("Not enforcing PAYG for this boot");
 
   if (error != NULL)
     {
@@ -553,7 +553,7 @@ main (int   argc,
   if (ret == 0 && watchdog_id > 0)
     {
       /* Continue to ping the watchdog indefinitely */
-      g_debug ("Entering watchdog-ping-only mode");
+      g_message ("Entering watchdog-ping-only mode");
       while (TRUE)
         g_main_context_iteration (NULL, TRUE);
     }
