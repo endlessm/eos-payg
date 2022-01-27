@@ -63,7 +63,7 @@ payg_hwclock_update (gpointer unused)
       g_warning ("Failed to update hardware clock: %s", g_strerror (errno));
     }
   else
-      g_debug ("Updated RTC time to %s", asctime (&now_tm));
+      g_message ("Updated RTC time to %s", asctime (&now_tm));
   return FALSE;
 }
 
