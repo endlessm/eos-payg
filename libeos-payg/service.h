@@ -29,7 +29,7 @@ G_BEGIN_DECLS
  * to a version with a known security hole. Any time a release is made that
  * fixes a security issue, this must be increased. It must never decrease.
  */
-#define EPG_SECURITY_LEVEL 3
+#define EPG_SECURITY_LEVEL 4
 
 /**
  * EpgServiceError:
