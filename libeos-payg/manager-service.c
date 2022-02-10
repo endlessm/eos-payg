@@ -999,12 +999,19 @@ epg_manager_service_manager_add_code (EpgManagerService     *self,
   const gchar *code_str;
   g_variant_get (parameters, "(&s)", &code_str);
 
+  g_message ("Trying to enter code %s", code_str);
   epg_provider_add_code (self->provider, code_str, &time_added, &local_error);
 
   if (local_error != NULL)
-    g_dbus_method_invocation_return_gerror (invocation, local_error);
+    {
+      g_message ("Failed to enter code %s: %s", code_str, local_error->message);
+      g_dbus_method_invocation_return_gerror (invocation, local_error);
+    }
   else
-    g_dbus_method_invocation_return_value (invocation, g_variant_new ("(x)", time_added));
+    {
+      g_message ("Added %" G_GINT64_FORMAT " units of credit", time_added);
+      g_dbus_method_invocation_return_value (invocation, g_variant_new ("(x)", time_added));
+    }
 }
 
 static void
