@@ -23,7 +23,7 @@
 
 G_BEGIN_DECLS
 
-gboolean payg_sync_and_poweroff (gpointer user_data);
+gboolean payg_system_poweroff (gpointer user_data);
 void payg_set_debug_env_vars (void);
 gboolean payg_get_secure_boot_enabled (void);
 gboolean payg_get_eospayg_active_set (void);

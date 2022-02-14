@@ -28,6 +28,7 @@
 #include <libeos-payg/manager-service.h>
 #include <libeos-payg/util.h>
 
+#define TIMEOUT_POWEROFF_NO_CREDIT_MINUTES 10
 
 static void epg_manager_service_dispose      (GObject      *object);
 static void epg_manager_service_get_property (GObject      *object,
@@ -394,8 +395,13 @@ expired_cb (EpgProvider *provider,
        * long without credit. We could use epg_boottime_source_new() here but
        * presumably a suspended computer isn't very useful anyway.
        */
-      g_message ("Starting 10 minute shutdown timer due to expired PAYG credit");
-      self->shutdown_timer_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 60 * 10, payg_sync_and_poweroff, NULL, NULL);
+      g_message ("Credit expired, shutting down in %d minutes",
+                 TIMEOUT_POWEROFF_NO_CREDIT_MINUTES);
+      self->shutdown_timer_id =
+              g_timeout_add_seconds_full (G_PRIORITY_HIGH,
+                                          TIMEOUT_POWEROFF_NO_CREDIT_MINUTES * 60,
+                                          payg_system_poweroff,
+                                          NULL, NULL);
       g_assert (self->shutdown_timer_id > 0);
 
       g_clear_error (&local_error);
