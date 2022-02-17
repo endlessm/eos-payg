@@ -537,9 +537,7 @@ main (int   argc,
         }
       else if (g_error_matches (error, EPG_SERVICE_ERROR, EPG_SERVICE_ERROR_NO_PROVIDER))
         {
-          /* This could mean the PAYG data has been erased; force a poweroff.
-           * See https://phabricator.endlessm.com/T27581
-           */
+          /* This could mean the PAYG data has been erased; force a poweroff. */
           g_warning ("Provider failure, shutting down in %d minutes: %s",
                      TIMEOUT_POWEROFF_ON_ERROR_MINUTES, error->message);
           timeout_id = g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
