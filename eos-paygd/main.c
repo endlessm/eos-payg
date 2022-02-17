@@ -37,7 +37,6 @@
 
 #define TIMEOUT_POWEROFF_ON_ERROR_MINUTES 20
 
-#define FATAL_SIGNAL_EXIT_CODE 254
 #define WATCHDOG_FAILURE_EXIT_CODE 253
 #define SD_NOTIFY_FAILURE_EXIT_CODE 252
 #define GOPTION_FAILURE_EXIT_CODE 251
@@ -238,7 +237,7 @@ main (int   argc,
   g_autoptr(GError) error = NULL;
   g_autoptr(EpgService) service = NULL;
   g_autoptr(GFile) state_dir = NULL;
-  int ret, sd_notify_ret, system_ret;
+  int ret = 0, sd_notify_ret, system_ret, exit_signal = 0;
   int lsm_fd;
   guint timeout_id = 0, watchdog_id = 0;
   const gchar *sd_socket_env = NULL;
@@ -530,7 +529,13 @@ main (int   argc,
 
   if (error != NULL)
     {
-      if (g_error_matches (error, EPG_SERVICE_ERROR, EPG_SERVICE_ERROR_NO_PROVIDER))
+      if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
+        {
+          /* The service received SIGTERM or SIGINT */
+          timeout_id = g_idle_add (payg_system_poweroff, &timeout_id);
+          exit_signal = gss_service_get_exit_signal (GSS_SERVICE (service));
+        }
+      else if (g_error_matches (error, EPG_SERVICE_ERROR, EPG_SERVICE_ERROR_NO_PROVIDER))
         {
           /* This could mean the PAYG data has been erased; force a poweroff.
            * See https://phabricator.endlessm.com/T27581
@@ -540,12 +545,6 @@ main (int   argc,
           timeout_id = g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
                                               payg_system_poweroff, NULL);
           ret = NO_PROVIDER_EXIT_CODE;
-        }
-      else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
-        {
-          /* The service received SIGTERM or SIGINT */
-          timeout_id = g_idle_add (payg_system_poweroff, &timeout_id);
-          ret = FATAL_SIGNAL_EXIT_CODE;
         }
       else
         {
@@ -557,7 +556,6 @@ main (int   argc,
   else
     {
       g_debug ("EpgService exited successfully or did not run");
-      ret = 0;
     }
 
   allow_writing_to_boot_partition (FALSE);
@@ -568,20 +566,20 @@ main (int   argc,
   while (timeout_id)
     g_main_context_iteration (NULL, TRUE);
 
+  if (exit_signal != 0)
+    /* If the service exited due to a signal we should not exit with an error
+     * status, as this is likely systemd's SIGTERM when stopping the service.
+     * Let's just re-raise the signal so the unit ends up with a clean
+     * termination status.
+     */
+    raise (exit_signal);
+
   if (ret == 0 && watchdog_id > 0)
     {
       g_message ("Entering watchdog-ping-only mode");
       while (TRUE)
         g_main_context_iteration (NULL, TRUE);
     }
-
-  if (ret == FATAL_SIGNAL_EXIT_CODE)
-    /* If the service exited due to a signal we should not exit with an error
-     * status, as this is likely systemd's SIGTERM when stopping the service.
-     * Let's just re-raise the signal so the unit ends up with a clean
-     * termination status.
-     */
-    raise (gss_service_get_exit_signal (GSS_SERVICE (service)));
 
   return ret;
 }
