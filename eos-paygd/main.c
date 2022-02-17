@@ -37,12 +37,6 @@
 
 #define TIMEOUT_POWEROFF_ON_ERROR_MINUTES 20
 
-#define WATCHDOG_FAILURE_EXIT_CODE 253
-#define SD_NOTIFY_FAILURE_EXIT_CODE 252
-#define GOPTION_FAILURE_EXIT_CODE 251
-#define LSM_FAILURE_EXIT_CODE 250
-#define NO_PROVIDER_EXIT_CODE 249
-
 static int watchdog_fd = -1;
 
 /* Ping the watchdog periodically as long as eos-paygd is running. */
@@ -251,7 +245,7 @@ main (int   argc,
   if (!g_option_context_parse (context, &argc, &argv, &error))
     {
       g_warning ("Failed to parse options: %s", error->message);
-      return GOPTION_FAILURE_EXIT_CODE;
+      return EXIT_FAILURE;
     }
   if (print_level)
     {
@@ -373,7 +367,7 @@ main (int   argc,
           if (watchdog_fd == -1)
             {
               g_warning ("eos-paygd could not open /dev/watchdog: %m");
-              return WATCHDOG_FAILURE_EXIT_CODE; /* Early return */
+              return EXIT_FAILURE;
             }
           watchdog_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 60, ping_watchdog, NULL, NULL);
           g_assert (watchdog_id > 0);
@@ -392,7 +386,7 @@ main (int   argc,
           if (lsm_fd == -1)
             {
               g_warning ("eos-paygd could not open /sys/kernel/security/endlesspayg/paygd_pid: %m");
-              return LSM_FAILURE_EXIT_CODE; /* Early return */
+              return EXIT_FAILURE;
             }
           else
             {
@@ -425,14 +419,14 @@ main (int   argc,
           /* If we can't notify systemd that we're ready to move on, it will
            * timeout in 90 seconds and shutdown, might as well just exit. */
           g_warning ("NOTIFY_SOCKET not set");
-          return SD_NOTIFY_FAILURE_EXIT_CODE;
+          return EXIT_FAILURE;
         }
       sd_socket_dir = g_path_get_dirname (sd_socket_env);
       sd_socket_name = g_path_get_basename (sd_socket_env);
       if (!sd_socket_dir || !sd_socket_name)
         {
           g_warning ("NOTIFY_SOCKET not in valid format");
-          return SD_NOTIFY_FAILURE_EXIT_CODE;
+          return EXIT_FAILURE;
         }
       if (chdir (sd_socket_dir))
         g_warning ("Unable to change working dir to systemd socket dir (%s): %m", sd_socket_dir);
@@ -443,7 +437,7 @@ main (int   argc,
       if (sd_notify_ret < 0)
         {
           g_warning ("payg_relative_sd_notify() failed with code %d", -sd_notify_ret);
-          return SD_NOTIFY_FAILURE_EXIT_CODE;
+          return EXIT_FAILURE;
         }
       if (chdir ("/"))
         g_warning ("Unable to change working dir to root of run-time root directory: %m");
@@ -542,7 +536,7 @@ main (int   argc,
                      TIMEOUT_POWEROFF_ON_ERROR_MINUTES, error->message);
           timeout_id = g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
                                               payg_system_poweroff, NULL);
-          ret = NO_PROVIDER_EXIT_CODE;
+          ret = FAILURE_EXIT_CODE_NO_PROVIDER;
         }
       else
         {
