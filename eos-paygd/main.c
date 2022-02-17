@@ -231,7 +231,7 @@ main (int   argc,
   g_autoptr(GError) error = NULL;
   g_autoptr(EpgService) service = NULL;
   g_autoptr(GFile) state_dir = NULL;
-  int ret = 0, sd_notify_ret, system_ret, exit_signal = 0;
+  int ret = EXIT_SUCCESS, sd_notify_ret, system_ret, exit_signal = 0;
   int lsm_fd;
   guint timeout_id = 0, watchdog_id = 0;
   const gchar *sd_socket_env = NULL;
@@ -529,20 +529,16 @@ main (int   argc,
           timeout_id = g_idle_add (payg_system_poweroff, &timeout_id);
           exit_signal = gss_service_get_exit_signal (GSS_SERVICE (service));
         }
-      else if (g_error_matches (error, EPG_SERVICE_ERROR, EPG_SERVICE_ERROR_NO_PROVIDER))
+      else
         {
-          /* This could mean the PAYG data has been erased; force a poweroff. */
-          g_warning ("Provider failure, shutting down in %d minutes: %s",
+          /* This could mean the PAYG data has been erased or the service lost
+           * ownership of the bus name, the latter most likely because the
+           * D-Bus server was terminated or restarted.*/
+          g_warning ("Daemon exited, shutting down in %d minutes: %s",
                      TIMEOUT_POWEROFF_ON_ERROR_MINUTES, error->message);
           timeout_id = g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
                                               payg_system_poweroff, NULL);
-          ret = FAILURE_EXIT_CODE_NO_PROVIDER;
-        }
-      else
-        {
-          g_warning ("Unknown error encountered: %s", error->message);
-          ret = error->code;
-          g_assert (ret != 0);
+          ret = EXIT_FAILURE;
         }
     }
   else
@@ -566,7 +562,7 @@ main (int   argc,
      */
     raise (exit_signal);
 
-  if (ret == 0 && watchdog_id > 0)
+  if (ret == EXIT_SUCCESS && watchdog_id > 0)
     {
       g_message ("Entering watchdog-ping-only mode");
       while (TRUE)
