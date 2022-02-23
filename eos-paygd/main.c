@@ -37,13 +37,6 @@
 
 #define TIMEOUT_POWEROFF_ON_ERROR_MINUTES 20
 
-#define FATAL_SIGNAL_EXIT_CODE 254
-#define WATCHDOG_FAILURE_EXIT_CODE 253
-#define SD_NOTIFY_FAILURE_EXIT_CODE 252
-#define GOPTION_FAILURE_EXIT_CODE 251
-#define LSM_FAILURE_EXIT_CODE 250
-#define NO_PROVIDER_EXIT_CODE 249
-
 static int watchdog_fd = -1;
 
 /* Ping the watchdog periodically as long as eos-paygd is running. */
@@ -238,7 +231,7 @@ main (int   argc,
   g_autoptr(GError) error = NULL;
   g_autoptr(EpgService) service = NULL;
   g_autoptr(GFile) state_dir = NULL;
-  int ret, sd_notify_ret, system_ret;
+  int ret = EXIT_SUCCESS, sd_notify_ret, system_ret, exit_signal = 0;
   int lsm_fd;
   guint timeout_id = 0, watchdog_id = 0;
   const gchar *sd_socket_env = NULL;
@@ -252,7 +245,7 @@ main (int   argc,
   if (!g_option_context_parse (context, &argc, &argv, &error))
     {
       g_warning ("Failed to parse options: %s", error->message);
-      return GOPTION_FAILURE_EXIT_CODE;
+      return EXIT_FAILURE;
     }
   if (print_level)
     {
@@ -374,7 +367,7 @@ main (int   argc,
           if (watchdog_fd == -1)
             {
               g_warning ("eos-paygd could not open /dev/watchdog: %m");
-              return WATCHDOG_FAILURE_EXIT_CODE; /* Early return */
+              return EXIT_FAILURE;
             }
           watchdog_id = g_timeout_add_seconds_full (G_PRIORITY_HIGH, 60, ping_watchdog, NULL, NULL);
           g_assert (watchdog_id > 0);
@@ -393,7 +386,7 @@ main (int   argc,
           if (lsm_fd == -1)
             {
               g_warning ("eos-paygd could not open /sys/kernel/security/endlesspayg/paygd_pid: %m");
-              return LSM_FAILURE_EXIT_CODE; /* Early return */
+              return EXIT_FAILURE;
             }
           else
             {
@@ -426,14 +419,14 @@ main (int   argc,
           /* If we can't notify systemd that we're ready to move on, it will
            * timeout in 90 seconds and shutdown, might as well just exit. */
           g_warning ("NOTIFY_SOCKET not set");
-          return SD_NOTIFY_FAILURE_EXIT_CODE;
+          return EXIT_FAILURE;
         }
       sd_socket_dir = g_path_get_dirname (sd_socket_env);
       sd_socket_name = g_path_get_basename (sd_socket_env);
       if (!sd_socket_dir || !sd_socket_name)
         {
           g_warning ("NOTIFY_SOCKET not in valid format");
-          return SD_NOTIFY_FAILURE_EXIT_CODE;
+          return EXIT_FAILURE;
         }
       if (chdir (sd_socket_dir))
         g_warning ("Unable to change working dir to systemd socket dir (%s): %m", sd_socket_dir);
@@ -444,7 +437,7 @@ main (int   argc,
       if (sd_notify_ret < 0)
         {
           g_warning ("payg_relative_sd_notify() failed with code %d", -sd_notify_ret);
-          return SD_NOTIFY_FAILURE_EXIT_CODE;
+          return EXIT_FAILURE;
         }
       if (chdir ("/"))
         g_warning ("Unable to change working dir to root of run-time root directory: %m");
@@ -530,34 +523,27 @@ main (int   argc,
 
   if (error != NULL)
     {
-      if (g_error_matches (error, EPG_SERVICE_ERROR, EPG_SERVICE_ERROR_NO_PROVIDER))
-        {
-          /* This could mean the PAYG data has been erased; force a poweroff.
-           * See https://phabricator.endlessm.com/T27581
-           */
-          g_warning ("Provider failure, shutting down in %d minutes: %s",
-                     TIMEOUT_POWEROFF_ON_ERROR_MINUTES, error->message);
-          timeout_id = g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
-                                              payg_system_poweroff, NULL);
-          ret = NO_PROVIDER_EXIT_CODE;
-        }
-      else if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
+      if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
         {
           /* The service received SIGTERM or SIGINT */
           timeout_id = g_idle_add (payg_system_poweroff, &timeout_id);
-          ret = FATAL_SIGNAL_EXIT_CODE;
+          exit_signal = gss_service_get_exit_signal (GSS_SERVICE (service));
         }
       else
         {
-          g_warning ("Unknown error encountered: %s", error->message);
-          ret = error->code;
-          g_assert (ret != 0);
+          /* This could mean the PAYG data has been erased or the service lost
+           * ownership of the bus name, the latter most likely because the
+           * D-Bus server was terminated or restarted.*/
+          g_warning ("Daemon exited, shutting down in %d minutes: %s",
+                     TIMEOUT_POWEROFF_ON_ERROR_MINUTES, error->message);
+          timeout_id = g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
+                                              payg_system_poweroff, NULL);
+          ret = EXIT_FAILURE;
         }
     }
   else
     {
       g_debug ("EpgService exited successfully or did not run");
-      ret = 0;
     }
 
   allow_writing_to_boot_partition (FALSE);
@@ -568,20 +554,20 @@ main (int   argc,
   while (timeout_id)
     g_main_context_iteration (NULL, TRUE);
 
-  if (ret == 0 && watchdog_id > 0)
-    {
-      g_message ("Entering watchdog-ping-only mode");
-      while (TRUE)
-        g_main_context_iteration (NULL, TRUE);
-    }
-
-  if (ret == FATAL_SIGNAL_EXIT_CODE)
+  if (exit_signal != 0)
     /* If the service exited due to a signal we should not exit with an error
      * status, as this is likely systemd's SIGTERM when stopping the service.
      * Let's just re-raise the signal so the unit ends up with a clean
      * termination status.
      */
-    raise (gss_service_get_exit_signal (GSS_SERVICE (service)));
+    raise (exit_signal);
+
+  if (ret == EXIT_SUCCESS && watchdog_id > 0)
+    {
+      g_message ("Entering watchdog-ping-only mode");
+      while (TRUE)
+        g_main_context_iteration (NULL, TRUE);
+    }
 
   return ret;
 }
