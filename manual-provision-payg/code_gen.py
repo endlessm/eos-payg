@@ -21,7 +21,7 @@ import csv
 import errno
 from string import Template
 
-key_code_file_name = "paygo-test-codes"
+key_code_file_name = "payg-test-codes"
 device_id = ""
 cwd = ""
 
@@ -152,7 +152,7 @@ def install_instructions():
     template_instruction_1 = Template(config_instructions.get("InstructionsLine1"))
     instruction_1 = template_instruction_1.substitute(device_id=device_id)
     instruction_2 = config_instructions.get("InstructionsLine2")
-    paygo_instructions = """[Pay As You Go]
+    payg_instructions = """[Pay As You Go]
     InstructionsLine1= %s
     InstructionsLine2= %s""" % (
         instruction_1,
@@ -160,17 +160,17 @@ def install_instructions():
     )
     backup_file(
         "/var/lib/eos-image-defaults/vendor-customer-support.ini",
-        "%s/paygo_backup_instructions" % expanduser("~"),
+        "%s/payg_backup_instructions" % expanduser("~"),
     )
     write_to_file(
-        "/var/lib/eos-image-defaults/vendor-customer-support.ini", paygo_instructions
+        "/var/lib/eos-image-defaults/vendor-customer-support.ini", payg_instructions
     )
 
 
 def run_key_install():
     keygen_output = generate_key()
     backup_file(
-        "/usr/local/share/eos-payg/key", "%s/paygo_backup_key" % expanduser("~")
+        "/usr/local/share/eos-payg/key", "%s/payg_backup_key" % expanduser("~")
     )
     add_key()
     try:
@@ -264,11 +264,11 @@ def write_to_csv(test_code_data):
 
 
 def write_to_json(test_code_data):
-    current_paygo_data = []
+    current_payg_data = []
     json_file_path = cwd + key_code_file_name + ".json"
     try:
         with open(json_file_path) as f:
-            current_paygo_data = json.load(f)
+            current_payg_data = json.load(f)
     except IOError:
         # eg, file doesn't exist
         pass
@@ -279,9 +279,9 @@ def write_to_json(test_code_data):
         "code3": test_code_data["test_codes"][2],
         "key": test_code_data["key"],
     }
-    current_paygo_data.append(key_obj)
+    current_payg_data.append(key_obj)
     with open(json_file_path, mode="w", encoding="utf-8") as test_codes:
-        json.dump(current_paygo_data, test_codes)
+        json.dump(current_payg_data, test_codes)
 
 
 if __name__ == "__main__":

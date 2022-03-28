@@ -1,5 +1,5 @@
 #!/bin/bash
-# start.sh paygo provision.
+# start.sh payg provision.
 #mount unmounted removable devices
 udisksctl dump |
 awk -F':\n' -v'RS=\n\n' '/[ \t]*HintAuto:[ \t]*true/&&/\.Filesystem:/{
@@ -10,7 +10,7 @@ do
     udisksctl mount --object-path "${dev##*/UDisks2/}"
 done
 clear
-echo "Provisioning paygo..."
+echo "Provisioning payg..."
 echo "Please wait."
 device_id=$(python3 /var/eos-factory-test/code_gen.py)
 echo "YOUR DEVICE ID IS $device_id. PLEASE WRITE THIS DOWN!"
