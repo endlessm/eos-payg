@@ -148,7 +148,8 @@ struct _EpgManager
   GFile *key_file;  /* (owned) */
   GBytes *key_bytes;  /* (owned) */
   EpgClock *clock; /* (owned) */
-  const gchar *account_id; /* (owned) */
+  GFile *account_id_file;  /* (owned) */
+  gchar *account_id; /* (owned) */
 
   GFile *state_directory;  /* (owned) */
 
@@ -328,6 +329,9 @@ epg_manager_constructed (GObject *object)
   if (self->key_file == NULL)
     self->key_file = g_file_new_for_path (PREFIX "/local/share/eos-payg/key");
 
+  if (self->account_id_file == NULL)
+    self->account_id_file = g_file_new_for_path (PREFIX "/local/share/eos-payg/account-id");
+
   if (self->state_directory == NULL)
     self->state_directory = g_file_new_for_path (LOCALSTATEDIR "/lib/eos-payg");
 
@@ -355,6 +359,7 @@ epg_manager_dispose (GObject *object)
   g_clear_object (&self->key_file);
   g_clear_object (&self->state_directory);
   g_clear_object (&self->clock);
+  g_clear_object (&self->account_id_file);
   g_clear_pointer (&self->context, g_main_context_unref);
 
   /* Chain up to the parent class */
@@ -366,7 +371,7 @@ epg_manager_finalize (GObject *object)
 {
   EpgManager *self = EPG_MANAGER (object);
 
-  g_free ((gchar *) self->account_id);
+  g_free (self->account_id);
 
   /* Chain up to the parent class */
   G_OBJECT_CLASS (epg_manager_parent_class)->finalize (object);
@@ -1075,7 +1080,7 @@ epg_manager_init_async (GAsyncInitable      *initable,
 
   g_task_set_source_tag (task, epg_manager_init_async);
   g_task_set_priority (task, priority);
-  epg_multi_task_attach (task, 4);
+  epg_multi_task_attach (task, 5);
 
   /* Load the wall clock time of the last state save. */
   g_autoptr(GFile) wallclock_time_file = get_wallclock_time_file (self);
@@ -1091,6 +1096,10 @@ epg_manager_init_async (GAsyncInitable      *initable,
 
   /* And the key. */
   g_file_load_contents_async (self->key_file, cancellable,
+                              file_load_cb, g_object_ref (task));
+
+  /* And the account ID. */
+  g_file_load_contents_async (self->account_id_file, cancellable,
                               file_load_cb, g_object_ref (task));
 
   /* Decrement the pending operation count. */
@@ -1328,6 +1337,14 @@ file_load_cb (GObject      *source_object,
 
       self->key_bytes = g_bytes_new_take (g_steal_pointer (&data), data_len);
       data_len = 0;
+    }
+  else if (g_file_equal (file, self->account_id_file))
+    {
+      if (data != NULL)
+        {
+          g_free (self->account_id);
+          self->account_id = g_strndup (data, data_len);
+        }
     }
   else
     {
