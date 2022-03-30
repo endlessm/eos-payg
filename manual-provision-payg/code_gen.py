@@ -189,6 +189,7 @@ def read_machine_id():
     global device_id
     # device id currently set as first 8 characters of machine_id string
     device_id = machine_id[0:8].upper()
+    print(device_id)
     return device_id
 
 
@@ -288,4 +289,3 @@ if __name__ == "__main__":
     set_usb_path()
     run_key_install()
     install_instructions()
-    print(device_id)
