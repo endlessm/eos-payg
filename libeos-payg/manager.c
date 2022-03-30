@@ -95,6 +95,7 @@ static gboolean    epg_manager_get_enabled         (EpgProvider *provider);
 static guint64     epg_manager_get_rate_limit_end_time (EpgProvider *provider);
 static EpgClock *  epg_manager_get_clock (EpgProvider *provider);
 static const gchar * epg_manager_get_account_id (EpgProvider *provider);
+static GFile *     epg_manager_get_account_id_file (EpgManager *self);
 
 /* Struct for storing the values in a used-codes file. The alignment and
  * size of this struct are file format ABI, and must be kept the same. */
@@ -180,6 +181,7 @@ typedef enum
 {
   /* Local properties */
   PROP_KEY_FILE = 1,
+  PROP_ACCOUNT_ID_FILE,
   PROP_STATE_DIRECTORY,
 
   /* Properties inherited from EpgProvider */
@@ -239,6 +241,27 @@ epg_manager_class_init (EpgManagerClass *klass)
   props[PROP_KEY_FILE] =
       g_param_spec_object ("key-file", "Key File",
                            "File containing shared key to verify codes with.",
+                           G_TYPE_FILE,
+                           G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
+
+  /**
+   * EpgManager:account-id-file:
+   *
+   * File containing the PAYG account ID, which is the same as the device ID
+   * generated during provisioning, derived from the machine ID at provisioning
+   * time, with no surrounding whitespace or padding. This ID is used by the vendor
+   * to identify a computer and a PAYG loan account.
+   *
+   * The account ID is 8 hexadecimal digits long.
+   *
+   * A system-wide path is used if this property is not specified or is %NULL.
+   * Only unit tests should need to override this path.
+   *
+   * Since: 0.2.0
+   */
+  props[PROP_ACCOUNT_ID_FILE] =
+      g_param_spec_object ("account-id-file", "Account ID File",
+                           "File containing the PAYG account ID.",
                            G_TYPE_FILE,
                            G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY | G_PARAM_STATIC_STRINGS);
 
@@ -397,6 +420,9 @@ epg_manager_get_property (GObject    *object,
     case PROP_KEY_FILE:
       g_value_set_object (value, epg_manager_get_key_file (self));
       break;
+    case PROP_ACCOUNT_ID_FILE:
+      g_value_set_object (value, epg_manager_get_account_id_file (self));
+      break;
     case PROP_STATE_DIRECTORY:
       g_value_set_object (value, epg_manager_get_state_directory (self));
       break;
@@ -446,6 +472,11 @@ epg_manager_set_property (GObject      *object,
       /* Construct only. */
       self->enabled = g_value_get_boolean (value);
       break;
+    case PROP_ACCOUNT_ID_FILE:
+      /* Construct only. */
+      g_assert (self->account_id_file == NULL);
+      self->account_id_file = g_value_dup_object (value);
+      break;
     case PROP_KEY_FILE:
       /* Construct only. */
       g_assert (self->key_file == NULL);
@@ -472,6 +503,8 @@ epg_manager_set_property (GObject      *object,
  *    %EPG_MANAGER_ERROR_DISABLED for all operations
  * @key_file: (transfer none) (optional): file containing shared key to verify codes with;
  *    see #EpgManager:key-file
+ * @account_id_file: (transfer none) (optional): file containing the PAYG account ID;
+ *    see #EpgManager:account-id-file
  * @state_directory: (transfer none) (optional): directory to load/store state
  *    in, or %NULL to use the default directory; see #EpgManager:state-directory
  * @clock: (transfer none) (optional): an #EpgClock, or %NULL to use the default
@@ -492,6 +525,7 @@ epg_manager_set_property (GObject      *object,
 void
 epg_manager_new (gboolean             enabled,
                  GFile               *key_file,
+                 GFile               *account_id_file,
                  GFile               *state_directory,
                  EpgClock            *clock,
                  GCancellable        *cancellable,
@@ -499,6 +533,7 @@ epg_manager_new (gboolean             enabled,
                  gpointer             user_data)
 {
   g_return_if_fail (key_file == NULL || G_IS_FILE (key_file));
+  g_return_if_fail (account_id_file == NULL || G_IS_FILE (account_id_file));
   g_return_if_fail (state_directory == NULL || G_IS_FILE (state_directory));
   g_return_if_fail (clock == NULL || EPG_IS_CLOCK (clock));
   g_return_if_fail (cancellable == NULL || G_IS_CANCELLABLE (cancellable));
@@ -510,6 +545,7 @@ epg_manager_new (gboolean             enabled,
                               user_data,
                               "enabled", enabled,
                               "key-file", key_file,
+                              "account-id-file", account_id_file,
                               "state-directory", state_directory,
                               "clock", clock,
                               NULL);
@@ -1710,6 +1746,14 @@ epg_manager_get_key_file (EpgManager *self)
   g_return_val_if_fail (EPG_IS_MANAGER (self), NULL);
 
   return self->key_file;
+}
+
+static GFile *
+epg_manager_get_account_id_file (EpgManager *self)
+{
+  g_return_val_if_fail (EPG_IS_MANAGER (self), NULL);
+
+  return self->account_id_file;
 }
 
 /**

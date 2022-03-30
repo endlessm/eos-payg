@@ -31,6 +31,7 @@ G_DECLARE_FINAL_TYPE (EpgManager, epg_manager, EPG, MANAGER, GObject)
 
 void         epg_manager_new        (gboolean             enabled,
                                      GFile               *key_file,
+                                     GFile               *account_id_file,
                                      GFile               *state_directory,
                                      EpgClock            *clock,
                                      GCancellable        *cancellable,

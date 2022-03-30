@@ -170,8 +170,9 @@ manager_new_failable (Fixture *fixture,
   g_assert_null (fixture->provider);
 
   clock = epg_fake_clock_new (-1, -1);
-  epg_manager_new (enabled, fixture->key_file, fixture->tmp_dir,
-                   EPG_CLOCK (clock), NULL, async_cb, &result);
+  epg_manager_new (enabled, fixture->key_file, NULL,
+                   fixture->tmp_dir, EPG_CLOCK (clock), NULL, async_cb,
+                   &result);
 
   while (result == NULL)
     g_main_context_iteration (NULL, TRUE);

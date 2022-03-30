@@ -454,7 +454,7 @@ provider_get_first_enabled_cb (GObject      *source_object,
     }
 
   GCancellable *cancellable = g_task_get_cancellable (task);
-  epg_manager_new (enabled, NULL, NULL, NULL, cancellable,
+  epg_manager_new (enabled, NULL, NULL, NULL, NULL, cancellable,
                    manager_new_cb, g_steal_pointer (&task));
 }
 
