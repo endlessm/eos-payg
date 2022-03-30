@@ -193,6 +193,7 @@ def read_machine_id():
     # device id currently set as first 8 characters of machine_id string
     device_id = machine_id[0:8].upper()
     print(device_id)
+    write_to_file("/usr/local/share/eos-payg/account-id", device_id)
     return device_id
 
 
