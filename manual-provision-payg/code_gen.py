@@ -285,7 +285,6 @@ def write_to_json(test_code_data):
 
 
 if __name__ == "__main__":
-    print("\n")
     set_usb_path()
     run_key_install()
     install_instructions()

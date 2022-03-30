@@ -13,6 +13,7 @@ clear
 echo "Provisioning payg..."
 echo "Please wait."
 device_id=$(python3 /var/eos-factory-test/code_gen.py)
+echo ""
 echo "YOUR DEVICE ID IS $device_id. PLEASE WRITE THIS DOWN!"
 rm -rf /var/eos-factory-test
 echo ""
