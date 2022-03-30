@@ -147,8 +147,11 @@ def install_instructions():
         with open(cwd + "config" + ".json") as f:
             config_instructions = json.load(f)
     except FileNotFoundError:
-        print("Please add instruction config file\n", file=sys.stderr)
-        sys.exit(1)
+        print("WARNING: config.json not found in the USB device!\n" +
+              "The computer has been provisioned without custom\n" +
+              "instructions on how to obtain an unlock keycode.",
+              file=sys.stderr)
+        return
     template_instruction_1 = Template(config_instructions.get("InstructionsLine1"))
     instruction_1 = template_instruction_1.substitute(device_id=device_id)
     instruction_2 = config_instructions.get("InstructionsLine2")
