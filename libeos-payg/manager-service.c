@@ -993,7 +993,7 @@ epg_manager_service_manager_get_code_length (EpgManagerService     *self,
                                              const gchar           *property_name,
                                              GDBusMethodInvocation *invocation)
 {
-  return g_variant_new_uint32 (0);
+  return g_variant_new_uint32 (epg_provider_get_code_length (self->provider));
 }
 
 static GVariant *

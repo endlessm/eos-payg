@@ -155,6 +155,24 @@ epg_provider_default_init (EpgProviderInterface *iface)
   g_object_interface_install_property (iface, pspec);
 
   /**
+   * EpgProvider:code-length:
+   *
+   * The length of an unlock code, in Unicode characters.
+   *
+   * This property is constant once the provider is initialized.
+   *
+   * A value of 0 means the length was not specified by the provider.
+   *
+   * Since: 0.2.4
+   */
+  pspec =
+      g_param_spec_uint ("code-length", "Code Length",
+                         "The length of an unlock code, in Unicode characters.",
+                         0, G_MAXUINT32, 0,
+                         G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+  g_object_interface_install_property (iface, pspec);
+
+  /**
    * EpgProvider:clock:
    *
    * Clock used to get the time and create timeout #GSource objects.
@@ -504,6 +522,28 @@ epg_provider_get_code_format_suffix (EpgProvider *self)
     return iface->code_format_suffix;
 
   return "";
+}
+
+/**
+ * epg_provider_get_code_length:
+ * @self: a #EpgProvider
+ *
+ * Get the value of #EpgProvider:code-length
+ *
+ * Returns: the value to be used by the UI when referring to the unlock code
+ * length, in Unicode characters. A value of 0 means the UI should not mention
+ * the unlock code length as the provider may support codes of different
+ * lengths.
+ * Since: 0.2.4
+ */
+guint32
+epg_provider_get_code_length (EpgProvider *self)
+{
+  g_return_val_if_fail (EPG_IS_PROVIDER (self), 0);
+
+  EpgProviderInterface *iface = EPG_PROVIDER_GET_IFACE (self);
+
+  return iface->code_length;
 }
 
 /**
