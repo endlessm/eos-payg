@@ -130,6 +130,14 @@ static GVariant *epg_manager_service_manager_get_code_format_suffix (EpgManagerS
                                                                      const gchar           *interface_name,
                                                                      const gchar           *property_name,
                                                                      GDBusMethodInvocation *invocation);
+
+static GVariant *epg_manager_service_manager_get_code_length (EpgManagerService     *self,
+                                                              GDBusConnection       *connection,
+                                                              const gchar           *sender,
+                                                              const gchar           *interface_name,
+                                                              const gchar           *property_name,
+                                                              GDBusMethodInvocation *invocation);
+
 static GVariant *epg_manager_service_manager_get_account_id (EpgManagerService     *self,
                                                              GDBusConnection       *connection,
                                                              const gchar           *sender,
@@ -676,6 +684,8 @@ manager_properties[] =
       epg_manager_service_manager_get_code_format_prefix, NULL  /* read-only */ },
     { "com.endlessm.Payg1", "CodeFormatSuffix", "code-format-suffix",
       epg_manager_service_manager_get_code_format_suffix, NULL  /* read-only */ },
+    { "com.endlessm.Payg1", "CodeLength", "code-ui-string",
+      epg_manager_service_manager_get_code_length, NULL  /* read-only */ },
     { "com.endlessm.Payg1", "AccountID", "account-id",
       epg_manager_service_manager_get_account_id, NULL  /* read-only */ },
   };
@@ -973,6 +983,17 @@ epg_manager_service_manager_get_code_format_suffix (EpgManagerService     *self,
                                                     GDBusMethodInvocation *invocation)
 {
   return g_variant_new_string (epg_provider_get_code_format_suffix (self->provider));
+}
+
+static GVariant *
+epg_manager_service_manager_get_code_length (EpgManagerService     *self,
+                                             GDBusConnection       *connection,
+                                             const gchar           *sender,
+                                             const gchar           *interface_name,
+                                             const gchar           *property_name,
+                                             GDBusMethodInvocation *invocation)
+{
+  return g_variant_new_uint32 (0);
 }
 
 static GVariant *
