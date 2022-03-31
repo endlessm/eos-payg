@@ -30,6 +30,7 @@
 #include <locale.h>
 
 static const char KEY[] = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+static const char ACCOUNT_ID[] = "BEBACAFE";
 
 typedef struct _Fixture {
   gchar *tmp_path;
@@ -43,6 +44,9 @@ typedef struct _Fixture {
   GBytes *key;
   gchar *key_path;
   GFile *key_file;
+
+  gchar *account_id_path;
+  GFile *account_id_file;
 
   EpcCounter next_counter;
 
@@ -75,6 +79,12 @@ setup (Fixture *fixture,
   g_assert_no_error (error);
   fixture->key_file = g_file_new_for_path (fixture->key_path);
   g_assert_nonnull (fixture->key_file);
+
+  fixture->account_id_path = g_build_filename (fixture->tmp_path, "account-id", NULL);
+  g_file_set_contents (fixture->account_id_path, ACCOUNT_ID, -1, &error);
+  g_assert_no_error (error);
+  fixture->account_id_file = g_file_new_for_path (fixture->account_id_path);
+  g_assert_nonnull (fixture->account_id_file);
 }
 
 static gchar *
@@ -154,6 +164,7 @@ teardown (Fixture *fixture,
   g_clear_pointer (&fixture->expiry_time_path, remove_and_free_path);
   g_clear_pointer (&fixture->used_codes_path, remove_and_free_path);
   g_clear_pointer (&fixture->key_path, remove_and_free_path);
+  g_clear_pointer (&fixture->account_id_path, remove_and_free_path);
   g_clear_pointer (&fixture->tmp_path, remove_and_free_path);
 
   g_clear_object (&fixture->tmp_dir);
@@ -170,8 +181,9 @@ manager_new_failable (Fixture *fixture,
   g_assert_null (fixture->provider);
 
   clock = epg_fake_clock_new (-1, -1);
-  epg_manager_new (enabled, fixture->key_file, fixture->tmp_dir,
-                   EPG_CLOCK (clock), NULL, async_cb, &result);
+  epg_manager_new (enabled, fixture->key_file, fixture->account_id_file,
+                   fixture->tmp_dir, EPG_CLOCK (clock), NULL, async_cb,
+                   &result);
 
   while (result == NULL)
     g_main_context_iteration (NULL, TRUE);
@@ -372,19 +384,25 @@ write_valid_clock_time_file (Fixture *fixture)
   g_assert_true (ret);
 }
 
-/* test_account_id:
+/* test_manager_account_id:
+ * @data: GUINT_TO_POINTER(account_id_file_present)
  *
- * Tests that the :account_id is properly returned.
+ * Tests that the :account_id is properly returned when the account ID file is
+ * missing or present.
  */
 static void
 test_manager_account_id (Fixture *fixture,
                          gconstpointer data)
 {
-  manager_new (fixture);
+  gboolean account_id_file_present = (gboolean) !!(GPOINTER_TO_UINT (data));
 
+  if (!account_id_file_present)
+    remove_path (fixture->account_id_path);
+
+  manager_new (fixture);
   const gchar *account_id = epg_provider_get_account_id (fixture->provider);
 
-  g_assert_cmpstr (account_id, ==, "");
+  g_assert_cmpstr (account_id, ==, account_id_file_present ? ACCOUNT_ID : "");
 }
 
 /* test_manager_load_error_malformed:
@@ -488,6 +506,7 @@ test_manager_save_error (Fixture *fixture,
 
   /* Sabotage any future attempts to save state. */
   remove_path (fixture->key_path);
+  remove_path (fixture->account_id_path);
   remove_path (fixture->clock_time_path);
   remove_path (fixture->expiry_seconds_path);
   remove_path (fixture->tmp_path);
@@ -891,7 +910,10 @@ main (int    argc,
   T ("/manager/add-infinite", test_manager_add_infinite_code, NULL);
   T ("/manager/get-code-format-prefix", test_manager_code_format_prefix, NULL);
   T ("/manager/get-code-format-suffix", test_manager_code_format_suffix, NULL);
-  T ("/manager/get-account-id", test_manager_account_id, NULL);
+  T ("/manager/get-account-id-missing", test_manager_account_id,
+     GUINT_TO_POINTER (0));
+  T ("/manager/get-account-id-present", test_manager_account_id,
+     GUINT_TO_POINTER (1));
   T ("/manager/error/malformed", test_manager_error_malformed, NULL);
   T ("/manager/error/reused", test_manager_error_reused, NULL);
   T ("/manager/error/rate-limit", test_manager_error_rate_limit, NULL);
