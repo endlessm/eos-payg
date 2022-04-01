@@ -257,7 +257,7 @@ epg_manager_class_init (EpgManagerClass *klass)
    * A system-wide path is used if this property is not specified or is %NULL.
    * Only unit tests should need to override this path.
    *
-   * Since: 0.2.0
+   * Since: 0.2.4
    */
   props[PROP_ACCOUNT_ID_FILE] =
       g_param_spec_object ("account-id-file", "Account ID File",
