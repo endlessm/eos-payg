@@ -1,5 +1,5 @@
 project('eos-payg','c',
-  version: '0.2.2',
+  version: '0.2.4',
   meson_version: '>= 0.50.0',
   license: 'MPL-2.0 or LGPLv2.1+',
   default_options: [
