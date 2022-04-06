@@ -191,6 +191,7 @@ typedef enum
   PROP_CODE_FORMAT,
   PROP_CODE_FORMAT_PREFIX,
   PROP_CODE_FORMAT_SUFFIX,
+  PROP_CODE_LENGTH,
   PROP_CLOCK,
   PROP_ACCOUNT_ID,
 } EpgManagerProperty;
@@ -220,6 +221,7 @@ epg_manager_class_init (EpgManagerClass *klass)
   g_object_class_override_property (object_class, PROP_CODE_FORMAT, "code-format");
   g_object_class_override_property (object_class, PROP_CODE_FORMAT_PREFIX, "code-format-prefix");
   g_object_class_override_property (object_class, PROP_CODE_FORMAT_SUFFIX, "code-format-suffix");
+  g_object_class_override_property (object_class, PROP_CODE_LENGTH, "code-length");
   g_object_class_override_property (object_class, PROP_CLOCK, "clock");
   g_object_class_override_property (object_class, PROP_ACCOUNT_ID, "account-id");
 
@@ -257,7 +259,7 @@ epg_manager_class_init (EpgManagerClass *klass)
    * A system-wide path is used if this property is not specified or is %NULL.
    * Only unit tests should need to override this path.
    *
-   * Since: 0.2.0
+   * Since: 0.2.4
    */
   props[PROP_ACCOUNT_ID_FILE] =
       g_param_spec_object ("account-id-file", "Account ID File",
@@ -315,6 +317,7 @@ epg_manager_provider_iface_init (gpointer g_iface,
   iface->code_format = "^[0-9]{8}$";
   iface->code_format_prefix = "";
   iface->code_format_suffix = "";
+  iface->code_length = 8;
 }
 
 static void
@@ -438,6 +441,9 @@ epg_manager_get_property (GObject    *object,
     case PROP_CODE_FORMAT_SUFFIX:
       g_value_set_static_string (value, epg_provider_get_code_format_suffix (provider));
       break;
+    case PROP_CODE_LENGTH:
+      g_value_set_uint (value, epg_provider_get_code_length (provider));
+      break;
     case PROP_CLOCK:
       g_value_set_object (value, epg_provider_get_clock (provider));
       break;
@@ -464,6 +470,7 @@ epg_manager_set_property (GObject      *object,
     case PROP_CODE_FORMAT:
     case PROP_CODE_FORMAT_PREFIX:
     case PROP_CODE_FORMAT_SUFFIX:
+    case PROP_CODE_LENGTH:
     case PROP_ACCOUNT_ID:
       /* Read only. */
       g_assert_not_reached ();

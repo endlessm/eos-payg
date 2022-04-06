@@ -181,6 +181,15 @@ static const GDBusPropertyInfo manager_interface_code_format_suffix =
   NULL,  /* annotations */
 };
 
+static const GDBusPropertyInfo manager_interface_code_length =
+{
+  -1,  /* ref count */
+  (gchar *) "CodeLength",
+  (gchar *) "u", /* Note: the special value 0 means the length was not specified */
+  G_DBUS_PROPERTY_INFO_FLAGS_READABLE,
+  NULL,  /* annotations */
+};
+
 static const GDBusPropertyInfo manager_interface_account_id =
 {
   -1,  /* ref count */
@@ -198,6 +207,7 @@ static const GDBusPropertyInfo *manager_interface_properties[] =
   &manager_interface_code_format,
   &manager_interface_code_format_prefix,
   &manager_interface_code_format_suffix,
+  &manager_interface_code_length,
   &manager_interface_account_id,
   NULL,
 };

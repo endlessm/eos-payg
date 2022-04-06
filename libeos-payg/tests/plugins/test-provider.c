@@ -80,6 +80,7 @@ typedef enum
   PROP_CODE_FORMAT,
   PROP_CODE_FORMAT_PREFIX,
   PROP_CODE_FORMAT_SUFFIX,
+  PROP_CODE_LENGTH,
   PROP_CLOCK,
   PROP_ACCOUNT_ID,
 } EpgTestProviderProperty;
@@ -107,6 +108,7 @@ epg_test_provider_class_init (EpgTestProviderClass *klass)
   g_object_class_override_property (object_class, PROP_CODE_FORMAT, "code-format");
   g_object_class_override_property (object_class, PROP_CODE_FORMAT_PREFIX, "code-format-prefix");
   g_object_class_override_property (object_class, PROP_CODE_FORMAT_SUFFIX, "code-format-suffix");
+  g_object_class_override_property (object_class, PROP_CODE_LENGTH, "code-length");
   g_object_class_override_property (object_class, PROP_CLOCK, "clock");
   g_object_class_override_property (object_class, PROP_ACCOUNT_ID, "account-id");
 }
@@ -139,6 +141,7 @@ epg_test_provider_provider_iface_init (gpointer g_iface,
   iface->code_format = "";
   iface->code_format_prefix = "";
   iface->code_format_suffix = "";
+  iface->code_length = 0;
 }
 
 static void
@@ -175,6 +178,9 @@ epg_test_provider_get_property (GObject    *object,
     case PROP_CODE_FORMAT_SUFFIX:
       g_value_set_static_string (value, epg_provider_get_code_format_suffix (provider));
       break;
+    case PROP_CODE_LENGTH:
+      g_value_set_uint (value, epg_provider_get_code_length (provider));
+      break;
     case PROP_CLOCK:
       g_value_set_object (value, epg_provider_get_clock (provider));
       break;
@@ -202,6 +208,7 @@ epg_test_provider_set_property (GObject      *object,
     case PROP_CODE_FORMAT:
     case PROP_CODE_FORMAT_PREFIX:
     case PROP_CODE_FORMAT_SUFFIX:
+    case PROP_CODE_LENGTH:
     case PROP_ACCOUNT_ID:
       /* Read only. */
       g_assert_not_reached ();

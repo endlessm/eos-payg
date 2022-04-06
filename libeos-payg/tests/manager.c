@@ -316,6 +316,21 @@ test_manager_code_format_suffix (Fixture *fixture,
   g_assert_cmpstr (code_format_suffix, ==, "");
 }
 
+/* test_code_format_suffix:
+ *
+ * Tests that the :code-length is properly returned.
+ */
+static void
+test_manager_code_length (Fixture *fixture,
+                          gconstpointer data)
+{
+  manager_new (fixture);
+
+  guint32 code_length = epg_provider_get_code_length (fixture->provider);
+
+  g_assert_cmpuint (code_length, ==, 8);
+}
+
 /* test_manager_code_format_matches:
  * @data: const gchar *
  *
@@ -910,6 +925,7 @@ main (int    argc,
   T ("/manager/add-infinite", test_manager_add_infinite_code, NULL);
   T ("/manager/get-code-format-prefix", test_manager_code_format_prefix, NULL);
   T ("/manager/get-code-format-suffix", test_manager_code_format_suffix, NULL);
+  T ("/manager/get-code-length", test_manager_code_length, NULL);
   T ("/manager/get-account-id-missing", test_manager_account_id,
      GUINT_TO_POINTER (0));
   T ("/manager/get-account-id-present", test_manager_account_id,
