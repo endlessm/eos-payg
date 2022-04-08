@@ -31,7 +31,7 @@ def set_usb_path():
         usb_path_obj = get_usb_path(drive)
         if usb_path_obj["path"]:
             global cwd
-            cwd = usb_path_obj["path"] + "/"
+            cwd = usb_path_obj["path"] + "/" + device_id + "/"
             break
     if not cwd:
         print(usb_path_obj["errors"], file=sys.stderr)
@@ -289,7 +289,7 @@ def write_to_json(test_code_data):
 
 
 if __name__ == "__main__":
-    set_usb_path()
     read_machine_id()
+    set_usb_path()
     run_key_install()
     install_instructions()
