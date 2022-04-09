@@ -31,7 +31,7 @@ def set_usb_path():
         usb_path_obj = get_usb_path(drive)
         if usb_path_obj["path"]:
             global cwd
-            cwd = usb_path_obj["path"] + "/"
+            cwd = usb_path_obj["path"] + "/" + device_id + "/"
             break
     if not cwd:
         print(usb_path_obj["errors"], file=sys.stderr)
@@ -181,7 +181,7 @@ def run_key_install():
     except FileNotFoundError:
         pass
         # file doesn't exist
-    generate_codes(keygen_output, read_machine_id())
+    generate_codes(keygen_output, device_id)
 
 
 def read_machine_id():
@@ -194,7 +194,6 @@ def read_machine_id():
     device_id = machine_id[0:8].upper()
     print(device_id)
     write_to_file("/usr/local/share/eos-payg/account-id", device_id)
-    return device_id
 
 
 def key_gen(key, device_id):
@@ -290,6 +289,7 @@ def write_to_json(test_code_data):
 
 
 if __name__ == "__main__":
+    read_machine_id()
     set_usb_path()
     run_key_install()
     install_instructions()
