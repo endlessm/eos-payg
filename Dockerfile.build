@@ -1,0 +1,17 @@
+# Dockerfile for building eos-payg
+
+# Start from the eos image in our private repo. To use a different
+# version than EOS master, pass --build-arg=branch=eosX.Y.
+ARG branch=master
+FROM registry.endlessm-sf.com/eos:${branch}
+
+# Install dependencies. The debian/control file is copied in so that
+# apt-get build-dep finds it relative to the directory it's called with.
+# build-essential is installed like it would on a normal build machine.
+# Any additional packages can be added in the packages build argument.
+COPY debian/control /debian/control
+ARG packages
+RUN apt-get update && \
+    apt-get -y install build-essential ${packages} && \
+    apt-get -y build-dep / && \
+    apt-get clean
