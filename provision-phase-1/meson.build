@@ -21,15 +21,3 @@ endless_factory_test_tar_sha256 = custom_target('Endless_Factory_Test.tar.sha256
   command: [find_program('hide_provenance.sh'), '@INPUT@'],
   capture: true,
 )
-
-# Check that the committed copies of these files are up-to-date
-diff = find_program('diff')
-foreach pair: [
-  ['Endless_Factory_Test.tar', endless_factory_test_tar],
-  ['Endless_Factory_Test.tar.sha256', endless_factory_test_tar_sha256],
-]
-  test(pair[0] + '-up-to-date',
-    diff,
-    args: [files(pair[0]), pair[1]],
-  )
-endforeach
