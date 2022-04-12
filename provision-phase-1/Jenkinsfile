@@ -11,6 +11,7 @@ pipeline {
     stages {
         stage('Build') {
             steps {
+                sh 'git submodule update'
                 sh 'meson . build'
 
                 // Just build the tarballs and sha256 files
