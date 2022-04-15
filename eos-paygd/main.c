@@ -35,7 +35,61 @@
 #include <sys/un.h>
 #include <libeos-payg/efi.h>
 
+#define LOG_FILE_NAME "/var/log/eos-payg.log"
+
 #define TIMEOUT_POWEROFF_ON_ERROR_MINUTES 20
+
+/* we can't use g_log_writer_default_would_drop until glib 2.68, which will be
+ * available on EOS 5.0+, so we are copying a simplified version of its
+ * implementation here.
+ */
+#define DEFAULT_LEVELS (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING | G_LOG_LEVEL_MESSAGE)
+#define INFO_LEVELS (G_LOG_LEVEL_INFO | G_LOG_LEVEL_DEBUG)
+static gboolean
+should_drop_message (GLogLevelFlags log_level)
+{
+  /* Disable debug message output unless specified in G_MESSAGES_DEBUG. */
+  if (!(log_level & DEFAULT_LEVELS) && !(log_level >> G_LOG_LEVEL_USER_SHIFT))
+    {
+      const gchar *domains = g_getenv ("G_MESSAGES_DEBUG");
+
+      if ((log_level & INFO_LEVELS) == 0 ||
+          domains == NULL)
+        return TRUE;
+
+      if (strcmp (domains, "all") != 0)
+        return TRUE;
+    }
+
+  return FALSE;
+}
+
+/* Custom log writer function that saves messages to a separate file before
+ * forwarding them to the default writer function.
+ */
+static GLogWriterOutput
+log_writer (GLogLevelFlags log_level,
+            const GLogField* fields,
+            gsize n_fields,
+            gpointer user_data)
+{
+  g_autofree gchar *out = NULL;
+  GIOChannel *log_io = (GIOChannel *) user_data;
+
+  g_return_val_if_fail (fields != NULL, G_LOG_WRITER_UNHANDLED);
+  g_return_val_if_fail (n_fields > 0, G_LOG_WRITER_UNHANDLED);
+
+  if (should_drop_message (log_level))
+    return G_LOG_WRITER_HANDLED;
+
+  out = g_log_writer_format_fields (log_level, fields, n_fields, FALSE);
+  g_io_channel_write_chars (log_io, out, -1, NULL, NULL);
+  g_io_channel_write_chars (log_io, "\n", 1, NULL, NULL);
+  g_io_channel_flush (log_io, NULL);
+
+  /* now pass the message to the the default writer function as well */
+  return g_log_writer_default (log_level, fields, n_fields, user_data);
+}
 
 static int watchdog_fd = -1;
 
@@ -231,6 +285,7 @@ main (int   argc,
   g_autoptr(GError) error = NULL;
   g_autoptr(EpgService) service = NULL;
   g_autoptr(GFile) state_dir = NULL;
+  GIOChannel *log_io = NULL;
   int ret = EXIT_SUCCESS, sd_notify_ret, system_ret, exit_signal = 0;
   int lsm_fd;
   guint timeout_id = 0, watchdog_id = 0;
@@ -487,6 +542,19 @@ main (int   argc,
       eospayg_efi_root_pivot ();
     }
 
+  /* Try to log to a file in /var, in addition to the journal, so we have
+   * persistent logs even on systems with fragile storage.
+   */
+  log_io = g_io_channel_new_file (LOG_FILE_NAME, "a", &error);
+  if (!log_io)
+    {
+      g_warning ("Failed to open %s: %s", LOG_FILE_NAME, error->message);
+    }
+  else
+    {
+      g_log_set_writer_func (log_writer, log_io, NULL);
+    }
+
   /* Technically this existence check is racy but no other process should be
    * accessing this path
    */
@@ -568,6 +636,9 @@ main (int   argc,
       while (TRUE)
         g_main_context_iteration (NULL, TRUE);
     }
+
+  if (log_io)
+    g_io_channel_unref (log_io);
 
   return ret;
 }
