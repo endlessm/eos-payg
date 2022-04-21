@@ -36,6 +36,10 @@ systemdsystemunitdir = get_option('systemdsystemunitdir')
 if systemdsystemunitdir == ''
   systemdsystemunitdir = systemd.get_pkgconfig_variable('systemdsystemunitdir')
 endif
+tmpfilesdir = get_option('tmpfilesdir')
+if tmpfilesdir == ''
+  tmpfilesdir = systemd.get_pkgconfig_variable('tmpfilesdir')
+endif
 
 # eos-paygd service for Phase 2 PAYG systems
 configure_file(
@@ -50,6 +54,12 @@ configure_file(
   output: 'eos-paygd-2.service',
   install_dir: systemdsystemunitdir,
   configuration: config,
+)
+# eos-paygd tmpfile for maintaining logs directory
+install_data(
+  'eos-paygd.tmpfile',
+  rename: 'eos-paygd.conf',
+  install_dir: tmpfilesdir,
 )
 
 # Documentation

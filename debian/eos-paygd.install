@@ -1,5 +1,6 @@
 lib/systemd/system/eos-paygd.service
 lib/systemd/system/eos-paygd-2.service
+usr/lib/tmpfiles.d/eos-paygd.conf
 usr/lib/*/eos-payg-1/libeos-payg-1.so
 usr/lib/*/eos-paygd1
 usr/share/dbus-1/system.d/com.endlessm.Payg1.conf
