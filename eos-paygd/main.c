@@ -44,23 +44,10 @@
 static GIOChannel *
 open_log_file (void)
 {
-  int system_ret;
   const gchar *log_file_name = NULL;
   g_autoptr(GFile) log_file = NULL;
   g_autoptr(GDateTime) now = NULL;
   g_autofree gchar *tstamp = NULL;
-  g_autoptr(GError) error = NULL;
-  GIOChannel *log_io = NULL;
-
-  /* Use /bin/mkdir instead of mkdir() to ensure the mode is unaffected by
-   * the process's umask.
-   */
-  system_ret = system ("/bin/mkdir -p --mode=755 " LOGFILE_DIRNAME);
-  if (system_ret == -1 || !WIFEXITED (system_ret) || WEXITSTATUS (system_ret) != 0)
-    {
-      g_warning ("mkdir of %s failed", LOGFILE_DIRNAME);
-      return NULL;
-    }
 
   /* Build log file name with a date stamp so we get one file per day,
    * ex., eos-paygd-20220418.log
@@ -71,11 +58,9 @@ open_log_file (void)
                                tstamp, ".", LOGFILE_EXT, NULL);
   log_file = g_file_new_for_path (log_file_name);
 
-  log_io = g_io_channel_new_file (log_file_name, "a", &error);
-  if (!log_io)
-    g_warning ("Failed to open %s: %s", log_file_name, error->message);
-
-  return log_io;
+  /* We can't log an error here if this fails, as it would cause infinite
+   * recursion */
+  return g_io_channel_new_file (log_file_name, "a", NULL);
 }
 
 /* we can't use g_log_writer_default_would_drop until glib 2.68, which will be
@@ -112,8 +97,7 @@ log_writer (GLogLevelFlags log_level,
             gsize n_fields,
             gpointer user_data)
 {
-  g_autofree gchar *out = NULL;
-  GIOChannel *log_io = (GIOChannel *) user_data;
+  GIOChannel *log_io = NULL;
 
   g_return_val_if_fail (fields != NULL, G_LOG_WRITER_UNHANDLED);
   g_return_val_if_fail (n_fields > 0, G_LOG_WRITER_UNHANDLED);
@@ -121,10 +105,15 @@ log_writer (GLogLevelFlags log_level,
   if (should_drop_message (log_level))
     return G_LOG_WRITER_HANDLED;
 
-  out = g_log_writer_format_fields (log_level, fields, n_fields, FALSE);
-  g_io_channel_write_chars (log_io, out, -1, NULL, NULL);
-  g_io_channel_write_chars (log_io, "\n", 1, NULL, NULL);
-  g_io_channel_flush (log_io, NULL);
+  log_io = open_log_file ();
+  if (log_io)
+    {
+      g_autofree gchar *out = NULL;
+      out = g_log_writer_format_fields (log_level, fields, n_fields, FALSE);
+      g_io_channel_write_chars (log_io, out, -1, NULL, NULL);
+      g_io_channel_write_chars (log_io, "\n", 1, NULL, NULL);
+      g_io_channel_unref (log_io); /* flush + close + free */
+    }
 
   /* now pass the message to the the default writer function as well */
   return g_log_writer_default (log_level, fields, n_fields, user_data);
@@ -324,7 +313,6 @@ main (int   argc,
   g_autoptr(GError) error = NULL;
   g_autoptr(EpgService) service = NULL;
   g_autoptr(GFile) state_dir = NULL;
-  GIOChannel *log_io = NULL;
   int ret = EXIT_SUCCESS, sd_notify_ret, system_ret, exit_signal = 0;
   int lsm_fd;
   guint timeout_id = 0, watchdog_id = 0;
@@ -581,12 +569,22 @@ main (int   argc,
       eospayg_efi_root_pivot ();
     }
 
-  /* Try to log to a file in /var, in addition to the journal, so we have
-   * persistent logs even on systems with fragile storage.
+  /* Use /bin/mkdir instead of mkdir() to ensure the mode is unaffected by
+   * the process's umask.
    */
-  log_io = open_log_file ();
-  if (log_io)
-    g_log_set_writer_func (log_writer, log_io, NULL);
+  system_ret = system ("/bin/mkdir -p --mode=755 " LOGFILE_DIRNAME);
+  if (system_ret == -1 || !WIFEXITED (system_ret) || WEXITSTATUS (system_ret) != 0)
+    {
+      g_warning ("Failed to create logs directory %s", LOGFILE_DIRNAME);
+    }
+  else
+    {
+      /* Install a custom log writer that writes to a log file in /var, in
+       * addition to the journal, so we have persistent logs even on systems
+       * with fragile storage.
+       */
+      g_log_set_writer_func (log_writer, NULL, NULL);
+    }
 
   /* Technically this existence check is racy but no other process should be
    * accessing this path
@@ -669,9 +667,6 @@ main (int   argc,
       while (TRUE)
         g_main_context_iteration (NULL, TRUE);
     }
-
-  if (log_io)
-    g_io_channel_unref (log_io);
 
   return ret;
 }
