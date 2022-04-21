@@ -35,9 +35,48 @@
 #include <sys/un.h>
 #include <libeos-payg/efi.h>
 
-#define LOG_FILE_NAME "/var/log/eos-payg.log"
+#define LOGFILE_DIRNAME "/var/log/eos-payg"
+#define LOGFILE_BASENAME "eos-paygd"
+#define LOGFILE_EXT "log"
 
 #define TIMEOUT_POWEROFF_ON_ERROR_MINUTES 20
+
+static GIOChannel *
+open_log_file (void)
+{
+  int system_ret;
+  const gchar *log_file_name = NULL;
+  g_autoptr(GFile) log_file = NULL;
+  g_autoptr(GDateTime) now = NULL;
+  g_autofree gchar *tstamp = NULL;
+  g_autoptr(GError) error = NULL;
+  GIOChannel *log_io = NULL;
+
+  /* Use /bin/mkdir instead of mkdir() to ensure the mode is unaffected by
+   * the process's umask.
+   */
+  system_ret = system ("/bin/mkdir -p --mode=755 " LOGFILE_DIRNAME);
+  if (system_ret == -1 || !WIFEXITED (system_ret) || WEXITSTATUS (system_ret) != 0)
+    {
+      g_warning ("mkdir of %s failed", LOGFILE_DIRNAME);
+      return NULL;
+    }
+
+  /* Build log file name with a date stamp so we get one file per day,
+   * ex., eos-paygd-20220418.log
+   */
+  now = g_date_time_new_now_local ();
+  tstamp = g_date_time_format (now, "%Y%m%d");
+  log_file_name = g_strconcat (LOGFILE_DIRNAME, "/", LOGFILE_BASENAME, "-",
+                               tstamp, ".", LOGFILE_EXT, NULL);
+  log_file = g_file_new_for_path (log_file_name);
+
+  log_io = g_io_channel_new_file (log_file_name, "a", &error);
+  if (!log_io)
+    g_warning ("Failed to open %s: %s", log_file_name, error->message);
+
+  return log_io;
+}
 
 /* we can't use g_log_writer_default_would_drop until glib 2.68, which will be
  * available on EOS 5.0+, so we are copying a simplified version of its
@@ -545,15 +584,9 @@ main (int   argc,
   /* Try to log to a file in /var, in addition to the journal, so we have
    * persistent logs even on systems with fragile storage.
    */
-  log_io = g_io_channel_new_file (LOG_FILE_NAME, "a", &error);
-  if (!log_io)
-    {
-      g_warning ("Failed to open %s: %s", LOG_FILE_NAME, error->message);
-    }
-  else
-    {
-      g_log_set_writer_func (log_writer, log_io, NULL);
-    }
+  log_io = open_log_file ();
+  if (log_io)
+    g_log_set_writer_func (log_writer, log_io, NULL);
 
   /* Technically this existence check is racy but no other process should be
    * accessing this path
