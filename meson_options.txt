@@ -19,3 +19,7 @@ option('sysusersdir',
   description: 'the directory to install sysusers files to (default: looked up with pkgconfig)',
   type: 'string',
 )
+option('tmpfilesdir',
+  description: 'the directory to install tmpfiles to (default: looked up with pkgconfig)',
+  type: 'string'
+)

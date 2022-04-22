@@ -35,7 +35,89 @@
 #include <sys/un.h>
 #include <libeos-payg/efi.h>
 
+#define LOGFILE_DIRNAME "/var/log/eos-payg"
+#define LOGFILE_BASENAME "eos-paygd"
+#define LOGFILE_EXT "log"
+
 #define TIMEOUT_POWEROFF_ON_ERROR_MINUTES 20
+
+static GIOChannel *
+open_log_file (void)
+{
+  const gchar *log_file_name = NULL;
+  g_autoptr(GFile) log_file = NULL;
+  g_autoptr(GDateTime) now = NULL;
+  g_autofree gchar *tstamp = NULL;
+
+  /* Build log file name with a date stamp so we get one file per day,
+   * ex., eos-paygd-20220418.log
+   */
+  now = g_date_time_new_now_local ();
+  tstamp = g_date_time_format (now, "%Y%m%d");
+  log_file_name = g_strconcat (LOGFILE_DIRNAME, "/", LOGFILE_BASENAME, "-",
+                               tstamp, ".", LOGFILE_EXT, NULL);
+  log_file = g_file_new_for_path (log_file_name);
+
+  /* We can't log an error here if this fails, as it would cause infinite
+   * recursion */
+  return g_io_channel_new_file (log_file_name, "a", NULL);
+}
+
+/* we can't use g_log_writer_default_would_drop until glib 2.68, which will be
+ * available on EOS 5.0+, so we are copying a simplified version of its
+ * implementation here.
+ */
+#define DEFAULT_LEVELS (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING | G_LOG_LEVEL_MESSAGE)
+#define INFO_LEVELS (G_LOG_LEVEL_INFO | G_LOG_LEVEL_DEBUG)
+static gboolean
+should_drop_message (GLogLevelFlags log_level)
+{
+  /* Disable debug message output unless specified in G_MESSAGES_DEBUG. */
+  if (!(log_level & DEFAULT_LEVELS) && !(log_level >> G_LOG_LEVEL_USER_SHIFT))
+    {
+      const gchar *domains = g_getenv ("G_MESSAGES_DEBUG");
+
+      if ((log_level & INFO_LEVELS) == 0 ||
+          domains == NULL)
+        return TRUE;
+
+      if (strcmp (domains, "all") != 0)
+        return TRUE;
+    }
+
+  return FALSE;
+}
+
+/* Custom log writer function that saves messages to a separate file before
+ * forwarding them to the default writer function.
+ */
+static GLogWriterOutput
+log_writer (GLogLevelFlags log_level,
+            const GLogField* fields,
+            gsize n_fields,
+            gpointer user_data)
+{
+  GIOChannel *log_io = NULL;
+
+  g_return_val_if_fail (fields != NULL, G_LOG_WRITER_UNHANDLED);
+  g_return_val_if_fail (n_fields > 0, G_LOG_WRITER_UNHANDLED);
+
+  if (should_drop_message (log_level))
+    return G_LOG_WRITER_HANDLED;
+
+  log_io = open_log_file ();
+  if (log_io)
+    {
+      g_autofree gchar *out = NULL;
+      out = g_log_writer_format_fields (log_level, fields, n_fields, FALSE);
+      g_io_channel_write_chars (log_io, out, -1, NULL, NULL);
+      g_io_channel_write_chars (log_io, "\n", 1, NULL, NULL);
+      g_io_channel_unref (log_io); /* flush + close + free */
+    }
+
+  /* now pass the message to the the default writer function as well */
+  return g_log_writer_default (log_level, fields, n_fields, user_data);
+}
 
 static int watchdog_fd = -1;
 
@@ -485,6 +567,23 @@ main (int   argc,
        * anything unsafe
        */
       eospayg_efi_root_pivot ();
+    }
+
+  /* Use /bin/mkdir instead of mkdir() to ensure the mode is unaffected by
+   * the process's umask.
+   */
+  system_ret = system ("/bin/mkdir -p --mode=755 " LOGFILE_DIRNAME);
+  if (system_ret == -1 || !WIFEXITED (system_ret) || WEXITSTATUS (system_ret) != 0)
+    {
+      g_warning ("Failed to create logs directory %s", LOGFILE_DIRNAME);
+    }
+  else
+    {
+      /* Install a custom log writer that writes to a log file in /var, in
+       * addition to the journal, so we have persistent logs even on systems
+       * with fragile storage.
+       */
+      g_log_set_writer_func (log_writer, NULL, NULL);
     }
 
   /* Technically this existence check is racy but no other process should be
