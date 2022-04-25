@@ -110,6 +110,10 @@ log_writer (GLogLevelFlags log_level,
   if (should_drop_message (log_level, NULL))
     return G_LOG_WRITER_HANDLED;
 
+  /* Always re-construct the log file name and re-open the file it for every
+   * log message. Since the log file name contains a date stamp, this will
+   * split logs in per-day files, making it easy to rotate logs with tmpfiles.
+   */
   log_io = open_log_file ();
   if (log_io)
     {
