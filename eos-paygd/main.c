@@ -45,7 +45,6 @@ static GIOChannel *
 open_log_file (void)
 {
   g_autofree gchar *log_file_name = NULL;
-  g_autoptr(GFile) log_file = NULL;
   g_autoptr(GDateTime) now = NULL;
   g_autofree gchar *tstamp = NULL;
 
@@ -56,7 +55,6 @@ open_log_file (void)
   tstamp = g_date_time_format (now, "%Y%m%d");
   log_file_name = g_strconcat (LOGFILE_DIRNAME, "/", LOGFILE_BASENAME, "-",
                                tstamp, ".", LOGFILE_EXT, NULL);
-  log_file = g_file_new_for_path (log_file_name);
 
   /* We can't log an error here if this fails, as it would cause infinite
    * recursion */
