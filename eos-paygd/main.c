@@ -576,6 +576,13 @@ main (int   argc,
 
   /* Use /bin/mkdir instead of mkdir() to ensure the mode is unaffected by
    * the process's umask.
+   *
+   * This runs after the real /var is available, as eos-paygd runs after
+   * `initrd-root-fs.target`. However, we cannot rely on systemd-tmpfiles having
+   * been run by this point, and neither can we use `LogsDirectory=` (as that
+   * would imply `RequiresMountsFor=/var`, which would delay startup or create
+   * an impossible systemd transaction). Hence the logs directory has to be
+   * created manually.
    */
   system_ret = system ("/bin/mkdir -p --mode=755 " LOGFILE_DIRNAME);
   if (system_ret == -1 || !WIFEXITED (system_ret) || WEXITSTATUS (system_ret) != 0)
