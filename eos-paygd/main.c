@@ -45,6 +45,7 @@ static GIOChannel *
 open_log_file (void)
 {
   g_autofree gchar *log_file_name = NULL;
+  g_autofree gchar *log_file_path = NULL;
   g_autoptr(GDateTime) now = NULL;
   g_autofree gchar *tstamp = NULL;
 
@@ -53,12 +54,12 @@ open_log_file (void)
    */
   now = g_date_time_new_now_local ();
   tstamp = g_date_time_format (now, "%Y%m%d");
-  log_file_name = g_strconcat (LOGFILE_DIRNAME, "/", LOGFILE_BASENAME, "-",
-                               tstamp, ".", LOGFILE_EXT, NULL);
+  log_file_name = g_strconcat (LOGFILE_BASENAME, "-", tstamp, ".", LOGFILE_EXT, NULL);
+  log_file_path = g_build_filename (LOGFILE_DIRNAME, log_file_name, NULL);
 
   /* We can't log an error here if this fails, as it would cause infinite
    * recursion */
-  return g_io_channel_new_file (log_file_name, "a", NULL);
+  return g_io_channel_new_file (log_file_path, "a", NULL);
 }
 
 /* we can't use g_log_writer_default_would_drop until glib 2.68, which will be
