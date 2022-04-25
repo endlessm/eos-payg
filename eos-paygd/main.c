@@ -66,11 +66,16 @@ open_log_file (void)
  * available on EOS 5.0+, so we are copying a simplified version of its
  * implementation here.
  */
+static gboolean
+should_drop_message (GLogLevelFlags  log_level,
+                     const char     *log_domain)
+{
+#if GLIB_CHECK_VERSION(2, 68, 0)
+  return g_log_writer_default_would_drop (log_level, log_domain);
+#else
 #define DEFAULT_LEVELS (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING | G_LOG_LEVEL_MESSAGE)
 #define INFO_LEVELS (G_LOG_LEVEL_INFO | G_LOG_LEVEL_DEBUG)
-static gboolean
-should_drop_message (GLogLevelFlags log_level)
-{
+
   /* Disable debug message output unless specified in G_MESSAGES_DEBUG. */
   if (!(log_level & DEFAULT_LEVELS) && !(log_level >> G_LOG_LEVEL_USER_SHIFT))
     {
@@ -85,6 +90,7 @@ should_drop_message (GLogLevelFlags log_level)
     }
 
   return FALSE;
+#endif
 }
 
 /* Custom log writer function that saves messages to a separate file before
@@ -101,7 +107,7 @@ log_writer (GLogLevelFlags log_level,
   g_return_val_if_fail (fields != NULL, G_LOG_WRITER_UNHANDLED);
   g_return_val_if_fail (n_fields > 0, G_LOG_WRITER_UNHANDLED);
 
-  if (should_drop_message (log_level))
+  if (should_drop_message (log_level, NULL))
     return G_LOG_WRITER_HANDLED;
 
   log_io = open_log_file ();
