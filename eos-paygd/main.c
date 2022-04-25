@@ -44,7 +44,7 @@
 static GIOChannel *
 open_log_file (void)
 {
-  const gchar *log_file_name = NULL;
+  g_autofree gchar *log_file_name = NULL;
   g_autoptr(GFile) log_file = NULL;
   g_autoptr(GDateTime) now = NULL;
   g_autofree gchar *tstamp = NULL;
