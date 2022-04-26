@@ -44,8 +44,8 @@
 static GIOChannel *
 open_log_file (void)
 {
-  const gchar *log_file_name = NULL;
-  g_autoptr(GFile) log_file = NULL;
+  g_autofree gchar *log_file_name = NULL;
+  g_autofree gchar *log_file_path = NULL;
   g_autoptr(GDateTime) now = NULL;
   g_autofree gchar *tstamp = NULL;
 
@@ -54,24 +54,28 @@ open_log_file (void)
    */
   now = g_date_time_new_now_local ();
   tstamp = g_date_time_format (now, "%Y%m%d");
-  log_file_name = g_strconcat (LOGFILE_DIRNAME, "/", LOGFILE_BASENAME, "-",
-                               tstamp, ".", LOGFILE_EXT, NULL);
-  log_file = g_file_new_for_path (log_file_name);
+  log_file_name = g_strconcat (LOGFILE_BASENAME, "-", tstamp, ".", LOGFILE_EXT, NULL);
+  log_file_path = g_build_filename (LOGFILE_DIRNAME, log_file_name, NULL);
 
   /* We can't log an error here if this fails, as it would cause infinite
    * recursion */
-  return g_io_channel_new_file (log_file_name, "a", NULL);
+  return g_io_channel_new_file (log_file_path, "a", NULL);
 }
 
 /* we can't use g_log_writer_default_would_drop until glib 2.68, which will be
  * available on EOS 5.0+, so we are copying a simplified version of its
  * implementation here.
  */
+static gboolean
+should_drop_message (GLogLevelFlags  log_level,
+                     const char     *log_domain)
+{
+#if GLIB_CHECK_VERSION(2, 68, 0)
+  return g_log_writer_default_would_drop (log_level, log_domain);
+#else
 #define DEFAULT_LEVELS (G_LOG_LEVEL_ERROR | G_LOG_LEVEL_CRITICAL | G_LOG_LEVEL_WARNING | G_LOG_LEVEL_MESSAGE)
 #define INFO_LEVELS (G_LOG_LEVEL_INFO | G_LOG_LEVEL_DEBUG)
-static gboolean
-should_drop_message (GLogLevelFlags log_level)
-{
+
   /* Disable debug message output unless specified in G_MESSAGES_DEBUG. */
   if (!(log_level & DEFAULT_LEVELS) && !(log_level >> G_LOG_LEVEL_USER_SHIFT))
     {
@@ -86,6 +90,7 @@ should_drop_message (GLogLevelFlags log_level)
     }
 
   return FALSE;
+#endif
 }
 
 /* Custom log writer function that saves messages to a separate file before
@@ -102,9 +107,13 @@ log_writer (GLogLevelFlags log_level,
   g_return_val_if_fail (fields != NULL, G_LOG_WRITER_UNHANDLED);
   g_return_val_if_fail (n_fields > 0, G_LOG_WRITER_UNHANDLED);
 
-  if (should_drop_message (log_level))
+  if (should_drop_message (log_level, NULL))
     return G_LOG_WRITER_HANDLED;
 
+  /* Always re-construct the log file name and re-open the file it for every
+   * log message. Since the log file name contains a date stamp, this will
+   * split logs in per-day files, making it easy to rotate logs with tmpfiles.
+   */
   log_io = open_log_file ();
   if (log_io)
     {
@@ -571,6 +580,13 @@ main (int   argc,
 
   /* Use /bin/mkdir instead of mkdir() to ensure the mode is unaffected by
    * the process's umask.
+   *
+   * This runs after the real /var is available, as eos-paygd runs after
+   * `initrd-root-fs.target`. However, we cannot rely on systemd-tmpfiles having
+   * been run by this point, and neither can we use `LogsDirectory=` (as that
+   * would imply `RequiresMountsFor=/var`, which would delay startup or create
+   * an impossible systemd transaction). Hence the logs directory has to be
+   * created manually.
    */
   system_ret = system ("/bin/mkdir -p --mode=755 " LOGFILE_DIRNAME);
   if (system_ret == -1 || !WIFEXITED (system_ret) || WEXITSTATUS (system_ret) != 0)
