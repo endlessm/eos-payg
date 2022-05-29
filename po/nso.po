@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-12-05 13:29+0000\n"
+"POT-Creation-Date: 2022-05-29 12:29+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
 "Language-Team: Northern Sotho (https://www.transifex.com/endless-os/teams/9016/nso/)\n"
 "MIME-Version: 1.0\n"
@@ -185,39 +185,39 @@ msgstr ""
 msgid "Codes must be 8 digits long."
 msgstr ""
 
-#: libeos-payg/manager.c:545
+#: libeos-payg/manager.c:593
 msgid "Pay as you go is disabled on this computer."
 msgstr ""
 
-#: libeos-payg/manager.c:602
+#: libeos-payg/manager.c:650
 msgid "Too many invalid codes entered recently; please wait"
 msgstr ""
 
-#: libeos-payg/manager.c:644
+#: libeos-payg/manager.c:692
 msgid "This pay as you go code has already been used."
 msgstr ""
 
-#: libeos-payg/manager.c:1132
+#: libeos-payg/manager.c:1184
 #, c-format
 msgid "State file ‘%s’ was the wrong length."
 msgstr ""
 
-#: libeos-payg/manager-service.c:557
+#: libeos-payg/manager-service.c:571
 #, c-format
 msgid "Invalid interface name ‘%s’."
 msgstr ""
 
-#: libeos-payg/manager-service.c:714 libeos-payg/manager-service.c:754
+#: libeos-payg/manager-service.c:730 libeos-payg/manager-service.c:770
 #, c-format
 msgid "Unknown property ‘%s.%s’."
 msgstr ""
 
-#: libeos-payg/manager-service.c:746
+#: libeos-payg/manager-service.c:762
 #, c-format
 msgid "Property ‘%s.%s’ is read-only."
 msgstr ""
 
-#: libeos-payg/manager-service.c:776
+#: libeos-payg/manager-service.c:792
 #, c-format
 msgid "Unknown interface ‘%s’."
 msgstr ""

@@ -16,7 +16,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2021-12-05 13:29+0000\n"
+"POT-Creation-Date: 2022-05-29 12:29+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
 "Last-Translator: Will Thompson <wjt@endlessos.org>, 2020\n"
 "Language-Team: Spanish (https://www.transifex.com/endless-os/teams/9016/es/)\n"
@@ -24,7 +24,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Language: es\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Plural-Forms: nplurals=3; plural=n == 1 ? 0 : n != 0 && n % 1000000 == 0 ? 1 : 2;\n"
 
 #: eos-payg-generate/main.c:49
 msgid "5 seconds"
@@ -195,41 +195,41 @@ msgstr "Firma inválida en el código %s."
 msgid "Codes must be 8 digits long."
 msgstr "Los códigos deben ser de 8 dígitos."
 
-#: libeos-payg/manager.c:545
+#: libeos-payg/manager.c:593
 msgid "Pay as you go is disabled on this computer."
 msgstr "Endless Prepago está deshabilitada en esta computadora."
 
-#: libeos-payg/manager.c:602
+#: libeos-payg/manager.c:650
 msgid "Too many invalid codes entered recently; please wait"
 msgstr ""
 "Demasiados códigos inválidos fueron ingresados recientemente; por favor "
 "espera"
 
-#: libeos-payg/manager.c:644
+#: libeos-payg/manager.c:692
 msgid "This pay as you go code has already been used."
 msgstr "Este código para Endless Prepago ya fue usado."
 
-#: libeos-payg/manager.c:1132
+#: libeos-payg/manager.c:1184
 #, c-format
 msgid "State file ‘%s’ was the wrong length."
 msgstr "Indica que el archivo '%s' es de una longitud incorrecta."
 
-#: libeos-payg/manager-service.c:557
+#: libeos-payg/manager-service.c:571
 #, c-format
 msgid "Invalid interface name ‘%s’."
 msgstr "Nombre de interfaz inválido '%s'."
 
-#: libeos-payg/manager-service.c:714 libeos-payg/manager-service.c:754
+#: libeos-payg/manager-service.c:730 libeos-payg/manager-service.c:770
 #, c-format
 msgid "Unknown property ‘%s.%s’."
 msgstr "Propiedad desconocida '%s. %s'."
 
-#: libeos-payg/manager-service.c:746
+#: libeos-payg/manager-service.c:762
 #, c-format
 msgid "Property ‘%s.%s’ is read-only."
 msgstr "La propiedad '%s. %s' es de solo lectura."
 
-#: libeos-payg/manager-service.c:776
+#: libeos-payg/manager-service.c:792
 #, c-format
 msgid "Unknown interface ‘%s’."
 msgstr "Interfaz desconocida '%s'."
