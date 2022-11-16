@@ -81,7 +81,8 @@ static gboolean    epg_manager_shutdown_finish (EpgProvider          *provider,
                                                 GError              **error);
 
 static void        epg_manager_wallclock_time_changed (EpgProvider *provider,
-                                                       gint64       delta);
+                                                       gint64       delta,
+                                                       gint64       now_secs);
 
 static void        internal_save_state_cb (GObject      *source_object,
                                            GAsyncResult *result,
@@ -1685,7 +1686,8 @@ epg_manager_shutdown_finish (EpgProvider   *provider,
 
 static void
 epg_manager_wallclock_time_changed (EpgProvider *provider,
-                                    gint64       delta)
+                                    gint64       delta,
+                                    gint64       now_secs)
 {
   EpgManager *self = EPG_MANAGER (provider);
 
@@ -1698,8 +1700,6 @@ epg_manager_wallclock_time_changed (EpgProvider *provider,
    * miscalculated the consumption of credit at startup. */
   if (delta > 0)
     {
-      guint64 now_secs = epg_clock_get_time (self->clock);
-
       /* FIXME: This actually extends the expiration rather than reducing it
        * but the Endless backend is basically deprecated anyway in favor of
        * Angaza.

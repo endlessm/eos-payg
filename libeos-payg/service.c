@@ -241,7 +241,7 @@ clock_jump_cb (gpointer user_data)
   if (clock_jump_delta != 0)
     {
       g_message ("Detected system clock jump of %" G_GINT64_FORMAT " seconds", clock_jump_delta);
-      epg_provider_wallclock_time_changed (self->provider, clock_jump_delta);
+      epg_provider_wallclock_time_changed (self->provider, clock_jump_delta, clock_realtime_secs_v1);
     }
 
   self->clock_realtime_secs_v0 = clock_realtime_secs_v1;

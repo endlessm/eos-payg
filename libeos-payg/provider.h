@@ -50,7 +50,8 @@ struct _EpgProviderInterface
                                       GError       **error);
 
   void            (*wallclock_time_changed)  (EpgProvider *self,
-                                              gint64       delta);
+                                              gint64       delta,
+                                              gint64       now_secs);
 
   guint64         (*get_expiry_time)         (EpgProvider *self);
   gboolean        (*get_enabled)             (EpgProvider *self);
@@ -80,7 +81,8 @@ gboolean        epg_provider_shutdown_finish (EpgProvider   *self,
                                               GError       **error);
 
 void            epg_provider_wallclock_time_changed  (EpgProvider *self,
-                                                      gint64       delta);
+                                                      gint64       delta,
+                                                      gint64       now_secs);
 
 guint64         epg_provider_get_expiry_time         (EpgProvider *self);
 gboolean        epg_provider_get_enabled             (EpgProvider *self);
