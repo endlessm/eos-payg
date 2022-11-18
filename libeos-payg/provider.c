@@ -383,7 +383,8 @@ epg_provider_shutdown_finish (EpgProvider   *self,
  */
 void
 epg_provider_wallclock_time_changed (EpgProvider   *self,
-                                     gint64         delta)
+                                     gint64         delta,
+                                     gint64         now_secs)
 {
   g_return_if_fail (EPG_IS_PROVIDER (self));
 
@@ -391,7 +392,7 @@ epg_provider_wallclock_time_changed (EpgProvider   *self,
 
   g_assert (iface->wallclock_time_changed != NULL);
 
-  return iface->wallclock_time_changed (self, delta);
+  return iface->wallclock_time_changed (self, delta, now_secs);
 }
 
 /**
