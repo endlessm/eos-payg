@@ -375,6 +375,8 @@ epg_provider_shutdown_finish (EpgProvider   *self,
  * @self: an #EpgProvider
  * @delta: the amount by which the clock changed in seconds, which can be
  * positive or negative
+ * @now_secs: the new time (from CLOCK_REALTIME) after the clock jump, in unix
+ * seconds
  *
  * Notify the provider of a discontinous change to the system clock (e.g. by
  * the user or by NTP) so state can be saved if necessary.
