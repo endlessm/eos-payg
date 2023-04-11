@@ -718,8 +718,7 @@ check_expired_cb (gpointer user_data)
   return G_SOURCE_CONTINUE;
 }
 
-/* Set the #EpgManager:expiry-time to
- * `MIN (G_MAXUINT64, MAX (@now, #EpgManager:expiry-time) + @span)` and set
+/* Set the #EpgManager:expiry-time to `MIN (G_MAXUINT64, @now + @span)` and set
  * the #GSource expiry timer to the new expiry time. Everything is handled in
  * seconds.
  *
@@ -739,12 +738,9 @@ set_expiry_time (EpgManager *self,
    * adjustments have no effect */
   guint64 old_expiry_time_secs = self->expiry_time_secs;
 
-  /* If the old PAYG code had expired, start from @now_secs; otherwise start
-   * from the current expiry time (in the future). */
-  guint64 base_secs = (now_secs < old_expiry_time_secs) ? old_expiry_time_secs : now_secs;
-
   /* Clamp to the end of time instead of overflowing. */
-  self->expiry_time_secs = (base_secs <= G_MAXUINT64 - span_secs) ? base_secs + span_secs : G_MAXUINT64;
+  if (!g_uint64_checked_add (&self->expiry_time_secs, now_secs, span_secs))
+    self->expiry_time_secs = G_MAXUINT64;
 
   /* Set the expiry timer. epg_clock_source_new_seconds() takes a #guint, and
    * @span_secs is a #guint64 so clamp to G_MAXUINT */
@@ -807,7 +803,7 @@ extend_expiry_time (EpgManager *self,
                     guint64     now_secs,
                     EpcPeriod   period)
 {
-  guint64 span_secs;
+  guint64 base_secs, span_secs;
 
   switch (period)
     {
@@ -893,7 +889,10 @@ extend_expiry_time (EpgManager *self,
       g_assert_not_reached ();
     }
 
-  set_expiry_time (self, NULL, FALSE, now_secs, span_secs);
+  /* If the old PAYG code had expired, start from now_secs; otherwise start
+   * from the current expiry time (in the future). */
+  base_secs = (now_secs < self->expiry_time_secs) ? self->expiry_time_secs : now_secs;
+  set_expiry_time (self, NULL, FALSE, base_secs, span_secs);
 
   return MIN(span_secs, G_MAXINT64);
 }
