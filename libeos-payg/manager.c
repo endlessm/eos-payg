@@ -1699,16 +1699,25 @@ epg_manager_wallclock_time_changed (EpgProvider *provider,
    * miscalculated the consumption of credit at startup. */
   if (delta > 0)
     {
+      guint64 credit_secs;
+
       /* In wallclock_now_secs we receive the jump timestamp in terms of
        * CLOCK_REALTIME, but set_expiry_time expects the current timestamp in
        * terms of CLOCK_BOOTTIME, so we get the time here again. */
       guint64 now_secs = epg_clock_get_time (self->clock);
 
-      /* FIXME: This actually extends the expiration rather than reducing it
-       * but the Endless backend is basically deprecated anyway in favor of
-       * Angaza.
-       */
-      set_expiry_time (self, NULL, FALSE, now_secs, (guint64)delta);
+      /* If the new time is past expiration, we don't need to deduct any credit
+       * but only trigger a state save, as self->expiry will be triggered by
+       * the mainloop. */
+      if (now_secs < self->expiry_time_secs)
+        {
+          credit_secs = self->expiry_time_secs - now_secs;
+          if ((guint64) delta > credit_secs)
+            set_expiry_time (self, NULL, FALSE, now_secs, 0);
+          else
+            set_expiry_time (self, NULL, FALSE, now_secs,
+                             credit_secs - (guint64) delta);
+        }
     }
 
   /* Kick off an asynchronous save.
