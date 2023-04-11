@@ -1687,7 +1687,7 @@ epg_manager_shutdown_finish (EpgProvider   *provider,
 static void
 epg_manager_wallclock_time_changed (EpgProvider *provider,
                                     gint64       delta,
-                                    gint64       now_secs)
+                                    gint64       wallclock_now_secs)
 {
   EpgManager *self = EPG_MANAGER (provider);
 
@@ -1704,7 +1704,7 @@ epg_manager_wallclock_time_changed (EpgProvider *provider,
        * but the Endless backend is basically deprecated anyway in favor of
        * Angaza.
        */
-      set_expiry_time (self, NULL, FALSE, now_secs, (guint64)delta);
+      set_expiry_time (self, NULL, FALSE, wallclock_now_secs, (guint64)delta);
     }
 
   /* Kick off an asynchronous save.
