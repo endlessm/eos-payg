@@ -873,6 +873,9 @@ extend_expiry_time (EpgManager *self,
     case EPC_PERIOD_30_DAYS:
       span_secs = 30 * 24 * 60 * 60;
       break;
+    case EPC_PERIOD_31_DAYS:
+      span_secs = 31 * 24 * 60 * 60;
+      break;
     case EPC_PERIOD_60_DAYS:
       span_secs = 60 * 24 * 60 * 60;
       break;

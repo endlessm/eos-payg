@@ -123,6 +123,7 @@ test_codes_calculate_round_trip (void)
       { EPC_PERIOD_13_DAYS, 76, key1, 34178837 },
       { EPC_PERIOD_14_DAYS, 66, key1, 36195098 },
       { EPC_PERIOD_30_DAYS, 70, key1, 38323642 },
+      { EPC_PERIOD_31_DAYS, 33, key1, 52704144 },
       { EPC_PERIOD_60_DAYS, 64, key1, 40373693 },
       { EPC_PERIOD_90_DAYS, 95, key1, 42722623 },
       { EPC_PERIOD_120_DAYS, 43, key1, 44396753 },

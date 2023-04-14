@@ -91,6 +91,7 @@ typedef enum
   EPC_PERIOD_365_DAYS = 22,
   EPC_PERIOD_30_MINUTES = 23,
   EPC_PERIOD_8_HOURS = 24,
+  EPC_PERIOD_31_DAYS = 25,
   /* add additional periods here, and update %EPC_N_PERIODS */
   EPC_PERIOD_INFINITE = 31,
   /* This must use 5 bits exactly, so no values above 31 are allowed */
@@ -103,7 +104,7 @@ typedef enum
  *
  * Since: 0.1.0
  */
-#define EPC_N_PERIODS 26
+#define EPC_N_PERIODS 27
 
 gboolean epc_period_validate (EpcPeriod   period,
                               GError    **error);
