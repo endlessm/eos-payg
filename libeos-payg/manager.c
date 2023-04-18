@@ -718,9 +718,9 @@ check_expired_cb (gpointer user_data)
   return G_SOURCE_CONTINUE;
 }
 
-/* Set the #EpgManager:expiry-time to `MIN (G_MAXUINT64, @now + @span)` and set
- * the #GSource expiry timer to the new expiry time. Everything is handled in
- * seconds.
+/* Set the #EpgManager:expiry-time to `MIN (G_MAXUINT64, @now_secs +
+ * @span_secs)` and set the #GSource expiry timer to the new expiry time.
+ * Everything is handled in seconds.
  *
  * @task, if provided, will have epg_multi_task_increment() called on it (and
  * decremented in the callback of the state save). If you are going to kick off
