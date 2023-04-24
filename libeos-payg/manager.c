@@ -1419,7 +1419,29 @@ file_load_cb (GObject      *source_object,
           if (unaccounted_time > self->last_save_expiry_secs)
             set_expiry_time (self, task, TRUE, now_secs, 0);
           else
-            set_expiry_time (self, task, TRUE, now_secs, self->last_save_expiry_secs - unaccounted_time);
+            {
+              guint64 YEAR_SECS = 365 * 24 * 60 * 60;
+              guint64 BOGUS_CREDIT_LOWER_LIMIT_SECS = 5 * YEAR_SECS;
+              guint64 BOGUS_CREDIT_UPPER_LIMIT_SECS = 100 * YEAR_SECS;
+              guint64 credit_secs = self->last_save_expiry_secs - unaccounted_time;
+
+              /* No system should have more than 5 years of credit, except if
+               * they were permanently unlocked, at which point G_MAXUINT64
+               * seconds (a bit over 584 billion years) were added to their
+               * credit.
+               * If a system in the field has over 5 years but less than 100
+               * years of credit it is certainly due to a bug (T34550). Reset
+               * the credit to 31 days, which is the typical payment period. */
+              if (BOGUS_CREDIT_LOWER_LIMIT_SECS < credit_secs &&
+                  credit_secs < BOGUS_CREDIT_UPPER_LIMIT_SECS)
+                {
+                  g_message ("Detected system with too much credit (%" G_GUINT64_FORMAT "), resetting to 31 days.",
+                             credit_secs);
+                  credit_secs = 31 * 24 * 60 * 60;
+                }
+
+              set_expiry_time (self, task, TRUE, now_secs, credit_secs);
+            }
         }
     }
 
