@@ -718,10 +718,9 @@ check_expired_cb (gpointer user_data)
   return G_SOURCE_CONTINUE;
 }
 
-/* Set the #EpgManager:expiry-time to
- * `MIN (G_MAXUINT64, MAX (@now, #EpgManager:expiry-time) + @span)` and set
- * the #GSource expiry timer to the new expiry time. Everything is handled in
- * seconds.
+/* Set the #EpgManager:expiry-time to `MIN (G_MAXUINT64, @now_secs +
+ * @span_secs)` and set the #GSource expiry timer to the new expiry time.
+ * Everything is handled in seconds.
  *
  * @task, if provided, will have epg_multi_task_increment() called on it (and
  * decremented in the callback of the state save). If you are going to kick off
@@ -739,12 +738,9 @@ set_expiry_time (EpgManager *self,
    * adjustments have no effect */
   guint64 old_expiry_time_secs = self->expiry_time_secs;
 
-  /* If the old PAYG code had expired, start from @now_secs; otherwise start
-   * from the current expiry time (in the future). */
-  guint64 base_secs = (now_secs < old_expiry_time_secs) ? old_expiry_time_secs : now_secs;
-
   /* Clamp to the end of time instead of overflowing. */
-  self->expiry_time_secs = (base_secs <= G_MAXUINT64 - span_secs) ? base_secs + span_secs : G_MAXUINT64;
+  if (!g_uint64_checked_add (&self->expiry_time_secs, now_secs, span_secs))
+    self->expiry_time_secs = G_MAXUINT64;
 
   /* Set the expiry timer. epg_clock_source_new_seconds() takes a #guint, and
    * @span_secs is a #guint64 so clamp to G_MAXUINT */
@@ -807,7 +803,7 @@ extend_expiry_time (EpgManager *self,
                     guint64     now_secs,
                     EpcPeriod   period)
 {
-  guint64 span_secs;
+  guint64 base_secs, span_secs;
 
   switch (period)
     {
@@ -893,7 +889,10 @@ extend_expiry_time (EpgManager *self,
       g_assert_not_reached ();
     }
 
-  set_expiry_time (self, NULL, FALSE, now_secs, span_secs);
+  /* If the old PAYG code had expired, start from now_secs; otherwise start
+   * from the current expiry time (in the future). */
+  base_secs = (now_secs < self->expiry_time_secs) ? self->expiry_time_secs : now_secs;
+  set_expiry_time (self, NULL, FALSE, base_secs, span_secs);
 
   return MIN(span_secs, G_MAXINT64);
 }
@@ -1687,7 +1686,7 @@ epg_manager_shutdown_finish (EpgProvider   *provider,
 static void
 epg_manager_wallclock_time_changed (EpgProvider *provider,
                                     gint64       delta,
-                                    gint64       now_secs)
+                                    gint64       wallclock_now_secs)
 {
   EpgManager *self = EPG_MANAGER (provider);
 
@@ -1700,11 +1699,25 @@ epg_manager_wallclock_time_changed (EpgProvider *provider,
    * miscalculated the consumption of credit at startup. */
   if (delta > 0)
     {
-      /* FIXME: This actually extends the expiration rather than reducing it
-       * but the Endless backend is basically deprecated anyway in favor of
-       * Angaza.
-       */
-      set_expiry_time (self, NULL, FALSE, now_secs, (guint64)delta);
+      guint64 credit_secs;
+
+      /* In wallclock_now_secs we receive the jump timestamp in terms of
+       * CLOCK_REALTIME, but set_expiry_time expects the current timestamp in
+       * terms of CLOCK_BOOTTIME, so we get the time here again. */
+      guint64 now_secs = epg_clock_get_time (self->clock);
+
+      /* If the new time is past expiration, we don't need to deduct any credit
+       * but only trigger a state save, as self->expiry will be triggered by
+       * the mainloop. */
+      if (now_secs < self->expiry_time_secs)
+        {
+          credit_secs = self->expiry_time_secs - now_secs;
+          if ((guint64) delta > credit_secs)
+            set_expiry_time (self, NULL, FALSE, now_secs, 0);
+          else
+            set_expiry_time (self, NULL, FALSE, now_secs,
+                             credit_secs - (guint64) delta);
+        }
     }
 
   /* Kick off an asynchronous save.
