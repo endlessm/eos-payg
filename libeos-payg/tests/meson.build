@@ -59,7 +59,6 @@ foreach program_name, extra_args : test_programs
       exe,
       env: envs,
       suite: ['eos-payg'] + suites,
-      protocol: 'tap',
     )
   endif
 endforeach
