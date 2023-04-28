@@ -1,5 +1,5 @@
 dracut = dependency('dracut', required: true)
-dracut_moddir = dracut.get_pkgconfig_variable('dracutmodulesdir') + '/50eos-payg'
+dracut_moddir = dracut.get_variable(pkgconfig: 'dracutmodulesdir') + '/50eos-payg'
 
 config = configuration_data()
 config.set('libexecdir', join_paths(get_option('prefix'), get_option('libexecdir')))

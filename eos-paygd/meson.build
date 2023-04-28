@@ -34,11 +34,11 @@ configure_file(
 systemd = dependency('systemd')
 systemdsystemunitdir = get_option('systemdsystemunitdir')
 if systemdsystemunitdir == ''
-  systemdsystemunitdir = systemd.get_pkgconfig_variable('systemdsystemunitdir')
+  systemdsystemunitdir = systemd.get_variable(pkgconfig: 'systemdsystemunitdir')
 endif
 tmpfilesdir = get_option('tmpfilesdir')
 if tmpfilesdir == ''
-  tmpfilesdir = systemd.get_pkgconfig_variable('tmpfilesdir')
+  tmpfilesdir = systemd.get_variable(pkgconfig: 'tmpfilesdir')
 endif
 
 # eos-paygd service for Phase 2 PAYG systems
