@@ -123,6 +123,7 @@ epc_period_validate (EpcPeriod   period,
     case EPC_PERIOD_13_DAYS:
     case EPC_PERIOD_14_DAYS:
     case EPC_PERIOD_30_DAYS:
+    case EPC_PERIOD_31_DAYS:
     case EPC_PERIOD_60_DAYS:
     case EPC_PERIOD_90_DAYS:
     case EPC_PERIOD_120_DAYS:

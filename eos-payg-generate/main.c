@@ -67,6 +67,7 @@ periods[] =
     { EPC_PERIOD_13_DAYS, "13d", N_("13 days") },
     { EPC_PERIOD_14_DAYS, "14d", N_("14 days") },
     { EPC_PERIOD_30_DAYS, "30d", N_("30 days") },
+    { EPC_PERIOD_31_DAYS, "31d", N_("31 days") },
     { EPC_PERIOD_60_DAYS, "60d", N_("60 days") },
     { EPC_PERIOD_90_DAYS, "90d", N_("90 days") },
     { EPC_PERIOD_120_DAYS, "120d", N_("120 days") },
