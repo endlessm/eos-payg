@@ -11,10 +11,10 @@ msgid ""
 msgstr ""
 "Project-Id-Version: eos-payg\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2022-05-29 12:29+0000\n"
+"POT-Creation-Date: 2023-05-08 09:01+0000\n"
 "PO-Revision-Date: 2018-04-03 14:11+0000\n"
 "Last-Translator: Roddy Shuler <roddy@stanfordalumni.org>, 2018\n"
-"Language-Team: Vietnamese (https://www.transifex.com/endless-os/teams/9016/vi/)\n"
+"Language-Team: Vietnamese (https://app.transifex.com/endless-os/teams/9016/vi/)\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -106,103 +106,107 @@ msgid "30 days"
 msgstr "30 ngày"
 
 #: eos-payg-generate/main.c:70
+msgid "31 days"
+msgstr ""
+
+#: eos-payg-generate/main.c:71
 msgid "60 days"
 msgstr "60 ngày"
 
-#: eos-payg-generate/main.c:71
+#: eos-payg-generate/main.c:72
 msgid "90 days"
 msgstr "90 ngày"
 
-#: eos-payg-generate/main.c:72
+#: eos-payg-generate/main.c:73
 msgid "120 days"
 msgstr "120 ngày"
 
-#: eos-payg-generate/main.c:73
+#: eos-payg-generate/main.c:74
 msgid "365 days"
 msgstr "365 ngày"
 
-#: eos-payg-generate/main.c:74
+#: eos-payg-generate/main.c:75
 msgid "Infinite"
 msgstr "Vô hạn"
 
-#: eos-payg-generate/main.c:96
+#: eos-payg-generate/main.c:97
 #, c-format
 msgid "Invalid period ‘%s’."
 msgstr "Khoảng thời gian không hợp lệ '%s'."
 
-#: eos-payg-generate/main.c:120
+#: eos-payg-generate/main.c:121
 msgid "Only print error messages"
 msgstr "Chỉ có thông báo lỗi in"
 
-#: eos-payg-generate/main.c:122
+#: eos-payg-generate/main.c:123
 msgid "List the available periods"
 msgstr "Liệt kê các khoảng thời gian có sẵn"
 
-#: eos-payg-generate/main.c:129
+#: eos-payg-generate/main.c:130
 msgid "KEY-FILENAME PERIOD [COUNTER]"
 msgstr "KHOẢNG THỜI GIAN TÊN TẬP TIN PHÍM [BỘ ĐẾM]"
 
-#: eos-payg-generate/main.c:130
+#: eos-payg-generate/main.c:131
 msgid "Generate one or more pay as you go codes"
 msgstr ""
 "Tạo một hoặc nhiều mã trả phí theo thực tế dùng (pay as you go - PAYG)"
 
-#: eos-payg-generate/main.c:136 eos-payg-generate/main.c:164
-#: eos-payg-generate/main.c:173
+#: eos-payg-generate/main.c:137 eos-payg-generate/main.c:165
+#: eos-payg-generate/main.c:174
 #: subprojects/libgsystemservice/libgsystemservice/service.c:661
 #, c-format
 msgid "Option parsing failed: %s"
 msgstr "Phân tích cú pháp Tùy chọn thất bại: %s"
 
-#: eos-payg-generate/main.c:147
+#: eos-payg-generate/main.c:148
 msgid "Available periods:"
 msgstr "Các khoảng thời gian khả dụng:"
 
-#: eos-payg-generate/main.c:165
+#: eos-payg-generate/main.c:166
 msgid "A KEY-FILENAME and PERIOD are required"
 msgstr "Bắt buộc có TÊN TẬP TIN PHÍM và KHOẢNG THỜI GIAN"
 
-#: eos-payg-generate/main.c:174
+#: eos-payg-generate/main.c:175
 msgid "Too many arguments provided"
 msgstr "Quá nhiều đối số được cung cấp"
 
-#: libeos-payg-codes/codes.c:135
+#: libeos-payg-codes/codes.c:136
 #, c-format
 msgid "Unknown period %u."
 msgstr "Khoảng thời gian không xác định %u."
 
-#: libeos-payg-codes/codes.c:150
+#: libeos-payg-codes/codes.c:151
 #, c-format
 msgid "Key is too short (%u bytes); minimum length %u bytes."
 msgstr ""
 
-#: libeos-payg-codes/codes.c:186
+#: libeos-payg-codes/codes.c:187
 #, c-format
 msgid "Invalid code %s."
 msgstr "Mã không hợp lệ %s."
 
-#: libeos-payg-codes/codes.c:309
+#: libeos-payg-codes/codes.c:310
 #, c-format
 msgid "Invalid signature on code %s."
 msgstr "Chữ ký không hợp lệ cho mã %s."
 
-#: libeos-payg-codes/codes.c:376
+#: libeos-payg-codes/codes.c:377
 msgid "Codes must be 8 digits long."
 msgstr "Mã phải dài 8 chữ số."
 
-#: libeos-payg/manager.c:593
+#: libeos-payg/manager.c:594
 msgid "Pay as you go is disabled on this computer."
 msgstr "Trả phí theo thực tế dùng bị tắt trên máy tính này."
 
-#: libeos-payg/manager.c:650
+#: libeos-payg/manager.c:651
 msgid "Too many invalid codes entered recently; please wait"
 msgstr "Quá nhiều mã không hợp lệ được nhập gần đây; vui lòng đợi"
 
-#: libeos-payg/manager.c:692
+#: libeos-payg/manager.c:693
 msgid "This pay as you go code has already been used."
 msgstr "Đọa mã dùng để thanh toán trả trước này đã được sử dụng."
 
-#: libeos-payg/manager.c:1184
+#: libeos-payg/manager.c:1187
 #, c-format
 msgid "State file ‘%s’ was the wrong length."
 msgstr "Tập tin trạng thái '%s' có độ dài không đúng."
