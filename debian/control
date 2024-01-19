@@ -7,13 +7,14 @@ X-Python3-Version: >= 3.7
 Build-Depends:
  debhelper (>= 10),
  dh-python,
+ dracut,
+ gtk-doc-tools,
  libglib2.0-dev (>= 2.54.2),
  libpeas-dev,
  libsystemd-dev,
  meson,
  python3-dbusmock,
- dracut,
- gtk-doc-tools,
+ systemd,
 
 Package: eos-paygd
 Section: misc
