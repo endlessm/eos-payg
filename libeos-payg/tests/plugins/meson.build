@@ -1,9 +1,9 @@
 suffixes = ['one', 'two']
 
 deps = [
-  dependency('gio-2.0', version: '>= 2.44'),
-  dependency('glib-2.0', version: '>= 2.44'),
-  dependency('gobject-2.0', version: '>= 2.44'),
+  glib_dep,
+  gobject_dep,
+  gio_dep,
   libeos_payg_dep,
 ]
 
