@@ -7,9 +7,9 @@ libeos_payg_codes_headers = [
 ]
 
 libeos_payg_codes_deps = [
-  dependency('gio-2.0', version: '>= 2.46'),
-  dependency('glib-2.0', version: '>= 2.54'),
-  dependency('gobject-2.0', version: '>= 2.54'),
+  glib_dep,
+  gobject_dep,
+  gio_dep,
 ]
 
 libeos_payg_codes = static_library('eos-payg-codes-' + libeos_payg_codes_api_version,

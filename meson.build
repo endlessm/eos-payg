@@ -128,6 +128,23 @@ test_env = [
 libgsystemservice = subproject('libgsystemservice')
 libgsystemservice_dep = libgsystemservice.get_variable('libgsystemservice_dep')
 
+glib_major_version = '2'
+glib_minor_version = '74'
+glib_dep_version = '>= @0@.@1@'.format(glib_major_version, glib_minor_version)
+glib_version_define = 'GLIB_VERSION_@0@_@1@'.format(glib_major_version, glib_minor_version)
+
+glib_dep    = dependency('glib-2.0',    version: glib_dep_version)
+gio_dep     = dependency('gio-2.0',     version: glib_dep_version)
+gobject_dep = dependency('gobject-2.0', version: glib_dep_version)
+
+add_project_arguments(
+  [
+    '-DGLIB_VERSION_MIN_REQUIRED=@0@'.format(glib_version_define),
+    '-DGLIB_VERSION_MAX_ALLOWED=@0@'.format(glib_version_define),
+  ],
+  language: 'c',
+)
+
 subdir('libeos-payg-codes')
 subdir('libeos-payg')
 subdir('eos-paygd')

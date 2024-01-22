@@ -36,9 +36,9 @@ libeos_payg_headers = libeos_payg_exported_headers + [
 ]
 
 libeos_payg_deps = [
-  dependency('gio-2.0', version: '>= 2.46'),
-  dependency('glib-2.0', version: '>= 2.54'),
-  dependency('gobject-2.0', version: '>= 2.54'),
+  glib_dep,
+  gobject_dep,
+  gio_dep,
   dependency('libpeas-1.0'),
   libeos_payg_codes_dep,
   libgsystemservice_dep,
