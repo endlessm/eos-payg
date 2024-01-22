@@ -34,11 +34,12 @@ again.
 Dependencies
 ============
 
- * gio-2.0 ≥ 2.54
- * glib-2.0 ≥ 2.54
- * gobject-2.0 ≥ 2.54
+ * glib-2.0
+ * gobject-2.0
+ * gio-2.0
  * peas
- * systemd
+ * (lib)systemd
+ * dracut
 
 Licensing
 =========
