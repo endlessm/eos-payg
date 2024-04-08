@@ -23,6 +23,9 @@ Environment=GSETTINGS_BACKEND=memory
 MemoryDenyWriteExecute=yes
 NoNewPrivileges=yes
 PrivateNetwork=yes
+# PrivateMounts must be explicitly set to no, even though that is the default
+# because PrivateNetwork=yes implicitly implies PrivateMounts=yes.
+PrivateMounts=no
 PrivateTmp=yes
 # We need PrivateUsers=no to be able to chown /var/lib/eos-payg
 PrivateUsers=no

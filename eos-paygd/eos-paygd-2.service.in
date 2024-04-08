@@ -47,6 +47,9 @@ Environment=GSETTINGS_BACKEND=memory
 MemoryDenyWriteExecute=yes
 NoNewPrivileges=yes
 PrivateNetwork=yes
+# PrivateMounts must be explicitly set to no, even though that is the default
+# because PrivateNetwork=yes implicitly implies PrivateMounts=yes.
+PrivateMounts=no
 # Commented out sandboxing settings below this point that start with a -
 # have been tested to break our chroot() and are left here to save future
 # generations from accidentally turning them on.
