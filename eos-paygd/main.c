@@ -610,8 +610,9 @@ main (int   argc,
       if (g_error_matches (error, GSS_SERVICE_ERROR, GSS_SERVICE_ERROR_SIGNALLED))
         {
           /* The service received SIGTERM or SIGINT */
-          timeout_id = g_idle_add (payg_system_poweroff, &timeout_id);
           exit_signal = gss_service_get_exit_signal (GSS_SERVICE (service));
+          g_message ("Received signal %d; powering off", exit_signal);
+          timeout_id = g_idle_add (payg_system_poweroff, &timeout_id);
         }
       else
         {
