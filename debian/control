@@ -22,7 +22,7 @@ Architecture: any
 Multi-arch: same
 Depends:
  eos-payg-data (= ${source:Version}),
- systemd (>= 235),
+ systemd (>= 249),
  dracut,
  ${misc:Depends},
  ${shlibs:Depends},
