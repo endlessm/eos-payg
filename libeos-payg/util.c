@@ -44,7 +44,7 @@ payg_system_poweroff (gpointer user_data)
       *source_id = 0;
     }
 
-  g_message ("Requesting an orderly system shudown");
+  g_message ("Requesting an orderly system shutdown");
   ret = system ("systemctl poweroff");
   g_debug ("systemctl returned %d", ret);
 
