@@ -1,6 +1,3 @@
 # Create logs directory for eos-paygd. Files in this directory that were not
-# created, modified or accessed in the last 90 days will be removed by
-# systemd-tmpfiles cleanup service.
-#
-# TODO: Once we update systemd to 249+, replace the age field below with m:90d
-d /var/log/eos-payg 0755 root root 90d
+# modified in the last 90 days will be removed by systemd-tmpfiles-clean.
+d /var/log/eos-payg 0755 root root m:90d
