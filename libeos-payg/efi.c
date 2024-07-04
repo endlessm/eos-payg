@@ -677,6 +677,7 @@ static struct efi_ops test_ops =
 
 /* eospayg_efi_init:
  * @flags: pass EOSPAYG_EFI_TEST_MODE for fake EFI storage
+ * @error: return location for an error, or %NULL
  *
  * Initialize our EFI functionality. This must be done
  * before the root pivot, as it needs a trusted fd to
@@ -689,8 +690,11 @@ static struct efi_ops test_ops =
  * Return: %TRUE if successful or %FALSE otherwise.
  */
 gboolean
-eospayg_efi_init (enum eospayg_efi_flags flags)
+eospayg_efi_init (enum eospayg_efi_flags   flags,
+                  GError                 **error)
 {
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   glnx_autofd int local_efi_fd = -1;
   glnx_autofd int tmpfd = -1;
 
@@ -707,15 +711,15 @@ eospayg_efi_init (enum eospayg_efi_flags flags)
   efi = &efivarfs_ops;
   local_efi_fd = open ("/sys/firmware/efi/efivars", O_DIRECTORY);
   if (local_efi_fd < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "Failed to open efivars");
 
   tmpfd = open ("/sys/firmware/efi/efivars", O_DIRECTORY);
   if (tmpfd < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "Failed to open efivars twice");
 
   efi_dir = fdopendir (tmpfd);
   if (!efi_dir)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "Failed to open efivars directory stream");
 
   /* "After a successful call to fdopendir(), fd is used internally by the
    * implementation, and should not otherwise be used by the application."

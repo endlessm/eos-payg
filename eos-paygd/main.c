@@ -329,12 +329,14 @@ main (int   argc,
 
       g_debug ("eos-paygd running from initramfs");
 
-      if (!eospayg_efi_init (0))
+      if (!eospayg_efi_init (0, &error))
         {
-          g_warning ("Unable to access EFI variables, shutting down in %d minutes",
-                     TIMEOUT_POWEROFF_ON_ERROR_MINUTES);
+          g_warning ("Unable to access EFI variables, shutting down in %d minutes: %s",
+                     TIMEOUT_POWEROFF_ON_ERROR_MINUTES,
+                     error->message);
           g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
                                  payg_system_poweroff, NULL);
+          g_clear_error (&error);
         }
 
       payg_set_debug_env_vars ();

@@ -13,7 +13,8 @@ enum eospayg_efi_flags {
   EOSPAYG_EFI_TEST_MODE = 1,
 };
 
-gboolean eospayg_efi_init (enum eospayg_efi_flags flags);
+gboolean eospayg_efi_init (enum eospayg_efi_flags   flags,
+                           GError                 **error);
 gboolean eospayg_efi_var_write (const char *name, const void *content, int size);
 gboolean eospayg_efi_var_overwrite (const char *name, const void *content, int size);
 gboolean eospayg_efi_var_delete (const char *name);
