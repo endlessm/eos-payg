@@ -145,6 +145,8 @@ add_project_arguments(
   language: 'c',
 )
 
+libglnx_dep = subproject('libglnx').get_variable('libglnx_dep')
+
 subdir('libeos-payg-codes')
 subdir('libeos-payg')
 subdir('eos-paygd')
