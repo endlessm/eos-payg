@@ -527,7 +527,8 @@ eospayg_efi_securebootoption_disabled (void)
  * space, but the kernel has a placeholder file for it due to a failed
  * write.
  *
- * Returns: size of the PK efi variable including EFI overhead, or -1 if missing
+ * Returns: size of the PK EFI variable, excluding the 4-byte attribute
+ *          overhead, or -1 if missing
  */
 int
 eospayg_efi_PK_size (void)
