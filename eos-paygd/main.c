@@ -232,6 +232,7 @@ test_and_update_securitylevel (void)
   g_autofree char *level = NULL;
   int data_size = 0;
   gboolean ret;
+  g_autoptr(GError) error = NULL;
 
   level = eospayg_efi_var_read ("securitylevel", &data_size);
   if (!level || data_size != 1)
@@ -261,14 +262,14 @@ test_and_update_securitylevel (void)
        * project we probably need to consider alternate career paths.
        */
       level[0] = EPG_SECURITY_LEVEL;
-      ret = eospayg_efi_var_overwrite ("securitylevel", level, data_size);
+      ret = eospayg_efi_var_overwrite ("securitylevel", level, data_size, &error);
 
       /* There's nothing a user should be able to do to cause this to fail,
        * so we'll let this "impossible" situation slide with a warning, and
        * attempt to correct it on next boot.
        */
       if (!ret)
-        g_warning ("Failed to update security level.");
+        g_warning ("Failed to update security level: %s", error->message);
     }
 
   return TRUE;

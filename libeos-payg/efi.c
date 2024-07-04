@@ -46,7 +46,11 @@ static gboolean test_mode = FALSE;
 struct efi_ops {
   gboolean (*exists) (const char *name);
   unsigned char * (*read) (const char *name, int *size);
-  gboolean (*write) (const char *name, const void *content, int size, gboolean allow_overwrite);
+  gboolean (*write) (const char  *name,
+                     const void  *content,
+                     int          size,
+                     gboolean     allow_overwrite,
+                     GError     **error);
   gboolean (*delete) (const char *name);
   void (*list_rewind) (void);
   const char *(*list_next) (void);
@@ -130,7 +134,11 @@ eospayg_efi_root_pivot (void)
 }
 
 static gboolean
-test_write (const char *name, const void *content, int size, gboolean allow_overwrite)
+test_write (const char  *name,
+            const void  *content,
+            int          size,
+            gboolean     allow_overwrite,
+            GError     **error)
 {
   struct fake_var *target = NULL;
   int i;
@@ -160,11 +168,20 @@ test_write (const char *name, const void *content, int size, gboolean allow_over
       return TRUE;
     }
 
+  g_set_error (error,
+               G_IO_ERROR,
+               G_IO_ERROR_NO_SPACE,
+               "Could not find storage for %s",
+               name);
   return FALSE;
 }
 
 static gboolean
-efivarfs_write (const char *name, const void *content, int size, gboolean allow_overwrite)
+efivarfs_write (const char  *name,
+                const void  *content,
+                int          size,
+                gboolean     allow_overwrite,
+                GError     **error)
 {
   /* This is the attribute pattern required for all our variables,
    * non volatile, runtime services, boot services */
@@ -187,28 +204,39 @@ efivarfs_write (const char *name, const void *content, int size, gboolean allow_
 
   fd = openat (efi_fd, name, flags, 0600);
   if (fd < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "Failed to open %s", name);
 
   /* libefivar doesn't handle EINTR, so I guess writes are atomic
    * on efivarfs.
    */
   ret = write (fd, tbuf, tsize);
+  if (ret < 0)
+    return glnx_throw_errno_prefix (error, "Failed to write to %s", name);
   if (ret < tsize)
-    return FALSE;
+    return glnx_throw (error,
+                       "Wrote only %" G_GSSIZE_FORMAT " bytes of %d to %s",
+                       ret,
+                       tsize,
+                       name);
 
   return TRUE;
 }
 
 static gboolean
-efi_var_write (const char *name, const void *content, int size, gboolean allow_overwrite)
+efi_var_write (const char  *name,
+               const void  *content,
+               int          size,
+               gboolean     allow_overwrite,
+               GError     **error)
 {
-  return efi->write (name, content, size, allow_overwrite);
+  return efi->write (name, content, size, allow_overwrite, error);
 }
 
 /* eospayg_efi_var_write:
  * @name: short name of variable to write
  * @content: data to store in variable
  * @size: number of bytes in content
+ * @error: return location for an error, or %NULL
  *
  * Write a new EFI variable.
  *
@@ -224,21 +252,27 @@ efi_var_write (const char *name, const void *content, int size, gboolean allow_o
  * Returns: %TRUE if successful, otherwise %FALSE
  */
 gboolean
-eospayg_efi_var_write (const char *name, const void *content, int size)
+eospayg_efi_var_write (const char  *name,
+                       const void  *content,
+                       int          size,
+                       GError     **error)
 {
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   gboolean allow_overwrite = TRUE;
   g_autofree char *tname = eospayg_efi_name (name);
 
   if (post_pivot)
     allow_overwrite = FALSE;
 
-  return efi_var_write (tname, content, size, allow_overwrite);
+  return efi_var_write (tname, content, size, allow_overwrite, error);
 }
 
 /* eospayg_efi_var_overwrite:
  * @name: short name of variable to write
  * @content: data to store in variable
  * @size: number of bytes in content
+ * @error: return location for an error, or %NULL
  *
  * Overwrite an existing EFI variable, or create a new one.
  *
@@ -251,14 +285,19 @@ eospayg_efi_var_write (const char *name, const void *content, int size)
  * Returns: %TRUE if successful, otherwise %FALSE
  */
 gboolean
-eospayg_efi_var_overwrite (const char *name, const void *content, int size)
+eospayg_efi_var_overwrite (const char  *name,
+                           const void  *content,
+                           int          size,
+                           GError     **error)
 {
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   g_autofree char *tname = eospayg_efi_name (name);
 
   if (post_pivot)
-    return FALSE;
+    return glnx_throw (error, "Attempted to overwrite %s after pivot", name);
 
-  return efi_var_write (tname, content, size, TRUE);
+  return efi_var_write (tname, content, size, TRUE, error);
 }
 
 static void

@@ -15,8 +15,14 @@ enum eospayg_efi_flags {
 
 gboolean eospayg_efi_init (enum eospayg_efi_flags   flags,
                            GError                 **error);
-gboolean eospayg_efi_var_write (const char *name, const void *content, int size);
-gboolean eospayg_efi_var_overwrite (const char *name, const void *content, int size);
+gboolean eospayg_efi_var_write (const char  *name,
+                                const void  *content,
+                                int          size,
+                                GError     **error);
+gboolean eospayg_efi_var_overwrite (const char  *name,
+                                    const void  *content,
+                                    int          size,
+                                    GError     **error);
 gboolean eospayg_efi_var_delete (const char *name);
 gboolean eospayg_efi_var_delete_fullname (const char *name);
 gboolean eospayg_efi_var_exists (const char *name);
