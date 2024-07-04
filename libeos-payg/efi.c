@@ -340,8 +340,7 @@ eospayg_efi_var_delete_fullname (const char *name)
  * operation. Notably, EBUSY will indicate that the deletion
  * probably failed due to the existence of a bind mount for
  * the file.
-
- * Returns: %TRUE if successsful, otherwise %FALSE
+ * Returns: %TRUE if successful, otherwise %FALSE
  */
 gboolean
 eospayg_efi_var_delete (const char *name)
