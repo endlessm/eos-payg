@@ -92,7 +92,7 @@ _read_eospayg_debug (void)
   /* For now we only look at the first byte but let's allow it to be bigger so
    * it can be extended in the future.
    */
-  debug_efivar = eospayg_efi_var_read ("debug", &data_size);
+  debug_efivar = eospayg_efi_var_read ("debug", -1, &data_size);
   if (!debug_efivar)
     {
       g_warning ("Failed to read EOSPAYG_debug");

@@ -576,26 +576,42 @@ eospayg_efi_PK_size (void)
 
 /* eospayg_efi_var_read:
  * @name: Short name of variable
+ * @expected_size: Expected size of the variable contents, in bytes, or
+ *                 -1
  * @size: Returns the number of bytes in the variable
  *
  * Read the contents of an EFI variable.
  *
+ * If @expected_size is not -1, and the variable exists but does not
+ * have the expected size, %NULL is returned rather than the variable
+ * contents.
+ *
  * The name will be automatically prefixed with EOSPAYG_
  * and suffixed with the eos payg variable UUID.
  *
- * Returns: A pointer to the variable contents - this must be
- *   freed by the caller after use.
+ * Returns: (transfer full): A pointer to the variable contents, or %NULL on
+ *          error
  */
 void *
-eospayg_efi_var_read (const char *name, int *size)
+eospayg_efi_var_read (const char *name, int expected_size, int *size)
 {
+  g_return_val_if_fail (expected_size >= -1, FALSE);
+  g_return_val_if_fail (size != NULL, FALSE);
+
   g_autofree char *tname = eospayg_efi_name (name);
 
   *size = -1;
   if (post_pivot)
     return NULL;
 
-  return efi->read (tname, size);
+  void *ret = efi->read (tname, size);
+  if (ret &&
+      expected_size >= 0 &&
+      expected_size != *size)
+    {
+      g_clear_pointer (&ret, free);
+    }
+  return ret;
 }
 
 static void
