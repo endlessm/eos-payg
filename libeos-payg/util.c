@@ -85,6 +85,7 @@ _read_eospayg_debug (void)
   g_autofree unsigned char *debug_efivar = NULL;
   int data_size;
   EpgDebugFlags debug_flags = 0;
+  g_autoptr(GError) error = NULL;
 
   if (!eospayg_efi_var_exists ("debug"))
     return debug_flags;
@@ -92,10 +93,10 @@ _read_eospayg_debug (void)
   /* For now we only look at the first byte but let's allow it to be bigger so
    * it can be extended in the future.
    */
-  debug_efivar = eospayg_efi_var_read ("debug", -1, &data_size);
+  debug_efivar = eospayg_efi_var_read ("debug", -1, &data_size, &error);
   if (!debug_efivar)
     {
-      g_warning ("Failed to read EOSPAYG_debug");
+      g_warning ("Failed to read EOSPAYG_debug: %s", error->message);
       return debug_flags;
     }
 

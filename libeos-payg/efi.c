@@ -45,7 +45,9 @@ static gboolean test_mode = FALSE;
 
 struct efi_ops {
   gboolean (*exists) (const char *name);
-  unsigned char * (*read) (const char *name, int *size);
+  unsigned char * (*read) (const char  *name,
+                           int         *size,
+                           GError     **error);
   gboolean (*write) (const char  *name,
                      const void  *content,
                      int          size,
@@ -421,7 +423,9 @@ eospayg_efi_var_exists (const char *name)
 }
 
 static unsigned char *
-test_read (const char *name, int *size)
+test_read (const char  *name,
+           int         *size,
+           GError     **error)
 {
   unsigned char *out;
   int i;
@@ -434,11 +438,14 @@ test_read (const char *name, int *size)
         *size = fake_vars[i].size;
         return out;
       }
-  return NULL;
+
+  return glnx_null_throw (error, "%s not found", name);
 }
 
 static unsigned char *
-efivarfs_read (const char *name, int *size)
+efivarfs_read (const char  *name,
+               int         *size,
+               GError     **error)
 {
   struct stat sb;
   glnx_autofd int fd = -1;
@@ -448,16 +455,26 @@ efivarfs_read (const char *name, int *size)
 
   *size = -1;
   fd = openat (efi_fd, name, O_RDONLY);
+  if (fd == -1)
+    return glnx_null_throw_errno_prefix (error, "Failed to open %s", name);
+
   /* Apparently efivarfs reads are atomic and I don't have to
    * handle EINTR - libefivar doesn't.
    */
   ret = read (fd, &attr, 4);
+  if (ret == -1)
+    return glnx_null_throw_errno_prefix (error,
+                                         "Failed to read attributes from %s",
+                                         name);
   if (ret != 4)
-    return NULL;
+    return glnx_null_throw (error,
+                            "Read only %d bytes of 4-byte attributes for %s",
+                            ret,
+                            name);
 
   ret = fstat (fd, &sb);
   if (ret < 0)
-    return NULL;
+    return glnx_null_throw_errno_prefix (error, "fstat() failed for %s", name);
 
   fsize = sb.st_size;
   if (fsize < 5)
@@ -473,17 +490,23 @@ efivarfs_read (const char *name, int *size)
        * without content, so this shouldn't be ambiguous.
        */
       *size = 0;
-      return NULL;
+      return glnx_null_throw (error, "%s has length %d", name, fsize);
     }
 
   /* Throw away the attributes */
   fsize -= 4;
   tout = malloc (fsize);
   ret = read (fd, tout, fsize);
+  if (ret == -1)
+    return glnx_null_throw_errno_prefix (error,
+                                         "Failed to read contents of %s",
+                                         name);
   if (ret != fsize)
-    {
-      return NULL;
-    }
+    return glnx_null_throw (error,
+                            "Read %d bytes, not %d, of %s",
+                            ret,
+                            fsize,
+                            name);
 
   *size = fsize;
   return g_steal_pointer (&tout);
@@ -506,7 +529,7 @@ eospayg_efi_secureboot_active (void)
   if (test_mode)
     return TRUE;
 
-  content = efivarfs_read (tname, &size);
+  content = efivarfs_read (tname, &size, NULL);
   if (!content || size != 1)
     return FALSE;
 
@@ -540,7 +563,7 @@ eospayg_efi_securebootoption_disabled (void)
   if (test_mode)
     return FALSE;
 
-  content = efivarfs_read (tname, &size);
+  content = efivarfs_read (tname, &size, NULL);
   if (!content || size != 1)
     return FALSE;
 
@@ -570,7 +593,7 @@ eospayg_efi_PK_size (void)
   if (test_mode)
     return -1;
 
-  content = efivarfs_read (tname, &size);
+  content = efivarfs_read (tname, &size, NULL);
   return size;
 }
 
@@ -579,6 +602,7 @@ eospayg_efi_PK_size (void)
  * @expected_size: Expected size of the variable contents, in bytes, or
  *                 -1
  * @size: Returns the number of bytes in the variable
+ * @error: return location for an error, or %NULL
  *
  * Read the contents of an EFI variable.
  *
@@ -593,23 +617,31 @@ eospayg_efi_PK_size (void)
  *          error
  */
 void *
-eospayg_efi_var_read (const char *name, int expected_size, int *size)
+eospayg_efi_var_read (const char  *name,
+                      int          expected_size,
+                      int         *size,
+                      GError     **error)
 {
   g_return_val_if_fail (expected_size >= -1, FALSE);
   g_return_val_if_fail (size != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   g_autofree char *tname = eospayg_efi_name (name);
 
   *size = -1;
   if (post_pivot)
-    return NULL;
+    return glnx_null_throw (error, "Cannot read %s after pivot", name);
 
-  void *ret = efi->read (tname, size);
+  void *ret = efi->read (tname, size, error);
   if (ret &&
       expected_size >= 0 &&
       expected_size != *size)
     {
       g_clear_pointer (&ret, free);
+      return glnx_null_throw (error,
+                              "Variable data was %d bytes; expected %d bytes",
+                              *size,
+                              expected_size);
     }
   return ret;
 }

@@ -33,5 +33,8 @@ gboolean eospayg_efi_var_supported (void);
 void eospayg_efi_list_rewind (void);
 const char *eospayg_efi_list_next (void);
 void eospayg_efi_root_pivot (void);
-void *eospayg_efi_var_read (const char *name, int expected_size, int *size);
+void *eospayg_efi_var_read (const char  *name,
+                            int          expected_size,
+                            int         *size,
+                            GError     **error);
 gboolean eospayg_efi_clear (void);

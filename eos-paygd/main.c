@@ -234,10 +234,10 @@ test_and_update_securitylevel (void)
   gboolean ret;
   g_autoptr(GError) error = NULL;
 
-  level = eospayg_efi_var_read ("securitylevel", 1, &data_size);
+  level = eospayg_efi_var_read ("securitylevel", 1, &data_size, &error);
   if (!level)
     {
-      g_warning ("Failed to read security level");
+      g_warning ("Failed to read security level: %s", error->message);
       return FALSE;
     }
 
