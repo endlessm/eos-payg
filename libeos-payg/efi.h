@@ -23,8 +23,10 @@ gboolean eospayg_efi_var_overwrite (const char  *name,
                                     const void  *content,
                                     int          size,
                                     GError     **error);
-gboolean eospayg_efi_var_delete (const char *name);
-gboolean eospayg_efi_var_delete_fullname (const char *name);
+gboolean eospayg_efi_var_delete (const char  *name,
+                                 GError     **error);
+gboolean eospayg_efi_var_delete_fullname (const char  *name,
+                                          GError     **error);
 gboolean eospayg_efi_var_exists (const char *name);
 gboolean eospayg_efi_secureboot_active (void);
 gboolean eospayg_efi_securebootoption_disabled (void);

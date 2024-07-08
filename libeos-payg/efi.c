@@ -53,7 +53,8 @@ struct efi_ops {
                      int          size,
                      gboolean     allow_overwrite,
                      GError     **error);
-  gboolean (*delete) (const char *name);
+  gboolean (*delete) (const char  *name,
+                      GError     **error);
   void (*list_rewind) (void);
   const char *(*list_next) (void);
   gboolean (*clear) (void);
@@ -62,25 +63,28 @@ struct efi_ops {
 static struct efi_ops *efi;
 
 static gboolean
-clear_immutable (const char *name)
+clear_immutable (const char  *name,
+                 GError     **error)
 {
   unsigned int flags;
   int ret = 0;
   glnx_autofd int fd = -1;
 
   if (efi_fd == -1)
-    return FALSE;
+    return glnx_throw (error, "EFI ops not initialized");
 
   fd = openat (efi_fd, name, O_RDONLY);
+  if (fd < 0)
+    return glnx_throw_errno_prefix (error, "openat(%s) failed", name);
 
   ret = ioctl (fd, FS_IOC_GETFLAGS, &flags);
   if (ret < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "getflags failed");
 
   flags &= ~FS_IMMUTABLE_FL;
   ret = ioctl (fd, FS_IOC_SETFLAGS, &flags);
   if (ret < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "setflags failed");
 
   return TRUE;
 }
@@ -196,7 +200,7 @@ efivarfs_write (const char  *name,
 
   /* It may not exist, and this will fail harmlessly */
   if (allow_overwrite)
-    clear_immutable (name);
+    clear_immutable (name, NULL);
 
   memcpy (tbuf, attr, 4);
   memcpy (tbuf + 4, content, size);
@@ -313,7 +317,8 @@ test_zap_var (int index)
 }
 
 static gboolean
-test_delete (const char *name)
+test_delete (const char  *name,
+             GError     **error)
 {
   int i;
 
@@ -323,67 +328,85 @@ test_delete (const char *name)
         test_zap_var (i);
         return TRUE;
       }
+
+  g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+               "Variable %s not found", name);
   return FALSE;
 }
 
 static gboolean
-efivarfs_delete (const char *name)
+efivarfs_delete (const char  *name,
+                 GError     **error)
 {
   int ret;
+  g_autoptr(GError) local_error = NULL;
 
-  clear_immutable (name);
+  if (!clear_immutable (name, &local_error))
+    g_warning ("Failed to remove immutable flag on %s: %s",
+               name,
+               local_error->message);
   ret = unlinkat (efi_fd, name, 0);
   if (ret < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "Failed to delete %s", name);
 
   return TRUE;
 }
 
 /* eospayg_efi_var_delete_fullname:
  * @name: Full name of variable to delete
+ * @error: return location for an error, or %NULL
  *
  * Delete an EFI variable by its full name including GUID.
  *
- * If this fails, errno will be the result of the unlink
- * operation. Notably, EBUSY will indicate that the deletion
+ * If this fails, @error will be the result of the unlink
+ * operation. Notably, G_IO_ERROR_BUSY will indicate that the deletion
  * probably failed due to the existence of a bind mount for
  * the file.
  *
  * Returns: %TRUE if successful, otherwise %FALSE
  */
 gboolean
-eospayg_efi_var_delete_fullname (const char *name)
+eospayg_efi_var_delete_fullname (const char  *name,
+                                 GError     **error)
 {
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   /* Make sure we never delete a non EOSPAYG_
    * variable, as some of those are required to boot!
    */
   if (strncmp (name, "EOSPAYG_", 8) != 0)
-    return FALSE;
+    return glnx_throw (error,
+                       "Refusing to delete non-PAYG variable %s",
+                       name);
 
-  return efi->delete (name);
+  return efi->delete (name, error);
 }
 
 
 /* eospayg_efi_var_delete:
  * @name: Short name of variable to delete
+ * @error: return location for an error, or %NULL
  *
  * Delete an EFI variable.
  *
  * The name will be automatically prefixed with EOSPAYG_
  * and suffixed with the eos payg variable UUID.
  *
- * If this fails, errno will be the result of the unlink
- * operation. Notably, EBUSY will indicate that the deletion
+ * If this fails, @error will be the result of the unlink
+ * operation. Notably, G_IO_ERROR_BUSY will indicate that the deletion
  * probably failed due to the existence of a bind mount for
  * the file.
  * Returns: %TRUE if successful, otherwise %FALSE
  */
 gboolean
-eospayg_efi_var_delete (const char *name)
+eospayg_efi_var_delete (const char  *name,
+                        GError     **error)
 {
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   g_autofree char *tname = eospayg_efi_name (name);
 
-  return eospayg_efi_var_delete_fullname (tname);
+  return eospayg_efi_var_delete_fullname (tname, error);
 }
 
 static gboolean
