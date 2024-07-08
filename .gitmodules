@@ -1,3 +1,6 @@
 [submodule "subprojects/libgsystemservice"]
 	path = subprojects/libgsystemservice
 	url = https://gitlab.gnome.org/pwithnall/libgsystemservice.git
+[submodule "subprojects/libglnx"]
+	path = subprojects/libglnx
+	url = https://gitlab.gnome.org/GNOME/libglnx

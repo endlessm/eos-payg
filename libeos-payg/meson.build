@@ -42,6 +42,7 @@ libeos_payg_deps = [
   dependency('libpeas-1.0'),
   libeos_payg_codes_dep,
   libgsystemservice_dep,
+  libglnx_dep,
 ]
 
 libeos_payg_resources = gnome.compile_resources(

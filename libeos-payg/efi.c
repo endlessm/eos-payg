@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <libeos-payg/efi.h>
+#include <libglnx.h>
 
 #define EOSPAYG_GUID         "d89c3871-ae0c-4fc5-a409-dc717aee61e7"
 #define GLOBAL_VARIABLE_GUID "8be4df61-93ca-11d2-aa0d-00e098032b8c"
@@ -59,7 +60,7 @@ clear_immutable (const char *name)
 {
   unsigned int flags;
   int ret = 0;
-  int fd;
+  glnx_autofd int fd = -1;
 
   if (efi_fd == -1)
     return FALSE;
@@ -68,16 +69,10 @@ clear_immutable (const char *name)
 
   ret = ioctl (fd, FS_IOC_GETFLAGS, &flags);
   if (ret < 0)
-    goto fail;
+    return FALSE;
 
   flags &= ~FS_IMMUTABLE_FL;
   ret = ioctl (fd, FS_IOC_SETFLAGS, &flags);
-  if (ret < 0)
-    goto fail;
-
-fail:
-  close (fd);
-
   if (ret < 0)
     return FALSE;
 
@@ -176,7 +171,8 @@ efivarfs_write (const char *name, const void *content, int size, gboolean allow_
   unsigned char attr[4] = { 7, 0, 0, 0 };
   int tsize = 4 + size;
   char tbuf[tsize];
-  int fd, ret;
+  glnx_autofd int fd = -1;
+  ssize_t ret;
   int flags = O_WRONLY | O_CREAT;
 
   /* It may not exist, and this will fail harmlessly */
@@ -197,7 +193,6 @@ efivarfs_write (const char *name, const void *content, int size, gboolean allow_
    * on efivarfs.
    */
   ret = write (fd, tbuf, tsize);
-  close (fd);
   if (ret < tsize)
     return FALSE;
 
@@ -340,8 +335,7 @@ eospayg_efi_var_delete_fullname (const char *name)
  * operation. Notably, EBUSY will indicate that the deletion
  * probably failed due to the existence of a bind mount for
  * the file.
-
- * Returns: %TRUE if successsful, otherwise %FALSE
+ * Returns: %TRUE if successful, otherwise %FALSE
  */
 gboolean
 eospayg_efi_var_delete (const char *name)
@@ -408,9 +402,10 @@ static unsigned char *
 efivarfs_read (const char *name, int *size)
 {
   struct stat sb;
-  int fd, ret, fsize;
+  glnx_autofd int fd = -1;
+  int ret, fsize;
   char attr[4];
-  char *out = NULL, *tout;
+  g_autofree unsigned char *tout = NULL;
 
   *size = -1;
   fd = openat (efi_fd, name, O_RDONLY);
@@ -419,11 +414,11 @@ efivarfs_read (const char *name, int *size)
    */
   ret = read (fd, &attr, 4);
   if (ret != 4)
-    goto out;
+    return NULL;
 
   ret = fstat (fd, &sb);
   if (ret < 0)
-    goto out;
+    return NULL;
 
   fsize = sb.st_size;
   if (fsize < 5)
@@ -439,7 +434,7 @@ efivarfs_read (const char *name, int *size)
        * without content, so this shouldn't be ambiguous.
        */
       *size = 0;
-      goto out;
+      return NULL;
     }
 
   /* Throw away the attributes */
@@ -448,16 +443,11 @@ efivarfs_read (const char *name, int *size)
   ret = read (fd, tout, fsize);
   if (ret != fsize)
     {
-      free (tout);
-      goto out;
+      return NULL;
     }
 
-  out = tout;
   *size = fsize;
-
-  out:
-    close (fd);
-  return out;
+  return g_steal_pointer (&tout);
 }
 
 /* eospayg_efi_secureboot_active:
@@ -528,7 +518,8 @@ eospayg_efi_securebootoption_disabled (void)
  * space, but the kernel has a placeholder file for it due to a failed
  * write.
  *
- * Returns: size of the PK efi variable including EFI overhead, or -1 if missing
+ * Returns: size of the PK EFI variable, excluding the 4-byte attribute
+ *          overhead, or -1 if missing
  */
 int
 eospayg_efi_PK_size (void)
@@ -700,7 +691,8 @@ static struct efi_ops test_ops =
 gboolean
 eospayg_efi_init (enum eospayg_efi_flags flags)
 {
-  int tmpfd = -1;
+  glnx_autofd int local_efi_fd = -1;
+  glnx_autofd int tmpfd = -1;
 
   if (initted)
     return TRUE;
@@ -713,24 +705,25 @@ eospayg_efi_init (enum eospayg_efi_flags flags)
     }
 
   efi = &efivarfs_ops;
-  efi_fd = open ("/sys/firmware/efi/efivars", O_DIRECTORY);
-  if (efi_fd < 0)
+  local_efi_fd = open ("/sys/firmware/efi/efivars", O_DIRECTORY);
+  if (local_efi_fd < 0)
     return FALSE;
 
   tmpfd = open ("/sys/firmware/efi/efivars", O_DIRECTORY);
   if (tmpfd < 0)
-    goto error;
+    return FALSE;
 
   efi_dir = fdopendir (tmpfd);
   if (!efi_dir)
-    goto error;
+    return FALSE;
+
+  /* "After a successful call to fdopendir(), fd is used internally by the
+   * implementation, and should not otherwise be used by the application."
+   */
+  tmpfd = -1;
+
+  /* Transfer ownership to the global variable */
+  efi_fd = _glnx_steal_fd (&local_efi_fd);
 
   return TRUE;
-
-error:
-  if (efi_fd != -1)
-    close (efi_fd);
-  if (tmpfd != -1)
-    close (tmpfd);
-  return FALSE;
 }
