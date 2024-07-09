@@ -59,6 +59,7 @@ Section: misc
 Architecture: any
 Depends:
  libglib2.0-dev,
+ libsystemd-dev,
  eos-paygd (= ${binary:Version}),
  ${misc:Depends},
 Description: Pay As You Go Daemon - provider plugin development
