@@ -8,7 +8,8 @@ override_dh_auto_configure:
 	dh_auto_configure \
 		-- \
 		-Dinstalled_tests=true \
-		-Ddefault_library=static \
+		-Ddefault_library=both \
+		-Dlibgsystemservice:default_library=static \
 		-Dtests=unsafe
 		$(NULL)
 

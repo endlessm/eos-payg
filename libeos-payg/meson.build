@@ -51,7 +51,7 @@ libeos_payg_resources = gnome.compile_resources(
   c_name : 'epg',
 )
 
-libeos_payg = shared_library(eos_payg_api_name,
+libeos_payg = library(eos_payg_api_name,
   libeos_payg_sources + libeos_payg_headers + libeos_payg_resources,
   dependencies: libeos_payg_deps,
   include_directories: root_inc,
@@ -68,10 +68,10 @@ install_headers(libeos_payg_exported_headers,
   subdir: libeos_payg_include_subdir,
 )
 
-# Can't use the shorthand where we pass the shared_library() as the first
-# argument to inherit its name because this also inherits its install_dir; but
-# we want the .pc file to end up in the standard pkgconfig path, not a
-# pkgconfig file inside pkglibdir (which will not be searched by pkg-config).
+# Can't use the shorthand where we pass the library() as the first argument to
+# inherit its name because this also inherits its install_dir; but we want the
+# .pc file to end up in the standard pkgconfig path, not a pkgconfig file inside
+# pkglibdir (which will not be searched by pkg-config).
 pkgconfig.generate(
   name: eos_payg_api_name,
   description: 'Pay-as-you-go support for Endless OS',
