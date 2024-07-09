@@ -46,5 +46,6 @@ foreach program: test_programs
     exe,
     env: envs,
     suite: ['eos-payg'],
+    protocol: 'tap',
   )
 endforeach
