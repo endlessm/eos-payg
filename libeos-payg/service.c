@@ -558,6 +558,7 @@ static void provider_unlocked_cb (EpgProvider *provider,
                                   gpointer     user_data)
 {
   EpgService *self = EPG_SERVICE (user_data);
+  g_autoptr(GError) error = NULL;
 
   g_message ("EpgProvider emitted 'unlocked' signal");
 
@@ -567,8 +568,8 @@ static void provider_unlocked_cb (EpgProvider *provider,
    */
   if (self->eospayg_active_efivar)
     {
-      if (!eospayg_efi_var_delete ("active"))
-        g_warning ("Failed to delete EOSPAYG_active upon unlock");
+      if (!eospayg_efi_var_delete ("active", &error))
+        g_warning ("Failed to delete EOSPAYG_active upon unlock: %s", error->message);
       else
         g_message ("Deleted EOSPAYG_active upon unlock");
 

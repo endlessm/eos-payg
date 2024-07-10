@@ -45,9 +45,16 @@ static gboolean test_mode = FALSE;
 
 struct efi_ops {
   gboolean (*exists) (const char *name);
-  unsigned char * (*read) (const char *name, int *size);
-  gboolean (*write) (const char *name, const void *content, int size, gboolean allow_overwrite);
-  gboolean (*delete) (const char *name);
+  unsigned char * (*read) (const char  *name,
+                           int         *size,
+                           GError     **error);
+  gboolean (*write) (const char  *name,
+                     const void  *content,
+                     int          size,
+                     gboolean     allow_overwrite,
+                     GError     **error);
+  gboolean (*delete) (const char  *name,
+                      GError     **error);
   void (*list_rewind) (void);
   const char *(*list_next) (void);
   gboolean (*clear) (void);
@@ -56,25 +63,28 @@ struct efi_ops {
 static struct efi_ops *efi;
 
 static gboolean
-clear_immutable (const char *name)
+clear_immutable (const char  *name,
+                 GError     **error)
 {
   unsigned int flags;
   int ret = 0;
   glnx_autofd int fd = -1;
 
   if (efi_fd == -1)
-    return FALSE;
+    return glnx_throw (error, "EFI ops not initialized");
 
   fd = openat (efi_fd, name, O_RDONLY);
+  if (fd < 0)
+    return glnx_throw_errno_prefix (error, "openat(%s) failed", name);
 
   ret = ioctl (fd, FS_IOC_GETFLAGS, &flags);
   if (ret < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "getflags failed");
 
   flags &= ~FS_IMMUTABLE_FL;
   ret = ioctl (fd, FS_IOC_SETFLAGS, &flags);
   if (ret < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "setflags failed");
 
   return TRUE;
 }
@@ -130,7 +140,11 @@ eospayg_efi_root_pivot (void)
 }
 
 static gboolean
-test_write (const char *name, const void *content, int size, gboolean allow_overwrite)
+test_write (const char  *name,
+            const void  *content,
+            int          size,
+            gboolean     allow_overwrite,
+            GError     **error)
 {
   struct fake_var *target = NULL;
   int i;
@@ -160,11 +174,20 @@ test_write (const char *name, const void *content, int size, gboolean allow_over
       return TRUE;
     }
 
+  g_set_error (error,
+               G_IO_ERROR,
+               G_IO_ERROR_NO_SPACE,
+               "Could not find storage for %s",
+               name);
   return FALSE;
 }
 
 static gboolean
-efivarfs_write (const char *name, const void *content, int size, gboolean allow_overwrite)
+efivarfs_write (const char  *name,
+                const void  *content,
+                int          size,
+                gboolean     allow_overwrite,
+                GError     **error)
 {
   /* This is the attribute pattern required for all our variables,
    * non volatile, runtime services, boot services */
@@ -177,7 +200,7 @@ efivarfs_write (const char *name, const void *content, int size, gboolean allow_
 
   /* It may not exist, and this will fail harmlessly */
   if (allow_overwrite)
-    clear_immutable (name);
+    clear_immutable (name, NULL);
 
   memcpy (tbuf, attr, 4);
   memcpy (tbuf + 4, content, size);
@@ -187,28 +210,39 @@ efivarfs_write (const char *name, const void *content, int size, gboolean allow_
 
   fd = openat (efi_fd, name, flags, 0600);
   if (fd < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "Failed to open %s", name);
 
   /* libefivar doesn't handle EINTR, so I guess writes are atomic
    * on efivarfs.
    */
   ret = write (fd, tbuf, tsize);
+  if (ret < 0)
+    return glnx_throw_errno_prefix (error, "Failed to write to %s", name);
   if (ret < tsize)
-    return FALSE;
+    return glnx_throw (error,
+                       "Wrote only %" G_GSSIZE_FORMAT " bytes of %d to %s",
+                       ret,
+                       tsize,
+                       name);
 
   return TRUE;
 }
 
 static gboolean
-efi_var_write (const char *name, const void *content, int size, gboolean allow_overwrite)
+efi_var_write (const char  *name,
+               const void  *content,
+               int          size,
+               gboolean     allow_overwrite,
+               GError     **error)
 {
-  return efi->write (name, content, size, allow_overwrite);
+  return efi->write (name, content, size, allow_overwrite, error);
 }
 
 /* eospayg_efi_var_write:
  * @name: short name of variable to write
  * @content: data to store in variable
  * @size: number of bytes in content
+ * @error: return location for an error, or %NULL
  *
  * Write a new EFI variable.
  *
@@ -224,21 +258,27 @@ efi_var_write (const char *name, const void *content, int size, gboolean allow_o
  * Returns: %TRUE if successful, otherwise %FALSE
  */
 gboolean
-eospayg_efi_var_write (const char *name, const void *content, int size)
+eospayg_efi_var_write (const char  *name,
+                       const void  *content,
+                       int          size,
+                       GError     **error)
 {
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   gboolean allow_overwrite = TRUE;
   g_autofree char *tname = eospayg_efi_name (name);
 
   if (post_pivot)
     allow_overwrite = FALSE;
 
-  return efi_var_write (tname, content, size, allow_overwrite);
+  return efi_var_write (tname, content, size, allow_overwrite, error);
 }
 
 /* eospayg_efi_var_overwrite:
  * @name: short name of variable to write
  * @content: data to store in variable
  * @size: number of bytes in content
+ * @error: return location for an error, or %NULL
  *
  * Overwrite an existing EFI variable, or create a new one.
  *
@@ -251,14 +291,19 @@ eospayg_efi_var_write (const char *name, const void *content, int size)
  * Returns: %TRUE if successful, otherwise %FALSE
  */
 gboolean
-eospayg_efi_var_overwrite (const char *name, const void *content, int size)
+eospayg_efi_var_overwrite (const char  *name,
+                           const void  *content,
+                           int          size,
+                           GError     **error)
 {
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   g_autofree char *tname = eospayg_efi_name (name);
 
   if (post_pivot)
-    return FALSE;
+    return glnx_throw (error, "Attempted to overwrite %s after pivot", name);
 
-  return efi_var_write (tname, content, size, TRUE);
+  return efi_var_write (tname, content, size, TRUE, error);
 }
 
 static void
@@ -272,7 +317,8 @@ test_zap_var (int index)
 }
 
 static gboolean
-test_delete (const char *name)
+test_delete (const char  *name,
+             GError     **error)
 {
   int i;
 
@@ -282,67 +328,85 @@ test_delete (const char *name)
         test_zap_var (i);
         return TRUE;
       }
+
+  g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND,
+               "Variable %s not found", name);
   return FALSE;
 }
 
 static gboolean
-efivarfs_delete (const char *name)
+efivarfs_delete (const char  *name,
+                 GError     **error)
 {
   int ret;
+  g_autoptr(GError) local_error = NULL;
 
-  clear_immutable (name);
+  if (!clear_immutable (name, &local_error))
+    g_warning ("Failed to remove immutable flag on %s: %s",
+               name,
+               local_error->message);
   ret = unlinkat (efi_fd, name, 0);
   if (ret < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "Failed to delete %s", name);
 
   return TRUE;
 }
 
 /* eospayg_efi_var_delete_fullname:
  * @name: Full name of variable to delete
+ * @error: return location for an error, or %NULL
  *
  * Delete an EFI variable by its full name including GUID.
  *
- * If this fails, errno will be the result of the unlink
- * operation. Notably, EBUSY will indicate that the deletion
+ * If this fails, @error will be the result of the unlink
+ * operation. Notably, G_IO_ERROR_BUSY will indicate that the deletion
  * probably failed due to the existence of a bind mount for
  * the file.
  *
  * Returns: %TRUE if successful, otherwise %FALSE
  */
 gboolean
-eospayg_efi_var_delete_fullname (const char *name)
+eospayg_efi_var_delete_fullname (const char  *name,
+                                 GError     **error)
 {
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   /* Make sure we never delete a non EOSPAYG_
    * variable, as some of those are required to boot!
    */
   if (strncmp (name, "EOSPAYG_", 8) != 0)
-    return FALSE;
+    return glnx_throw (error,
+                       "Refusing to delete non-PAYG variable %s",
+                       name);
 
-  return efi->delete (name);
+  return efi->delete (name, error);
 }
 
 
 /* eospayg_efi_var_delete:
  * @name: Short name of variable to delete
+ * @error: return location for an error, or %NULL
  *
  * Delete an EFI variable.
  *
  * The name will be automatically prefixed with EOSPAYG_
  * and suffixed with the eos payg variable UUID.
  *
- * If this fails, errno will be the result of the unlink
- * operation. Notably, EBUSY will indicate that the deletion
+ * If this fails, @error will be the result of the unlink
+ * operation. Notably, G_IO_ERROR_BUSY will indicate that the deletion
  * probably failed due to the existence of a bind mount for
  * the file.
  * Returns: %TRUE if successful, otherwise %FALSE
  */
 gboolean
-eospayg_efi_var_delete (const char *name)
+eospayg_efi_var_delete (const char  *name,
+                        GError     **error)
 {
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   g_autofree char *tname = eospayg_efi_name (name);
 
-  return eospayg_efi_var_delete_fullname (tname);
+  return eospayg_efi_var_delete_fullname (tname, error);
 }
 
 static gboolean
@@ -382,7 +446,9 @@ eospayg_efi_var_exists (const char *name)
 }
 
 static unsigned char *
-test_read (const char *name, int *size)
+test_read (const char  *name,
+           int         *size,
+           GError     **error)
 {
   unsigned char *out;
   int i;
@@ -395,11 +461,14 @@ test_read (const char *name, int *size)
         *size = fake_vars[i].size;
         return out;
       }
-  return NULL;
+
+  return glnx_null_throw (error, "%s not found", name);
 }
 
 static unsigned char *
-efivarfs_read (const char *name, int *size)
+efivarfs_read (const char  *name,
+               int         *size,
+               GError     **error)
 {
   struct stat sb;
   glnx_autofd int fd = -1;
@@ -409,16 +478,26 @@ efivarfs_read (const char *name, int *size)
 
   *size = -1;
   fd = openat (efi_fd, name, O_RDONLY);
+  if (fd == -1)
+    return glnx_null_throw_errno_prefix (error, "Failed to open %s", name);
+
   /* Apparently efivarfs reads are atomic and I don't have to
    * handle EINTR - libefivar doesn't.
    */
   ret = read (fd, &attr, 4);
+  if (ret == -1)
+    return glnx_null_throw_errno_prefix (error,
+                                         "Failed to read attributes from %s",
+                                         name);
   if (ret != 4)
-    return NULL;
+    return glnx_null_throw (error,
+                            "Read only %d bytes of 4-byte attributes for %s",
+                            ret,
+                            name);
 
   ret = fstat (fd, &sb);
   if (ret < 0)
-    return NULL;
+    return glnx_null_throw_errno_prefix (error, "fstat() failed for %s", name);
 
   fsize = sb.st_size;
   if (fsize < 5)
@@ -434,17 +513,23 @@ efivarfs_read (const char *name, int *size)
        * without content, so this shouldn't be ambiguous.
        */
       *size = 0;
-      return NULL;
+      return glnx_null_throw (error, "%s has length %d", name, fsize);
     }
 
   /* Throw away the attributes */
   fsize -= 4;
   tout = malloc (fsize);
   ret = read (fd, tout, fsize);
+  if (ret == -1)
+    return glnx_null_throw_errno_prefix (error,
+                                         "Failed to read contents of %s",
+                                         name);
   if (ret != fsize)
-    {
-      return NULL;
-    }
+    return glnx_null_throw (error,
+                            "Read %d bytes, not %d, of %s",
+                            ret,
+                            fsize,
+                            name);
 
   *size = fsize;
   return g_steal_pointer (&tout);
@@ -467,7 +552,7 @@ eospayg_efi_secureboot_active (void)
   if (test_mode)
     return TRUE;
 
-  content = efivarfs_read (tname, &size);
+  content = efivarfs_read (tname, &size, NULL);
   if (!content || size != 1)
     return FALSE;
 
@@ -501,7 +586,7 @@ eospayg_efi_securebootoption_disabled (void)
   if (test_mode)
     return FALSE;
 
-  content = efivarfs_read (tname, &size);
+  content = efivarfs_read (tname, &size, NULL);
   if (!content || size != 1)
     return FALSE;
 
@@ -531,32 +616,57 @@ eospayg_efi_PK_size (void)
   if (test_mode)
     return -1;
 
-  content = efivarfs_read (tname, &size);
+  content = efivarfs_read (tname, &size, NULL);
   return size;
 }
 
 /* eospayg_efi_var_read:
  * @name: Short name of variable
+ * @expected_size: Expected size of the variable contents, in bytes, or
+ *                 -1
  * @size: Returns the number of bytes in the variable
+ * @error: return location for an error, or %NULL
  *
  * Read the contents of an EFI variable.
+ *
+ * If @expected_size is not -1, and the variable exists but does not
+ * have the expected size, %NULL is returned rather than the variable
+ * contents.
  *
  * The name will be automatically prefixed with EOSPAYG_
  * and suffixed with the eos payg variable UUID.
  *
- * Returns: A pointer to the variable contents - this must be
- *   freed by the caller after use.
+ * Returns: (transfer full): A pointer to the variable contents, or %NULL on
+ *          error
  */
 void *
-eospayg_efi_var_read (const char *name, int *size)
+eospayg_efi_var_read (const char  *name,
+                      int          expected_size,
+                      int         *size,
+                      GError     **error)
 {
+  g_return_val_if_fail (expected_size >= -1, FALSE);
+  g_return_val_if_fail (size != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   g_autofree char *tname = eospayg_efi_name (name);
 
   *size = -1;
   if (post_pivot)
-    return NULL;
+    return glnx_null_throw (error, "Cannot read %s after pivot", name);
 
-  return efi->read (tname, size);
+  void *ret = efi->read (tname, size, error);
+  if (ret &&
+      expected_size >= 0 &&
+      expected_size != *size)
+    {
+      g_clear_pointer (&ret, free);
+      return glnx_null_throw (error,
+                              "Variable data was %d bytes; expected %d bytes",
+                              *size,
+                              expected_size);
+    }
+  return ret;
 }
 
 static void
@@ -677,6 +787,7 @@ static struct efi_ops test_ops =
 
 /* eospayg_efi_init:
  * @flags: pass EOSPAYG_EFI_TEST_MODE for fake EFI storage
+ * @error: return location for an error, or %NULL
  *
  * Initialize our EFI functionality. This must be done
  * before the root pivot, as it needs a trusted fd to
@@ -689,8 +800,11 @@ static struct efi_ops test_ops =
  * Return: %TRUE if successful or %FALSE otherwise.
  */
 gboolean
-eospayg_efi_init (enum eospayg_efi_flags flags)
+eospayg_efi_init (enum eospayg_efi_flags   flags,
+                  GError                 **error)
 {
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
   glnx_autofd int local_efi_fd = -1;
   glnx_autofd int tmpfd = -1;
 
@@ -707,15 +821,15 @@ eospayg_efi_init (enum eospayg_efi_flags flags)
   efi = &efivarfs_ops;
   local_efi_fd = open ("/sys/firmware/efi/efivars", O_DIRECTORY);
   if (local_efi_fd < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "Failed to open efivars");
 
   tmpfd = open ("/sys/firmware/efi/efivars", O_DIRECTORY);
   if (tmpfd < 0)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "Failed to open efivars twice");
 
   efi_dir = fdopendir (tmpfd);
   if (!efi_dir)
-    return FALSE;
+    return glnx_throw_errno_prefix (error, "Failed to open efivars directory stream");
 
   /* "After a successful call to fdopendir(), fd is used internally by the
    * implementation, and should not otherwise be used by the application."

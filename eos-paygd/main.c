@@ -232,11 +232,12 @@ test_and_update_securitylevel (void)
   g_autofree char *level = NULL;
   int data_size = 0;
   gboolean ret;
+  g_autoptr(GError) error = NULL;
 
-  level = eospayg_efi_var_read ("securitylevel", &data_size);
-  if (!level || data_size != 1)
+  level = eospayg_efi_var_read ("securitylevel", 1, &data_size, &error);
+  if (!level)
     {
-      g_warning ("Failed to read security level");
+      g_warning ("Failed to read security level: %s", error->message);
       return FALSE;
     }
 
@@ -261,14 +262,14 @@ test_and_update_securitylevel (void)
        * project we probably need to consider alternate career paths.
        */
       level[0] = EPG_SECURITY_LEVEL;
-      ret = eospayg_efi_var_overwrite ("securitylevel", level, data_size);
+      ret = eospayg_efi_var_overwrite ("securitylevel", level, data_size, &error);
 
       /* There's nothing a user should be able to do to cause this to fail,
        * so we'll let this "impossible" situation slide with a warning, and
        * attempt to correct it on next boot.
        */
       if (!ret)
-        g_warning ("Failed to update security level.");
+        g_warning ("Failed to update security level: %s", error->message);
     }
 
   return TRUE;
@@ -329,12 +330,14 @@ main (int   argc,
 
       g_debug ("eos-paygd running from initramfs");
 
-      if (!eospayg_efi_init (0))
+      if (!eospayg_efi_init (0, &error))
         {
-          g_warning ("Unable to access EFI variables, shutting down in %d minutes",
-                     TIMEOUT_POWEROFF_ON_ERROR_MINUTES);
+          g_warning ("Unable to access EFI variables, shutting down in %d minutes: %s",
+                     TIMEOUT_POWEROFF_ON_ERROR_MINUTES,
+                     error->message);
           g_timeout_add_seconds (TIMEOUT_POWEROFF_ON_ERROR_MINUTES * 60,
                                  payg_system_poweroff, NULL);
+          g_clear_error (&error);
         }
 
       payg_set_debug_env_vars ();
