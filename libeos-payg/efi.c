@@ -544,19 +544,13 @@ efivarfs_read (const char  *name,
 gboolean
 eospayg_efi_secureboot_active (void)
 {
-  g_autofree char *name = full_efi_name (GLOBAL_VARIABLE_GUID, "SecureBoot");
-  g_autofree unsigned char *content = NULL;
-  int size;
-
   /* In test mode let's pretend secure boot is enabled */
   if (test_mode)
     return TRUE;
 
-  content = eospayg_efi_var_read_fullname (name, -1, &size, NULL);
-  if (!content || size != 1)
-    return FALSE;
+  g_autofree char *name = full_efi_name (GLOBAL_VARIABLE_GUID, "SecureBoot");
 
-  return !!content[0];
+  return eospayg_efi_var_read_fullname_boolean (name, NULL);
 }
 
 /* eospayg_efi_securebootoption_disabled:
@@ -662,6 +656,31 @@ eospayg_efi_var_read_fullname (const char  *name,
                               expected_size);
     }
   return ret;
+}
+
+/* eospayg_efi_var_read_fullname_boolean:
+ * @name: Full name of variable
+ * @error: return location for an error, or %NULL
+ *
+ * Read the contents of an EFI variable as a boolean with its full name.
+ *
+ * It only checks the first byte of the EFI variable's content.
+ *
+ * Returns: (transfer full): A boolean of the variable content, or %NULL on
+ *          error
+ */
+gboolean
+eospayg_efi_var_read_fullname_boolean (const char  *name,
+                                       GError     **error)
+{
+  g_autofree unsigned char *content = NULL;
+  int size;
+
+  content = eospayg_efi_var_read_fullname (name, -1, &size, error);
+  if (!content)
+    return FALSE;
+
+  return !!content[0];
 }
 
 /* eospayg_efi_var_read:

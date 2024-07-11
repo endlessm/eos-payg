@@ -39,4 +39,6 @@ void *eospayg_efi_var_read (const char  *name,
                             int          expected_size,
                             int         *size,
                             GError     **error);
+gboolean eospayg_efi_var_read_fullname_boolean (const char  *name,
+                                                GError     **error);
 gboolean eospayg_efi_clear (void);
