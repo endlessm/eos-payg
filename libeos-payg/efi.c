@@ -553,6 +553,20 @@ eospayg_efi_secureboot_active (void)
   return eospayg_efi_var_read_fullname_boolean (name, NULL);
 }
 
+/* eospayg_efi_setupmode_active:
+ *
+ * Check if the system was booted with SetupMode
+ *
+ * Returns: %TRUE if booted via SetupMode, %FALSE otherwise
+ */
+gboolean
+eospayg_efi_setupmode_active (void)
+{
+  g_autofree char *name = full_efi_name (GLOBAL_VARIABLE_GUID, "SetupMode");
+
+  return eospayg_efi_var_read_fullname_boolean (name, NULL);
+}
+
 /* eospayg_efi_securebootoption_disabled:
  *
  * Check if the SecureBootOption EFI variable exists and
