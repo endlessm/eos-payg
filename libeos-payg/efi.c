@@ -645,11 +645,11 @@ eospayg_efi_var_read (const char  *name,
                       int         *size,
                       GError     **error)
 {
+  g_autofree char *tname = eospayg_efi_name (name);
+
   g_return_val_if_fail (expected_size >= -1, FALSE);
   g_return_val_if_fail (size != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-
-  g_autofree char *tname = eospayg_efi_name (name);
 
   *size = -1;
   if (post_pivot)
