@@ -620,6 +620,50 @@ eospayg_efi_PK_size (void)
   return size;
 }
 
+/* eospayg_efi_var_read_fullname:
+ * @name: Full name of variable
+ * @expected_size: Expected size of the variable contents, in bytes, or
+ *                 -1
+ * @size: Returns the number of bytes in the variable
+ * @error: return location for an error, or %NULL
+ *
+ * Read the contents of an EFI variable with its full name.
+ *
+ * If @expected_size is not -1, and the variable exists but does not
+ * have the expected size, %NULL is returned rather than the variable
+ * contents.
+ *
+ * Returns: (transfer full): A pointer to the variable contents, or %NULL on
+ *          error
+ */
+static void *
+eospayg_efi_var_read_fullname (const char  *name,
+                               int          expected_size,
+                               int         *size,
+                               GError     **error)
+{
+  g_return_val_if_fail (expected_size >= -1, FALSE);
+  g_return_val_if_fail (size != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
+  *size = -1;
+  if (post_pivot)
+    return glnx_null_throw (error, "Cannot read %s after pivot", name);
+
+  void *ret = efi->read (name, size, error);
+  if (ret &&
+      expected_size >= 0 &&
+      expected_size != *size)
+    {
+      g_clear_pointer (&ret, free);
+      return glnx_null_throw (error,
+                              "Variable data was %d bytes; expected %d bytes",
+                              *size,
+                              expected_size);
+    }
+  return ret;
+}
+
 /* eospayg_efi_var_read:
  * @name: Short name of variable
  * @expected_size: Expected size of the variable contents, in bytes, or
@@ -647,26 +691,7 @@ eospayg_efi_var_read (const char  *name,
 {
   g_autofree char *tname = eospayg_efi_name (name);
 
-  g_return_val_if_fail (expected_size >= -1, FALSE);
-  g_return_val_if_fail (size != NULL, FALSE);
-  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
-
-  *size = -1;
-  if (post_pivot)
-    return glnx_null_throw (error, "Cannot read %s after pivot", name);
-
-  void *ret = efi->read (tname, size, error);
-  if (ret &&
-      expected_size >= 0 &&
-      expected_size != *size)
-    {
-      g_clear_pointer (&ret, free);
-      return glnx_null_throw (error,
-                              "Variable data was %d bytes; expected %d bytes",
-                              *size,
-                              expected_size);
-    }
-  return ret;
+  return eospayg_efi_var_read_fullname (tname, expected_size, size, error);
 }
 
 static void
