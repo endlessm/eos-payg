@@ -544,7 +544,7 @@ efivarfs_read (const char  *name,
 gboolean
 eospayg_efi_secureboot_active (void)
 {
-  g_autofree char *tname = full_efi_name (GLOBAL_VARIABLE_GUID, "SecureBoot");
+  g_autofree char *name = full_efi_name (GLOBAL_VARIABLE_GUID, "SecureBoot");
   g_autofree unsigned char *content = NULL;
   int size;
 
@@ -552,7 +552,7 @@ eospayg_efi_secureboot_active (void)
   if (test_mode)
     return TRUE;
 
-  content = efivarfs_read (tname, &size, NULL);
+  content = eospayg_efi_var_read_fullname (name, -1, &size, NULL);
   if (!content || size != 1)
     return FALSE;
 
