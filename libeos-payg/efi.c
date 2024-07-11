@@ -16,12 +16,13 @@
 #include <libeos-payg/efi.h>
 #include <libglnx.h>
 
-#define EOSPAYG_GUID         "d89c3871-ae0c-4fc5-a409-dc717aee61e7"
-#define GLOBAL_VARIABLE_GUID "8be4df61-93ca-11d2-aa0d-00e098032b8c"
+#define EOSPAYG_GUID            "d89c3871-ae0c-4fc5-a409-dc717aee61e7"
+#define GLOBAL_VARIABLE_GUID    "8be4df61-93ca-11d2-aa0d-00e098032b8c"
+#define SECUREBOOT_SETUP_GUID   "7b59104a-c00d-4158-87ff-f04d6396a915"
 
 /* Can't figure out who owns this GUID. ECS and Lenovo have both used it */
-#define SBO_VARIABLE_GUID    "955b9041-133a-4bcf-90d1-97e1693c0e30"
-#define NVM_PREFIX           "EOSPAYG_"
+#define SBO_VARIABLE_GUID       "955b9041-133a-4bcf-90d1-97e1693c0e30"
+#define NVM_PREFIX              "EOSPAYG_"
 
 /* Totally bogus low performance mock storage for dry runs.
  * Note that the array becomes sparse after deletes, so the
@@ -537,7 +538,7 @@ efivarfs_read (const char  *name,
 
 /* eospayg_efi_secureboot_active:
  *
- * Check if the system was booted via SecureBoot
+ * Check if the system was booted via real SecureBoot in result
  *
  * Returns: %TRUE if booted via SecureBoot, %FALSE otherwise
  */
@@ -565,6 +566,31 @@ eospayg_efi_setupmode_active (void)
   g_autofree char *name = full_efi_name (GLOBAL_VARIABLE_GUID, "SetupMode");
 
   return eospayg_efi_var_read_fullname_boolean (name, NULL);
+}
+
+/* eospayg_efi_secureboot_setup_active:
+ *
+ * Check if the system was booted with SecureBoot Setup config.
+ *
+ * However, some systems such as OLPC LEAP W502 do no have the SecureBootSetup
+ * EFI variable.
+ *
+ * Returns: one of the enum. %EFIVAR_NOT_EXIST if SecureBootSetup variable does
+ *          not exist, %EFIVAR_TRUE if system boots with set SecureBootSetup,
+ *          %EFIVAR_FALSE otherwise
+ */
+enum efivar_states
+eospayg_efi_secureboot_setup_active (void)
+{
+  g_autofree char *name = full_efi_name (SECUREBOOT_SETUP_GUID,
+                                         "SecureBootSetup");
+  g_autoptr(GError) error = NULL;
+
+  gboolean flag = eospayg_efi_var_read_fullname_boolean (name, &error);
+  if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+    return EFIVAR_NOT_EXIST;
+
+  return flag ? EFIVAR_TRUE : EFIVAR_FALSE;
 }
 
 /* eospayg_efi_securebootoption_disabled:
