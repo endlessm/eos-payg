@@ -370,6 +370,7 @@ eospayg_efi_var_delete_fullname (const char  *name,
                                  GError     **error)
 {
   g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   /* Make sure we never delete a non EOSPAYG_
@@ -404,6 +405,7 @@ eospayg_efi_var_delete (const char  *name,
                         GError     **error)
 {
   g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   g_autofree char *tname = eospayg_efi_name (name);
@@ -445,6 +447,7 @@ gboolean
 eospayg_efi_var_exists (const char *name)
 {
   g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
 
   return efi->exists (name);
 }
@@ -689,6 +692,7 @@ eospayg_efi_var_read_fullname (const char  *name,
                                GError     **error)
 {
   g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
   g_return_val_if_fail (expected_size >= -1, FALSE);
   g_return_val_if_fail (size != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
@@ -727,6 +731,8 @@ eospayg_efi_var_read_fullname_boolean (const char  *name,
                                        GError     **error)
 {
   g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   g_autofree unsigned char *content = NULL;
   int size;
@@ -764,6 +770,10 @@ eospayg_efi_var_read (const char  *name,
                       GError     **error)
 {
   g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (expected_size >= -1, FALSE);
+  g_return_val_if_fail (size != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   g_autofree char *tname = eospayg_efi_name (name);
 
