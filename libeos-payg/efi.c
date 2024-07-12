@@ -41,7 +41,6 @@ static int fake_var_ptr = 0;
 static int efi_fd = -1;
 DIR *efi_dir = NULL;
 static gboolean post_pivot = FALSE;
-static gboolean initted = FALSE;
 static gboolean test_mode = FALSE;
 
 struct efi_ops {
@@ -917,7 +916,7 @@ eospayg_efi_init (enum eospayg_efi_flags   flags,
   glnx_autofd int local_efi_fd = -1;
   glnx_autofd int tmpfd = -1;
 
-  if (initted)
+  if (efi != NULL)
     return TRUE;
 
   if (flags & EOSPAYG_EFI_TEST_MODE)
