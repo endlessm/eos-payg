@@ -370,6 +370,7 @@ gboolean
 eospayg_efi_var_delete_fullname (const char  *name,
                                  GError     **error)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   /* Make sure we never delete a non EOSPAYG_
@@ -403,6 +404,7 @@ gboolean
 eospayg_efi_var_delete (const char  *name,
                         GError     **error)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   g_autofree char *tname = eospayg_efi_name (name);
@@ -443,6 +445,8 @@ efivarfs_exists (const char *name)
 gboolean
 eospayg_efi_var_exists (const char *name)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   return efi->exists (name);
 }
 
@@ -549,6 +553,8 @@ eospayg_efi_secureboot_active (void)
   if (test_mode)
     return TRUE;
 
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   g_autofree char *name = full_efi_name (GLOBAL_VARIABLE_GUID, "SecureBoot");
 
   return eospayg_efi_var_read_fullname_boolean (name, NULL);
@@ -563,6 +569,8 @@ eospayg_efi_secureboot_active (void)
 gboolean
 eospayg_efi_setupmode_active (void)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   g_autofree char *name = full_efi_name (GLOBAL_VARIABLE_GUID, "SetupMode");
 
   return eospayg_efi_var_read_fullname_boolean (name, NULL);
@@ -582,6 +590,7 @@ eospayg_efi_setupmode_active (void)
 enum efivar_states
 eospayg_efi_secureboot_setup_active (void)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
   g_autofree char *name = full_efi_name (SECUREBOOT_SETUP_GUID,
                                          "SecureBootSetup");
   g_autoptr(GError) error = NULL;
@@ -613,6 +622,8 @@ eospayg_efi_secureboot_setup_active (void)
 gboolean
 eospayg_efi_securebootoption_disabled (void)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   g_autofree char *tname = full_efi_name (SBO_VARIABLE_GUID, "SecureBootOption");
   g_autofree unsigned char *content = NULL;
   int size;
@@ -643,6 +654,8 @@ eospayg_efi_securebootoption_disabled (void)
 int
 eospayg_efi_PK_size (void)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   g_autofree char *tname = full_efi_name (GLOBAL_VARIABLE_GUID, "PK");
   g_autofree unsigned char *content = NULL;
   int size;
@@ -676,6 +689,7 @@ eospayg_efi_var_read_fullname (const char  *name,
                                int         *size,
                                GError     **error)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
   g_return_val_if_fail (expected_size >= -1, FALSE);
   g_return_val_if_fail (size != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
@@ -713,6 +727,8 @@ gboolean
 eospayg_efi_var_read_fullname_boolean (const char  *name,
                                        GError     **error)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   g_autofree unsigned char *content = NULL;
   int size;
 
@@ -748,6 +764,8 @@ eospayg_efi_var_read (const char  *name,
                       int         *size,
                       GError     **error)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   g_autofree char *tname = eospayg_efi_name (name);
 
   return eospayg_efi_var_read_fullname (tname, expected_size, size, error);
@@ -772,6 +790,8 @@ efivarfs_list_rewind (void)
 void
 eospayg_efi_list_rewind (void)
 {
+  g_return_if_fail (efi != NULL);
+
   efi->list_rewind ();
 }
 
@@ -815,6 +835,8 @@ efivarfs_list_next (void)
 const char *
 eospayg_efi_list_next (void)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   return efi->list_next ();
 }
 
@@ -839,8 +861,11 @@ test_clear (void)
  * Returns: %TRUE if all PAYG EFI variables could be cleared,
  *   %FALSE otherwise.
  */
-gboolean eospayg_efi_clear (void)
+gboolean
+eospayg_efi_clear (void)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   if (!efi->clear)
     return FALSE;
 
