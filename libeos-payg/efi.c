@@ -16,12 +16,13 @@
 #include <libeos-payg/efi.h>
 #include <libglnx.h>
 
-#define EOSPAYG_GUID         "d89c3871-ae0c-4fc5-a409-dc717aee61e7"
-#define GLOBAL_VARIABLE_GUID "8be4df61-93ca-11d2-aa0d-00e098032b8c"
+#define EOSPAYG_GUID            "d89c3871-ae0c-4fc5-a409-dc717aee61e7"
+#define GLOBAL_VARIABLE_GUID    "8be4df61-93ca-11d2-aa0d-00e098032b8c"
+#define SECUREBOOT_SETUP_GUID   "7b59104a-c00d-4158-87ff-f04d6396a915"
 
 /* Can't figure out who owns this GUID. ECS and Lenovo have both used it */
-#define SBO_VARIABLE_GUID    "955b9041-133a-4bcf-90d1-97e1693c0e30"
-#define NVM_PREFIX           "EOSPAYG_"
+#define SBO_VARIABLE_GUID       "955b9041-133a-4bcf-90d1-97e1693c0e30"
+#define NVM_PREFIX              "EOSPAYG_"
 
 /* Totally bogus low performance mock storage for dry runs.
  * Note that the array becomes sparse after deletes, so the
@@ -40,7 +41,6 @@ static int fake_var_ptr = 0;
 static int efi_fd = -1;
 DIR *efi_dir = NULL;
 static gboolean post_pivot = FALSE;
-static gboolean initted = FALSE;
 static gboolean test_mode = FALSE;
 
 struct efi_ops {
@@ -369,6 +369,8 @@ gboolean
 eospayg_efi_var_delete_fullname (const char  *name,
                                  GError     **error)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   /* Make sure we never delete a non EOSPAYG_
@@ -402,6 +404,8 @@ gboolean
 eospayg_efi_var_delete (const char  *name,
                         GError     **error)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   g_autofree char *tname = eospayg_efi_name (name);
@@ -442,6 +446,9 @@ efivarfs_exists (const char *name)
 gboolean
 eospayg_efi_var_exists (const char *name)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+
   return efi->exists (name);
 }
 
@@ -537,26 +544,64 @@ efivarfs_read (const char  *name,
 
 /* eospayg_efi_secureboot_active:
  *
- * Check if the system was booted via SecureBoot
+ * Check if the system was booted via real SecureBoot in result
  *
  * Returns: %TRUE if booted via SecureBoot, %FALSE otherwise
  */
 gboolean
 eospayg_efi_secureboot_active (void)
 {
-  g_autofree char *tname = full_efi_name (GLOBAL_VARIABLE_GUID, "SecureBoot");
-  g_autofree unsigned char *content = NULL;
-  int size;
-
   /* In test mode let's pretend secure boot is enabled */
   if (test_mode)
     return TRUE;
 
-  content = efivarfs_read (tname, &size, NULL);
-  if (!content || size != 1)
-    return FALSE;
+  g_return_val_if_fail (efi != NULL, FALSE);
 
-  return !!content[0];
+  g_autofree char *name = full_efi_name (GLOBAL_VARIABLE_GUID, "SecureBoot");
+
+  return eospayg_efi_var_read_fullname_boolean (name, NULL);
+}
+
+/* eospayg_efi_setupmode_active:
+ *
+ * Check if the system was booted with SetupMode
+ *
+ * Returns: %TRUE if booted via SetupMode, %FALSE otherwise
+ */
+gboolean
+eospayg_efi_setupmode_active (void)
+{
+  g_return_val_if_fail (efi != NULL, FALSE);
+
+  g_autofree char *name = full_efi_name (GLOBAL_VARIABLE_GUID, "SetupMode");
+
+  return eospayg_efi_var_read_fullname_boolean (name, NULL);
+}
+
+/* eospayg_efi_secureboot_setup_active:
+ *
+ * Check if the system was booted with SecureBoot Setup config.
+ *
+ * However, some systems such as OLPC LEAP W502 do no have the SecureBootSetup
+ * EFI variable.
+ *
+ * Returns: one of the enum. %EFIVAR_NOT_EXIST if SecureBootSetup variable does
+ *          not exist, %EFIVAR_TRUE if system boots with set SecureBootSetup,
+ *          %EFIVAR_FALSE otherwise
+ */
+enum efivar_states
+eospayg_efi_secureboot_setup_active (void)
+{
+  g_return_val_if_fail (efi != NULL, FALSE);
+  g_autofree char *name = full_efi_name (SECUREBOOT_SETUP_GUID,
+                                         "SecureBootSetup");
+  g_autoptr(GError) error = NULL;
+
+  gboolean flag = eospayg_efi_var_read_fullname_boolean (name, &error);
+  if (g_error_matches (error, G_IO_ERROR, G_IO_ERROR_NOT_FOUND))
+    return EFIVAR_NOT_EXIST;
+
+  return flag ? EFIVAR_TRUE : EFIVAR_FALSE;
 }
 
 /* eospayg_efi_securebootoption_disabled:
@@ -579,6 +624,8 @@ eospayg_efi_secureboot_active (void)
 gboolean
 eospayg_efi_securebootoption_disabled (void)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   g_autofree char *tname = full_efi_name (SBO_VARIABLE_GUID, "SecureBootOption");
   g_autofree unsigned char *content = NULL;
   int size;
@@ -609,6 +656,8 @@ eospayg_efi_securebootoption_disabled (void)
 int
 eospayg_efi_PK_size (void)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   g_autofree char *tname = full_efi_name (GLOBAL_VARIABLE_GUID, "PK");
   g_autofree unsigned char *content = NULL;
   int size;
@@ -618,6 +667,81 @@ eospayg_efi_PK_size (void)
 
   content = efivarfs_read (tname, &size, NULL);
   return size;
+}
+
+/* eospayg_efi_var_read_fullname:
+ * @name: Full name of variable
+ * @expected_size: Expected size of the variable contents, in bytes, or
+ *                 -1
+ * @size: Returns the number of bytes in the variable
+ * @error: return location for an error, or %NULL
+ *
+ * Read the contents of an EFI variable with its full name.
+ *
+ * If @expected_size is not -1, and the variable exists but does not
+ * have the expected size, %NULL is returned rather than the variable
+ * contents.
+ *
+ * Returns: (transfer full): A pointer to the variable contents, or %NULL on
+ *          error
+ */
+static void *
+eospayg_efi_var_read_fullname (const char  *name,
+                               int          expected_size,
+                               int         *size,
+                               GError     **error)
+{
+  g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (expected_size >= -1, FALSE);
+  g_return_val_if_fail (size != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
+  *size = -1;
+  if (post_pivot)
+    return glnx_null_throw (error, "Cannot read %s after pivot", name);
+
+  void *ret = efi->read (name, size, error);
+  if (ret &&
+      expected_size >= 0 &&
+      expected_size != *size)
+    {
+      g_clear_pointer (&ret, free);
+      return glnx_null_throw (error,
+                              "Variable data was %d bytes; expected %d bytes",
+                              *size,
+                              expected_size);
+    }
+  return ret;
+}
+
+/* eospayg_efi_var_read_fullname_boolean:
+ * @name: Full name of variable
+ * @error: return location for an error, or %NULL
+ *
+ * Read the contents of an EFI variable as a boolean with its full name.
+ *
+ * It only checks the first byte of the EFI variable's content.
+ *
+ * Returns: (transfer full): A boolean of the variable content, or %NULL on
+ *          error
+ */
+gboolean
+eospayg_efi_var_read_fullname_boolean (const char  *name,
+                                       GError     **error)
+{
+  g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
+  g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
+
+  g_autofree unsigned char *content = NULL;
+  int size;
+
+  content = eospayg_efi_var_read_fullname (name, -1, &size, error);
+  if (!content)
+    return FALSE;
+
+  return !!content[0];
 }
 
 /* eospayg_efi_var_read:
@@ -645,28 +769,15 @@ eospayg_efi_var_read (const char  *name,
                       int         *size,
                       GError     **error)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+  g_return_val_if_fail (name != NULL, FALSE);
   g_return_val_if_fail (expected_size >= -1, FALSE);
   g_return_val_if_fail (size != NULL, FALSE);
   g_return_val_if_fail (error == NULL || *error == NULL, FALSE);
 
   g_autofree char *tname = eospayg_efi_name (name);
 
-  *size = -1;
-  if (post_pivot)
-    return glnx_null_throw (error, "Cannot read %s after pivot", name);
-
-  void *ret = efi->read (tname, size, error);
-  if (ret &&
-      expected_size >= 0 &&
-      expected_size != *size)
-    {
-      g_clear_pointer (&ret, free);
-      return glnx_null_throw (error,
-                              "Variable data was %d bytes; expected %d bytes",
-                              *size,
-                              expected_size);
-    }
-  return ret;
+  return eospayg_efi_var_read_fullname (tname, expected_size, size, error);
 }
 
 static void
@@ -688,6 +799,8 @@ efivarfs_list_rewind (void)
 void
 eospayg_efi_list_rewind (void)
 {
+  g_return_if_fail (efi != NULL);
+
   efi->list_rewind ();
 }
 
@@ -731,6 +844,8 @@ efivarfs_list_next (void)
 const char *
 eospayg_efi_list_next (void)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   return efi->list_next ();
 }
 
@@ -755,8 +870,11 @@ test_clear (void)
  * Returns: %TRUE if all PAYG EFI variables could be cleared,
  *   %FALSE otherwise.
  */
-gboolean eospayg_efi_clear (void)
+gboolean
+eospayg_efi_clear (void)
 {
+  g_return_val_if_fail (efi != NULL, FALSE);
+
   if (!efi->clear)
     return FALSE;
 
@@ -808,7 +926,7 @@ eospayg_efi_init (enum eospayg_efi_flags   flags,
   glnx_autofd int local_efi_fd = -1;
   glnx_autofd int tmpfd = -1;
 
-  if (initted)
+  if (efi != NULL)
     return TRUE;
 
   if (flags & EOSPAYG_EFI_TEST_MODE)
