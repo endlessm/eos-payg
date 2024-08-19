@@ -37,7 +37,6 @@ gboolean eospayg_efi_var_exists (const char *name);
 gboolean eospayg_efi_secureboot_active (void);
 gboolean eospayg_efi_setupmode_active (void);
 enum efivar_states eospayg_efi_secureboot_setup_active (void);
-gboolean eospayg_efi_securebootoption_disabled (void);
 int eospayg_efi_PK_size (void);
 gboolean eospayg_efi_var_supported (void);
 void eospayg_efi_list_rewind (void);
