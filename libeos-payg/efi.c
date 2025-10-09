@@ -96,7 +96,7 @@ full_efi_name (const char *GUID, const char *name)
 static char *
 eospayg_efi_name (const char *name)
 {
-  g_autofree char *tname;
+  g_autofree char *tname = NULL;
 
   tname = g_strdup_printf ("EOSPAYG_%s", name);
 

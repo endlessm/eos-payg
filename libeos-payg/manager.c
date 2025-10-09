@@ -573,7 +573,7 @@ EpgProvider *
 epg_manager_new_finish (GAsyncResult  *result,
                         GError       **error)
 {
-  g_autoptr(GObject) source_object;
+  g_autoptr(GObject) source_object = NULL;
 
   source_object = g_async_result_get_source_object (result);
   g_assert (source_object != NULL);
