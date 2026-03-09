@@ -30,6 +30,30 @@ Description: Pay As You Go Daemon
  This package contains a pay as you go daemon for tracking computer usage and
  verification of pay as you go codes.
 
+Package: eos-payg-admin
+Section: misc
+Architecture: any
+Multi-arch: same
+Depends:
+ ${python3:Depends},
+ ${shlibs:Depends},
+Description: Pay As You Go administration tools
+  This package contains pay as you go administration tools, such as generating
+  new PAYG IDs & Keys
+
+Package: eos-payg-admin-tests
+Section: misc
+Architecture: any
+Depends:
+ eos-payg-admin (= ${binary:Version}),
+ ${misc:Depends},
+ ${python3:Depends},
+Description: Pay As You Go administration tools - tests
+ This package contains pay as you go administration tools, such as generating
+ new PAYG IDs & Keys.
+ .
+ This package contains unit tests for the administration tools.
+
 Package: eos-payg-generate
 Section: misc
 Architecture: any
