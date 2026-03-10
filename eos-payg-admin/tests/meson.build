@@ -9,7 +9,7 @@ envs = test_env + [
 ]
 
 test_programs = [
-  'test_gen_paygid.py',
+  'test-eos-gen-paygid.py',
 ]
 
 foreach program: test_programs
@@ -33,7 +33,7 @@ foreach program: test_programs
       install_mode: 'rwxr-xr-x',
     )
     install_data(
-      files('../gen_paygid.py'),
+      files('../eos-gen-paygid'),
       install_dir: installed_tests_execdir,
     )
   endif

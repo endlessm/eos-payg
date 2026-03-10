@@ -1,9 +1,25 @@
 #!/usr/bin/env python3
 
+import importlib.machinery
+import importlib.util
 import json
+import os
+import sys
 import unittest
-from io import BytesIO
 from unittest.mock import MagicMock, patch, call
+
+# Load eos-gen-paygid as a module; the filename has no .py extension and
+# contains a dash so it cannot be imported directly.
+_here = os.path.dirname(os.path.abspath(__file__))
+_script = os.path.join(_here, '..', 'eos-gen-paygid')
+if not os.path.exists(_script):
+    # Installed-tests layout: script lives alongside the test file.
+    _script = os.path.join(_here, 'eos-gen-paygid')
+_loader = importlib.machinery.SourceFileLoader('gen_paygid', _script)
+_spec = importlib.util.spec_from_loader('gen_paygid', _loader)
+_mod = importlib.util.module_from_spec(_spec)
+sys.modules['gen_paygid'] = _mod
+_loader.exec_module(_mod)
 
 from gen_paygid import GenPAYGUnits
 
