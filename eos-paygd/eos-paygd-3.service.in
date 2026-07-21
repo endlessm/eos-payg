@@ -1,14 +1,16 @@
 [Unit]
 Description=Pay As You Go Daemon
 Documentation=man:eos-paygd(8)
-# Only run on Phase 2 PAYG systems without kernel parameter eospayg
-ConditionKernelCommandLine=!eospayg
+# Only run on Phase 2 PAYG systems with kernel parameter eospayg on non-x86_64
+ConditionKernelCommandLine=eospayg
+ConditionArchitecture=!x86-64
+ConditionPathExists=!/sys/firmware/efi
 Before=systemd-user-sessions.service
 
 [Service]
 ExecStart=@libexecdir@/eos-paygd1
-Type=dbus
-BusName=com.endlessm.Payg1
+# Type=dbus using the same BusName would conflict to eos-paygd.service
+Type=notify
 NotifyAccess=main
 # We must be root to make the eMMC boot partition writable
 User=root

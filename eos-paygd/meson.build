@@ -55,6 +55,13 @@ configure_file(
   install_dir: systemdsystemunitdir,
   configuration: config,
 )
+# eos-paygd service for Phase 2 PAYG systemswith kernel parameter eospayg on non-x86_64
+configure_file(
+  input: 'eos-paygd-3.service.in',
+  output: 'eos-paygd-3.service',
+  install_dir: systemdsystemunitdir,
+  configuration: config,
+)
 # eos-paygd tmpfile for maintaining logs directory
 install_data(
   'eos-paygd.tmpfile',
